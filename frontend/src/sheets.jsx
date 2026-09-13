@@ -12,6 +12,7 @@ import { t, dateLocale, instrFor, exerciseNameFor, getLang, INSTR_LANGS } from '
 import { nav } from './lib/nav.js'
 import { buildStarterPlan, starterPlanDays, starterPlanOptions } from './lib/starter.js'
 import Media, { Thumb } from './components/Media.jsx'
+import PlateCalculatorSheet from './components/PlateCalculatorSheet.jsx'
 import LineChart from './components/LineChart.jsx'
 import Stepper from './components/Stepper.jsx'
 import Icon from './components/Icon.jsx'
@@ -591,6 +592,8 @@ function BarWeightSheet({ exId, close }) {
   </>
 }
 export const barWeightSheet = exId => ui().openSheet(close => <BarWeightSheet exId={exId} close={close} />)
+export const plateCalculatorSheet = (ex, initialWeight, onWeightChange) =>
+  ui().openSheet(close => <PlateCalculatorSheet ex={ex} initialWeight={initialWeight} onWeightChange={onWeightChange} close={close} />)
 
 /* ============================ exercise detail ============================ */
 // Estimated 1RM for one exercise (issue #18): what the log already implies, plus a calculator

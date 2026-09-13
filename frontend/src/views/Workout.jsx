@@ -5,15 +5,16 @@ import { workoutControls } from '../lib/workout-controls.js'
 import { useUI } from '../store/useUI.js'
 import { exOr } from '../lib/exercises.js'
 import { usesBar, barWeightFor, plateSplit } from '../lib/bar.js'
-import { effectiveRoutine, lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, freestyleConfig, defaultConfig, setsDoneActive, supersetUnits, unitOf, setLabel, modeOf, isBw, isPerSide, sideReps, repStep, EFFORT, effortOf, stepEffort, capEffort, cascadeWeight, insertWarmupRow, removeRowAt, pairAdjacent, unpairSuperset, cleanupSg, applyIntensifierPlan, pinnedNoteFor, exNoteFor } from '../lib/history.js'
+import { effectiveRoutine, lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, freestyleConfig, defaultConfig, setsDoneActive, supersetUnits, unitOf, setLabel, modeOf, isBw, isPerSide, sideReps, repStep, EFFORT, effortOf, stepEffort, capEffort, cascadeWeight, insertWarmupRow, removeRowAt, pairAdjacent, unpairSuperset, cleanupSg, applyIntensifierPlan, pinnedNoteFor, exNoteFor, generateWarmupPyramid } from '../lib/history.js'
 import { fmtNum, fmtDate, todayISO, exCount, DAYN } from '../lib/format.js'
 import { beep, vibrate } from '../lib/sound.js'
 import { t, exerciseNameFor } from '../lib/i18n.js'
 import { api } from '../lib/api.js'
 import { insertionIndexAfterCurrentUnit, nextUnfinishedUnit, setProgressHighWater, supersetFlowStep, restAfterSet, restOnRecheck, restSecFor } from '../lib/supersetFlow.js'
 import Media from '../components/Media.jsx'
-import { startFlow, exercisePicker, exConfigSheet, exerciseDetailSheet, finishWorkout, workoutCompleteSheet, confirmSheet, exerciseNoteSheet, sessionNoteSheet, swapActiveWorkoutExercise, barWeightSheet, menuSheet, effortPickerSheet, exerciseHistorySheet } from '../sheets.jsx'
+import { startFlow, exercisePicker, exConfigSheet, exerciseDetailSheet, finishWorkout, workoutCompleteSheet, confirmSheet, exerciseNoteSheet, sessionNoteSheet, swapActiveWorkoutExercise, barWeightSheet, plateCalculatorSheet, menuSheet, effortPickerSheet, exerciseHistorySheet } from '../sheets.jsx'
 import { effortColor } from '../lib/effort.js'
+import { estimate1RM, best1RM } from '../lib/onerm.js'
 import Icon from '../components/Icon.jsx'
 import { Button, Check, NumberField } from '../components/ui.jsx'
 import { nextPrescription, applyPrescription, defaultIncrement, weightIncrement, stepWeight } from '../lib/progression.js'
@@ -77,7 +78,7 @@ function Elapsed({ start }) {
 }
 
 /* ---------- one exercise block (reps: weight×reps · time: a held duration · cardio: duration+speed) ---------- */
-function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemoveSet, onAddWarmup, onRemoveSetAt, onStartTimed, onPairPrev, onPairNext, onSetRowRef, onProgressionSettings, onSwap, onMoveUp, onMoveDown, canMoveUp, canMoveDown, onRemoveExercise, busy }) {
+function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemoveSet, onAddWarmup, onAutoWarmups, onRemoveSetAt, onStartTimed, onPairPrev, onPairNext, onSetRowRef, onProgressionSettings, onSwap, onMoveUp, onMoveDown, canMoveUp, canMoveDown, onRemoveExercise, busy }) {
   const S = useStore(s => s.S)
   const update = useStore(s => s.update)
   const working = useUI(s => s.work)
@@ -123,6 +124,8 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
   const pinnedNote = entry.sets.some(s => !s.done) ? pinnedNoteFor(S, entry.id) : null
   // The number is the heaviest logged set, or the working weight you kept.
   const best = cardio ? 0 : Math.max(bestWeightFor(S, entry.id), (S.exWeights[entry.id] || {}).w || 0)
+  const priorBest1RM = (!cardio && mode === 'reps') ? (best1RM(S, entry.id)?.est || 0) : 0
+  const lastWorkSets = (!cardio && mode === 'reps' && last?.sets) ? last.sets.filter(x => !isWarmupRow(x)) : []
   // What the progression policy decided for this session, and why (issue #17). Computed when
   // the session was built so the reason matches the numbers already in the rows.
   const plan = entry.plan
@@ -188,7 +191,7 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
     const nextW = entry.sets.find(s => !s.done)?.w
     const refW = nextW > 0 ? nextW : Math.max(0, ...entry.sets.map(s => s.w || 0))
     const split = plateSplit(refW, bar)
-    return { bar, text: t('Bar {0}', fmtNum(bar) + ' ' + S.unit) + (split != null ? ' · ' + t('{0} per side', fmtNum(split) + ' ' + S.unit) : '') }
+    return { bar, refW, text: t('Bar {0}', fmtNum(bar) + ' ' + S.unit) + (split != null ? ' · ' + t('{0} per side', fmtNum(split) + ' ' + S.unit) : '') }
   })() : null
   const openMore = () => menuSheet({
     title: exerciseNameFor(ex),
@@ -197,7 +200,12 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
       { icon: 'info', label: t('Details'), onClick: () => exerciseDetailSheet(ex) },
       { icon: 'history', label: t('History'), sub: last ? t('Last time') + ' ' + fmtDate(last.d) : undefined, onClick: () => exerciseHistorySheet(entry.id) },
       onProgressionSettings && { icon: 'chartLine', label: t('Progression settings'), sub: guidance ? t(guidance.policyLabel) : undefined, onClick: onProgressionSettings },
+      barInfo && { icon: 'dumbbell', label: t('Plate calculator & bar'), sub: barInfo.text, onClick: () => plateCalculatorSheet(ex, barInfo.refW, nw => {
+        const targetIdx = entry.sets.findIndex(s => !s.done)
+        if (targetIdx >= 0) onField(targetIdx, 'w', nw)
+      }) },
       barInfo && { icon: 'barbell', label: t('Bar weight'), sub: barInfo.text, onClick: () => barWeightSheet(entry.id) },
+      mode === 'reps' && onAutoWarmups && { icon: 'flame', label: t('Smart warm-up pyramid'), sub: t('Auto ramp up to working weight'), onClick: onAutoWarmups },
       { icon: 'flame', label: t('Add warm-up set'), onClick: onAddWarmup },
       onPairPrev && { icon: 'link', label: t('Make superset with previous'), onClick: onPairPrev },
       onPairNext && { icon: 'link', label: t('Make superset with next'), onClick: onPairNext },
@@ -292,9 +300,18 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
         (first undone set; the heaviest row once everything is checked). The logged number
         stays the total — this chip is the split, and tapping it edits the bar's own weight
         (S.barWeights, per exercise) mid-workout. Weight ≤ bar leaves just the bar. */}
-    {barInfo && <div className="small dim" style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
-      <Icon name="dumbbell" style={{ fontSize: 12 }} />{barInfo.text}
-    </div>}
+    {barInfo && <button type="button" className="plate-calc-trigger"
+      onClick={() => plateCalculatorSheet(ex, barInfo.refW, nw => {
+        const targetIdx = entry.sets.findIndex(s => !s.done)
+        if (targetIdx >= 0) onField(targetIdx, 'w', nw)
+      })}
+      aria-label={t('Open barbell plate calculator')}>
+      <span className="plate-trigger-left">
+        <Icon name="dumbbell" style={{ fontSize: 13 }} />
+        <span>{barInfo.text}</span>
+      </span>
+      <span className="plate-trigger-badge"><Icon name="plate" style={{ fontSize: 11, marginRight: 4 }} />{t('Plates')}</span>
+    </button>}
     {guidance && <button type="button" className={'progline' + (plan.kind === 'deload' ? ' warn' : '')}
       aria-label={t('Open progression settings')} onClick={onProgressionSettings}>
       <Icon name={plan.kind === 'up' ? 'arrowUp' : plan.kind === 'deload' ? 'arrowDown' : 'lightbulb'} />
@@ -309,11 +326,24 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
         const isFirstWarmup = warm && !warmBefore
         // Numbering restarts per phase: with two warm-ups the first work set reads 1, not 3.
         const phaseNum = entry.sets.slice(0, i + 1).filter(x => isWarmupRow(x) === warm).length
+        const workIdx = !warm ? entry.sets.slice(0, i).filter(x => !isWarmupRow(x)).length : -1
+        const prevSet = (workIdx >= 0 && lastWorkSets[workIdx]) ? lastWorkSets[workIdx] : null
+
+        const isWeightPR = !warm && mode === 'reps' && s.done && s.w > 0 && best > 0 && s.w > best
+        const est1RM = (!warm && mode === 'reps' && s.w > 0 && s.r > 0) ? estimate1RM(s.w, s.r) : 0
+        const is1RMPR = !warm && mode === 'reps' && s.done && est1RM > 0 && priorBest1RM > 0 && est1RM > priorBest1RM
+        const isPR = isWeightPR || is1RMPR
+
+        const wDelta = prevSet ? Math.round(((Number(s.w) || 0) - (Number(prevSet.w) || 0)) * 100) / 100 : 0
+        const rDelta = prevSet ? ((Number(s.r) || 0) - (Number(prevSet.r) || 0)) : 0
+
         return <div key={i}>
           {isFirstWarmup && <div className="setph">{t('Warm-up')}</div>}
           {!warm && warmBefore && <div className="setsep" />}
-          <div ref={el => onSetRowRef?.(i, el)} className={'setrow' + (s.done ? ' done' : '') + (col3 ? ' eff3' : '')}>
-            <button type="button" className="n" aria-label={t('Set {0}', phaseNum)} title={t('More')} onClick={() => openSetMenu(s, i)}>{phaseNum}</button>
+          <div ref={el => onSetRowRef?.(i, el)} className={'setrow' + (s.done ? ' done' : '') + (isPR ? ' is-pr' : '') + (col3 ? ' eff3' : '')}>
+            <button type="button" className={'n' + (isPR ? ' pr-star' : '')} aria-label={t('Set {0}', phaseNum)} title={t('More')} onClick={() => openSetMenu(s, i)}>
+              {isPR ? <Icon name="trophy" style={{ fontSize: 11 }} /> : phaseNum}
+            </button>
             {cell(s, i, col1, 'w')}
             {col2 && cell(s, i, col2, 'r')}
             {col3 && effortCell(s, i, col3)}
@@ -323,6 +353,45 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
               onClick={() => onStartTimed(i)}><Icon name="play" /></button>}
             <Check checked={s.done} onChange={() => onToggle(i)} />
           </div>
+          {!warm && mode === 'reps' && (prevSet || isPR) && (
+            <div className="set-meta-row">
+              {!s.done && prevSet && (
+                <span className="set-ghost-pill">
+                  <Icon name="history" style={{ fontSize: 10 }} />
+                  <span>{t('Last:')} <b>{fmtNum(prevSet.w)} {S.unit} × {prevSet.r}</b></span>
+                </span>
+              )}
+              {s.done && isPR && (
+                <span className="set-pr-tag animate-pop">
+                  <Icon name="trophy" style={{ fontSize: 11 }} />
+                  <b>{isWeightPR ? t('Weight PR!') : t('1RM PR!')}</b>
+                  {wDelta > 0 && <span className="pr-delta">+{fmtNum(wDelta)} {S.unit}</span>}
+                </span>
+              )}
+              {s.done && !isPR && prevSet && (
+                wDelta > 0 ? (
+                  <span className="set-overload-tag pos">
+                    <Icon name="arrowUp" style={{ fontSize: 10 }} />
+                    <span>+{fmtNum(wDelta)} {S.unit} {t('vs last')}</span>
+                  </span>
+                ) : (wDelta === 0 && rDelta > 0) ? (
+                  <span className="set-overload-tag pos">
+                    <Icon name="arrowUp" style={{ fontSize: 10 }} />
+                    <span>+{rDelta} {rDelta === 1 ? t('rep') : t('reps')} {t('vs last')}</span>
+                  </span>
+                ) : (wDelta === 0 && rDelta === 0) ? (
+                  <span className="set-overload-tag match">
+                    <Icon name="check" style={{ fontSize: 10 }} />
+                    <span>{t('Matched')} ({fmtNum(prevSet.w)} {S.unit} × {prevSet.r})</span>
+                  </span>
+                ) : (
+                  <span className="set-overload-tag dim">
+                    <span>{t('Last:')} {fmtNum(prevSet.w)} {S.unit} × {prevSet.r}</span>
+                  </span>
+                )
+              )}
+            </div>
+          )}
           {/* Drop-sets and rest-pause bursts extend this same row — no long rest, no new set.
               A planned exercise arrives with these already filled in (applyIntensifierPlan);
               every value here is just as editable as the main row's own weight/reps. */}
@@ -351,11 +420,19 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
         </div>
       })}
       <div style={{ height: 8 }} />
-      {wc.setShortcuts ? <div className="row" style={{ flexWrap: 'wrap' }}>
+      {wc.setShortcuts ? <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
+        {mode === 'reps' && onAutoWarmups && (
+          <Button size="sm" icon="flame" variant="tinted" onClick={onAutoWarmups} title={t('Smart warm-up pyramid')}>{t('Auto warm-ups')}</Button>
+        )}
         <Button size="sm" icon="flame" onClick={onAddWarmup}>{t('Add warm-up set')}</Button>
         <Button size="sm" icon="minus" disabled={entry.sets.length <= 1} onClick={onRemoveSet}>{t('Remove set')}</Button>
         <Button size="sm" icon="plus" onClick={onAddSet}>{t('Add set')}</Button>
-      </div> : <Button size="sm" icon="plus" onClick={onAddSet}>{t('Add set')}</Button>}
+      </div> : <div className="row" style={{ gap: 6 }}>
+        <Button size="sm" icon="plus" onClick={onAddSet}>{t('Add set')}</Button>
+        {mode === 'reps' && onAutoWarmups && (
+          <Button size="sm" icon="flame" variant="tinted" onClick={onAutoWarmups} title={t('Smart warm-up pyramid')}>{t('Auto warm-ups')}</Button>
+        )}
+      </div>}
       {entry.sets.length > 0 && entry.sets.every(s => s.done) && (
         <div className="ex-completed-banner">
           <Icon name="check" />
@@ -488,6 +565,28 @@ function ActiveWorkout() {
     const m = modeOf({ ...(e.target || {}), id: e.id })
     e.sets = insertWarmupRow(e.sets, m, e.target || {}, defaultIncrement(e.id, S.unit))
   })
+  const autoWarmups = idx => mutEntry(idx, e => {
+    const m = modeOf({ ...(e.target || {}), id: e.id })
+    if (m !== 'reps') return
+    const firstWork = e.sets.find(s => !isWarmupRow(s))
+    const workWeight = firstWork ? (Number(firstWork.w) || 0) : 0
+    if (workWeight <= 0) {
+      e.sets = insertWarmupRow(e.sets, m, e.target || {}, defaultIncrement(e.id, S.unit))
+      useUI.getState().toast(t('Added warm-up set'))
+      return
+    }
+    const bar = usesBar(exOr(e.id)) ? barWeightFor(S, e.id) : 0
+    const step = weightIncrement({ ...(e.target || {}), id: e.id }, S.unit)
+    const generated = generateWarmupPyramid(workWeight, bar, step)
+    if (!generated.length) {
+      useUI.getState().toast(t('Weight too low for warm-up pyramid'))
+      return
+    }
+    const doneWarmups = e.sets.filter(s => isWarmupRow(s) && s.done)
+    const workSets = e.sets.filter(s => !isWarmupRow(s))
+    e.sets = [...doneWarmups, ...generated, ...workSets]
+    useUI.getState().toast(t('Generated {0} warm-up sets', generated.length))
+  })
   const removeSetAt = (idx, i) => mutEntry(idx, e => { e.sets = removeRowAt(e.sets, i) })
   const pairAt = (first, second) => update(s => {
     s.active.entries = pairAdjacent(s.active.entries, first, second)
@@ -534,6 +633,7 @@ function ActiveWorkout() {
     onAddSet: () => addSet(idx),
     onRemoveSet: () => removeSet(idx),
     onAddWarmup: () => addWarmup(idx),
+    onAutoWarmups: () => autoWarmups(idx),
     onRemoveSetAt: i => removeSetAt(idx, i),
     onStartTimed: i => startTimed(idx, i),
     onProgressionSettings: () => openProgressionSettings(idx),

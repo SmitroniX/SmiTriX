@@ -63,6 +63,7 @@ vi.mock('../sheets.jsx', () => ({
   confirmSheet: vi.fn(),
   swapActiveWorkoutExercise: vi.fn(),
   barWeightSheet: vi.fn(),
+  plateCalculatorSheet: vi.fn(),
   exerciseNoteSheet: vi.fn(),
   sessionNoteSheet: vi.fn(),
 }))

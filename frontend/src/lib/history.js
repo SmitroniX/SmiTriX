@@ -641,6 +641,46 @@ export function insertWarmupRow(rows, mode, target, step = 2.5) {
   return next
 }
 
+/**
+ * Automatically generates a progressive ramp of warm-up sets up to working weight.
+ */
+export function generateWarmupPyramid(workWeight, barWeight = 20, step = 2.5) {
+  const target = Math.max(0, Number(workWeight) || 0)
+  const bar = Math.max(0, Number(barWeight) || 0)
+  if (target <= 0) return []
+
+  // If working weight is less than or equal to bar weight, 1 warm-up set with bar
+  if (target <= bar || bar <= 0) {
+    return [{ w: target, r: 10, done: false, phase: 'warmup', warmup: true }]
+  }
+
+  const sets = []
+  // 1. Empty bar (0% addition)
+  sets.push({ w: bar, r: 10, done: false, phase: 'warmup', warmup: true })
+
+  // 2. ~50% ramp
+  const w50 = Math.max(bar + step, Math.round((bar + (target - bar) * 0.45) / step) * step)
+  if (w50 > bar && w50 < target) {
+    sets.push({ w: w50, r: 5, done: false, phase: 'warmup', warmup: true })
+  }
+
+  // 3. ~72% ramp
+  const w72 = Math.max((sets[sets.length - 1]?.w || bar) + step, Math.round((bar + (target - bar) * 0.72) / step) * step)
+  if (w72 > (sets[sets.length - 1]?.w || bar) && w72 < target) {
+    sets.push({ w: w72, r: 3, done: false, phase: 'warmup', warmup: true })
+  }
+
+  // 4. ~88% CNS primer if target is significantly heavier
+  if (target >= bar + 30) {
+    const w88 = Math.max((sets[sets.length - 1]?.w || bar) + step, Math.round((bar + (target - bar) * 0.88) / step) * step)
+    if (w88 > (sets[sets.length - 1]?.w || bar) && w88 < target) {
+      sets.push({ w: w88, r: 1, done: false, phase: 'warmup', warmup: true })
+    }
+  }
+
+  return sets
+}
+
 /** Remove the row at `i`, never emptying the entry below one row. */
 export function removeRowAt(rows, i) {
   if (rows.length <= 1) return rows.slice()

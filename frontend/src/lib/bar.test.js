@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { BAR_EQ, DEFAULT_BAR_KG, DEFAULT_BAR_LB, usesBar, defaultBarWeight, barWeightFor, hasBarOverride, plateSplit } from './bar.js'
+import { BAR_EQ, DEFAULT_BAR_KG, DEFAULT_BAR_LB, usesBar, defaultBarWeight, barWeightFor, hasBarOverride, plateSplit, calculatePlates } from './bar.js'
 import { EXDB } from './exercises-data.js'
 
 const idOf = eq => EXDB.find(e => e.eq === eq).id
@@ -92,3 +92,34 @@ describe('plateSplit', () => {
     expect(plateSplit(undefined, undefined)).toBe(null)
   })
 })
+
+describe('calculatePlates', () => {
+  test('calculates plates correctly in kg', () => {
+    expect(calculatePlates(50, 'kg')).toEqual([
+      { weight: 25, color: '#e53935', label: '25', count: 2 }
+    ])
+    expect(calculatePlates(40, 'kg')).toEqual([
+      { weight: 25, color: '#e53935', label: '25', count: 1 },
+      { weight: 15, color: '#fbc02d', label: '15', count: 1 }
+    ])
+    expect(calculatePlates(42.5, 'kg')).toEqual([
+      { weight: 25, color: '#e53935', label: '25', count: 1 },
+      { weight: 15, color: '#fbc02d', label: '15', count: 1 },
+      { weight: 2.5, color: '#37474f', label: '2.5', count: 1 }
+    ])
+    expect(calculatePlates(0, 'kg')).toEqual([])
+  })
+
+  test('calculates plates correctly in lb', () => {
+    expect(calculatePlates(90, 'lb')).toEqual([
+      { weight: 45, color: '#1e88e5', label: '45', count: 2 }
+    ])
+    expect(calculatePlates(77.5, 'lb')).toEqual([
+      { weight: 45, color: '#1e88e5', label: '45', count: 1 },
+      { weight: 25, color: '#43a047', label: '25', count: 1 },
+      { weight: 5, color: '#eceff1', label: '5', count: 1 },
+      { weight: 2.5, color: '#90a4ae', label: '2.5', count: 1 }
+    ])
+  })
+})
+

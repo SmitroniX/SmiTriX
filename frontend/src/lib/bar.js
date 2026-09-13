@@ -54,3 +54,44 @@ export function plateSplit(total, bar) {
   if (!(total > 0) || !(bar > 0) || total <= bar) return null
   return Math.round(((total - bar) / 2) * 100) / 100
 }
+
+export const STANDARD_PLATES_KG = [
+  { weight: 25, color: '#e53935', label: '25' },
+  { weight: 20, color: '#1e88e5', label: '20' },
+  { weight: 15, color: '#fbc02d', label: '15' },
+  { weight: 10, color: '#43a047', label: '10' },
+  { weight: 5, color: '#eceff1', label: '5' },
+  { weight: 2.5, color: '#37474f', label: '2.5' },
+  { weight: 1.25, color: '#90a4ae', label: '1.25' },
+  { weight: 0.5, color: '#78909c', label: '0.5' }
+]
+
+export const STANDARD_PLATES_LB = [
+  { weight: 45, color: '#1e88e5', label: '45' },
+  { weight: 35, color: '#fbc02d', label: '35' },
+  { weight: 25, color: '#43a047', label: '25' },
+  { weight: 10, color: '#37474f', label: '10' },
+  { weight: 5, color: '#eceff1', label: '5' },
+  { weight: 2.5, color: '#90a4ae', label: '2.5' }
+]
+
+/**
+ * Calculates optimal plate inventory needed per side.
+ */
+export function calculatePlates(perSide, unit = 'kg') {
+  if (!(perSide > 0)) return []
+  const available = unit === 'lb' ? STANDARD_PLATES_LB : STANDARD_PLATES_KG
+  let remaining = Math.round(perSide * 100) / 100
+  const result = []
+
+  for (const plate of available) {
+    if (remaining <= 0) break
+    const count = Math.floor(remaining / plate.weight)
+    if (count > 0) {
+      result.push({ ...plate, count })
+      remaining = Math.round((remaining - count * plate.weight) * 100) / 100
+    }
+  }
+  return result
+}
+

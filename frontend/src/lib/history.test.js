@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { nextTrainingDay, modeOf, isTimed, fmtSec, setLabel, defaultConfig, buildSets, freestyleConfig, exLine, workoutVolume, bestWeightFor, bestWeightForEntry, effortOf, stepEffort, capEffort, isBw, isPerSide, sideReps, repStep, cascadeWeight, insertWarmupRow, removeRowAt, workSetsDone, pairAdjacent, unpairSuperset, supersetUnits, applyIntensifierPlan, pinnedNoteFor, exNoteFor } from './history.js'
+import { nextTrainingDay, modeOf, isTimed, fmtSec, setLabel, defaultConfig, buildSets, freestyleConfig, exLine, workoutVolume, bestWeightFor, bestWeightForEntry, effortOf, stepEffort, capEffort, isBw, isPerSide, sideReps, repStep, cascadeWeight, insertWarmupRow, removeRowAt, workSetsDone, pairAdjacent, unpairSuperset, supersetUnits, applyIntensifierPlan, pinnedNoteFor, exNoteFor, generateWarmupPyramid } from './history.js'
 import { EXDB } from './exercises.js'
 
 // Real ids out of the shipped catalogue, so the body-part fallback is exercised for real.
@@ -1107,3 +1107,23 @@ describe('nextTrainingDay', () => {
     expect(nextTrainingDay(off, TUE)).toMatchObject({ weekday: 5 })
   })
 })
+
+describe('generateWarmupPyramid', () => {
+  it('generates a 4-step warm-up ramp for a 100 kg working weight', () => {
+    const ramp = generateWarmupPyramid(100, 20, 2.5)
+    expect(ramp.length).toBe(4)
+    expect(ramp[0]).toEqual({ w: 20, r: 10, done: false, phase: 'warmup', warmup: true })
+    expect(ramp[1].w).toBe(55)
+    expect(ramp[1].r).toBe(5)
+    expect(ramp[2].w).toBe(77.5)
+    expect(ramp[2].r).toBe(3)
+    expect(ramp[3].w).toBe(90)
+    expect(ramp[3].r).toBe(1)
+  })
+
+  it('handles lighter weights below bar weight safely', () => {
+    const ramp = generateWarmupPyramid(15, 20, 2.5)
+    expect(ramp).toEqual([{ w: 15, r: 10, done: false, phase: 'warmup', warmup: true }])
+  })
+})
+
