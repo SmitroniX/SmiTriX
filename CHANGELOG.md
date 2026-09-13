@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.3.8 — 2026-09-13
+
+Interactive tutorial & onboarding guide, contextual help buttons, and user experience enhancements.
+
+- 🧭 **Interactive in-app tutorial & onboarding guide**:
+  - Guided step-by-step visual tour covering all essential features:
+    - **Welcome**: Quick intro to SmiTriX private, offline-first workout tracking.
+    - **Plan Your Routine**: Building splits, supersets, target reps, and progression goals.
+    - **Log Workouts & Rest Timers**: Real-time logging with live rest timer, RIR picker, plate calculator, and history.
+    - **Exercise Library**: 1,300+ exercises with target muscle maps, animated guides, and instructions.
+    - **Track Progress & 1RM**: Personal record milestones, fatigue monitoring, and volume trends.
+  - Actionable finish step with direct shortcuts: "Browse exercises", "Create a workout plan", or "Explore on your own".
+  - Quick-start onboarding card on the Home dashboard for first-time users.
+  - Contextual help buttons (`?` icon) on Home, Plan, and Workout headers, plus a permanent "Launch App Guide" button in Settings.
+  - Fully accessible dialog navigation with keyboard support, next/previous buttons, step indicator pills, and backdrop dismiss.
+- 🧪 **Testing & reliability**:
+  - Added full test suite covering tutorial step navigation, skip actions, and dismissal logic.
+  - All 1,219 frontend tests and 152 API tests passing green.
+
 ## v1.3.7 — 2026-09-06
 
 Official SmiTriX logo upscale, enhanced in-app release update flow, and CI/CD hardening.
