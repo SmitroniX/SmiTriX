@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.3.9 — 2026-09-13
+
+HD workout visual motion guides, blur reduction & edge contrast rendering, interactive form controls, and workout prefetching.
+
+- 🎬 **HD Workout Visual Motion & Blur Fix**:
+  - Fixed motionless exercise animations by transitioning from relative paths to high-availability multi-CDN endpoints (`cdn.jsdelivr.net` primary with GitHub raw failover).
+  - Eliminated blur and pixelation on high-DPI screens using `-webkit-optimize-contrast` and `crisp-edges` rendering with balanced contrast boost.
+  - Calibrated workout exercise containers to 240px–250px, preventing extreme bilinear enlargement while giving more room to workout sets.
+  - Added modern radial framed studio stage eliminating stark white glare in dark mode.
+  - Added live animated indicator pill (`Motion HD` / `Paused`) with pulsing status dot.
+- 🎯 **Interactive HD Motion & Form Guide**:
+  - Upgraded full-screen Motion Guide with Loop Motion vs Setup Frame mode toggling.
+  - Added slow-mo form cues, breathing cadence tips, and interactive step-by-step technique highlighting.
+  - Automatic multi-mirror failover and retry resilience.
+- ⚡ **Instant Workout Prefetching**:
+  - Background prefetching for active and upcoming workout exercises ensuring zero loading delay when advancing sets.
+- 📲 **Android App Updater Hardening**:
+  - Seamless in-app update experience with native download streaming and browser fallback.
+
 ## v1.3.8 — 2026-09-13
 
 Interactive tutorial & onboarding guide, contextual help buttons, and user experience enhancements.
