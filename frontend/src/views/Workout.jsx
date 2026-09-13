@@ -460,11 +460,13 @@ function ActiveWorkout() {
   // Clearing an optional field drops the key rather than storing null, so a set only carries
   // what was actually logged — in the session, in history and in a backup.
   const setField = (idx, i, field, v) => mutEntry(idx, e => {
+    const prevWeight = e.sets[i]?.w
     if (v == null) delete e.sets[i][field]; else e.sets[i][field] = v
     // Changing a weight cascades to the following sets of the same phase, so a
     // heavier bar carries through the set instead of retyping every row.
-    if (field === 'w') {
-      e.sets = cascadeWeight(e.sets, i, v)
+    // Preserves pyramid and varied weights that differ from the previous load.
+    if (field === 'w' && wc.cascadeWeight !== false) {
+      e.sets = cascadeWeight(e.sets, i, v, { prevWeight, preserveVaried: true })
     }
   })
   const modeAt = idx => modeOf({ ...(A.entries[idx].target || {}), id: A.entries[idx].id })

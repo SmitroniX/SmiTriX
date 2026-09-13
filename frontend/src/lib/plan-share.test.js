@@ -24,6 +24,23 @@ describe('what survives a shared plan', () => {
     expect(roundTrip({ warmupSets: 3 }).warmupSets).toBe(3)
   })
 
+  it('carries custom per-set targets', () => {
+    const custom = roundTrip({
+      customSets: true,
+      targetSets: [
+        { r: 12, w: 10 },
+        { r: 10, w: 12.5 },
+        { r: 8, w: 15 }
+      ]
+    })
+    expect(custom.customSets).toBe(true)
+    expect(custom.targetSets).toEqual([
+      { r: 12, w: 10 },
+      { r: 10, w: 12.5 },
+      { r: 8, w: 15 }
+    ])
+  })
+
   it('carries progression exclusion on a routine through export and merge', () => {
     const source = stateWith({})
     source.routines[0].excludeFromProgression = true

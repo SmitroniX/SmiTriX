@@ -25,7 +25,7 @@ import { importHevyData, HevyApiError, HEVY_DEV_SETTINGS, mergeHevyRoutines } fr
 import { buildPlanBundle, parsePlan, mergePlan, printPlan } from './lib/plan-share.js'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from './lib/onerm.js'
 import { exerciseHistory } from './lib/exercise-history.js'
-import { nextPrescription, applyPrescription, policyFor, defaultIncrement, POLICIES_FOR, POLICY_NAME, POLICY_DESC, MAX_BW_SETS, weightIncrement } from './lib/progression.js'
+import { nextPrescription, applyPrescription, policyFor, defaultIncrement, POLICIES_FOR, POLICY_NAME, POLICY_DESC, MAX_BW_SETS, weightIncrement, stepWeight } from './lib/progression.js'
 import { normalizeRepRange } from './lib/rep-range.js'
 import { MOBILE, shareExport } from './lib/mobile.js'
 import { buildCompletedWorkout } from './lib/finish-workout.js'
@@ -1102,9 +1102,16 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine, initial }) {
   const seed = existing || initial || defaultConfig(ex.id)
   const [c, setC] = useState(() => {
     const cfg = { ...seed }
-    return policyFor({ ...cfg, id: ex.id }, routine, modeOf({ ...cfg, id: ex.id })) === 'double'
-      ? { ...cfg, ...normalizeRepRange(cfg.reps, cfg.repsMin, isPerSide(cfg) ? 2 : 1) }
-      : cfg
+    const hasCustom = !!(cfg.customSets || (Array.isArray(cfg.targetSets) && cfg.targetSets.length > 0))
+    let targetSets = null
+    if (hasCustom && Array.isArray(cfg.targetSets) && cfg.targetSets.length > 0) {
+      targetSets = cfg.targetSets.map(s => ({ ...s }))
+    }
+    const withCustom = hasCustom ? { customSets: true, targetSets: targetSets || [] } : {}
+    const base = { ...cfg, ...withCustom }
+    return policyFor({ ...base, id: ex.id }, routine, modeOf({ ...base, id: ex.id })) === 'double'
+      ? { ...base, ...normalizeRepRange(base.reps, base.repsMin, isPerSide(base) ? 2 : 1) }
+      : base
   })
   // Cardio keeps its own duration+speed form; the reps/time choice (issue #16) is offered for
   // everything else, which is where the gap was — planks, hangs, wall sits, loaded carries.
@@ -1116,6 +1123,135 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine, initial }) {
   const progressionStepInvalid = !progressionStepIsValid(progressionStepOf(c, mode, ex, st.unit), progressionPolicy)
   const activePolicy = policyFor({ ...c, id: ex.id }, routine, mode)
   const double = mode === 'reps' && activePolicy === 'double'
+
+  const count = Math.max(1, Math.min(20, Math.round(c.sets) || (cardio ? 1 : 3)))
+  const baseReps = Math.max(1, Math.round(c.reps) || 10)
+  const baseWeight = Math.max(0, c.weight || 0)
+  const baseSec = Math.max(5, Math.round(c.sec) || 45)
+  const resolvedTargetSets = c.targetSets && c.targetSets.length > 0
+    ? c.targetSets
+    : Array.from({ length: count }, () => mode === 'time' ? { sec: baseSec, w: baseWeight } : { r: baseReps, w: baseWeight })
+
+  const loadStep = mode === 'reps' ? weightIncrement({ ...c, id: ex.id }, st.unit) : 2.5
+  const repStride = perSide ? 2 : 1
+
+  const toggleCustomSets = enabled => {
+    setC(x => {
+      if (enabled) {
+        const curCount = Math.max(1, Math.min(20, Math.round(x.sets) || 3))
+        const existing = Array.isArray(x.targetSets) && x.targetSets.length > 0 ? x.targetSets : null
+        let targetSets
+        if (existing) {
+          targetSets = existing.map(s => ({ ...s }))
+        } else {
+          const bw0 = Math.max(0, x.weight || 0)
+          const br0 = Math.max(1, Math.round(x.reps) || 10)
+          const bs0 = Math.max(5, Math.round(x.sec) || 45)
+          targetSets = Array.from({ length: curCount }, () => mode === 'time' ? { sec: bs0, w: bw0 } : { r: br0, w: bw0 })
+        }
+        return { ...x, customSets: true, targetSets, sets: targetSets.length }
+      } else {
+        const first = x.targetSets?.[0]
+        return {
+          ...x,
+          customSets: false,
+          sets: x.targetSets?.length || x.sets || 3,
+          reps: first?.r || x.reps || 10,
+          weight: first?.w ?? x.weight ?? 0,
+          sec: first?.sec || x.sec || 45,
+        }
+      }
+    })
+  }
+
+  const updateTargetSetField = (i, field, val) => {
+    setC(x => {
+      const list = [...(x.targetSets || resolvedTargetSets)]
+      if (!list[i]) return x
+      list[i] = { ...list[i], [field]: val }
+      return { ...x, targetSets: list }
+    })
+  }
+
+  const stepTargetSetField = (i, field, dir) => {
+    setC(x => {
+      const list = [...(x.targetSets || resolvedTargetSets)]
+      if (!list[i]) return x
+      const cur = list[i][field]
+      if (field === 'w') {
+        list[i] = { ...list[i], w: stepWeight(cur, loadStep, dir) }
+      } else if (field === 'sec') {
+        list[i] = { ...list[i], sec: Math.max(5, Math.round((cur || 45) + dir * 5)) }
+      } else {
+        list[i] = { ...list[i], r: Math.max(1, Math.round((cur || 10) + dir * repStride)) }
+      }
+      return { ...x, targetSets: list }
+    })
+  }
+
+  const addTargetSet = () => {
+    setC(x => {
+      const list = [...(x.targetSets || resolvedTargetSets)]
+      const last = list[list.length - 1]
+      const next = last ? { ...last } : (mode === 'time' ? { sec: x.sec || 45, w: x.weight || 0 } : { r: x.reps || 10, w: x.weight || 0 })
+      list.push(next)
+      return { ...x, targetSets: list, sets: list.length }
+    })
+  }
+
+  const removeTargetSet = i => {
+    setC(x => {
+      const list = [...(x.targetSets || resolvedTargetSets)]
+      if (list.length <= 1) return x
+      list.splice(i, 1)
+      return { ...x, targetSets: list, sets: list.length }
+    })
+  }
+
+  const applyPyramidPreset = () => {
+    setC(x => {
+      const list = [...(x.targetSets || resolvedTargetSets)]
+      if (list.length < 2) return x
+      const baseW = list[0].w || x.weight || 20
+      const baseR = Math.max(8, list[0].r || x.reps || 12)
+      return {
+        ...x,
+        targetSets: list.map((s, idx) => ({
+          ...s,
+          r: Math.max(1, baseR - idx * 2),
+          w: Math.max(0, stepWeight(baseW, loadStep, idx))
+        }))
+      }
+    })
+  }
+
+  const applyMatchFirstSet = () => {
+    setC(x => {
+      const list = [...(x.targetSets || resolvedTargetSets)]
+      if (list.length < 2) return x
+      const first = list[0]
+      return {
+        ...x,
+        targetSets: list.map((_, idx) => (idx === 0 ? first : { ...first }))
+      }
+    })
+  }
+
+  const onSetsChange = v => {
+    const nextCount = Math.max(1, Math.min(20, Math.round(v) || 1))
+    setC(x => {
+      if (!x.customSets) return { ...x, sets: nextCount }
+      let list = [...(x.targetSets || resolvedTargetSets)]
+      if (nextCount > list.length) {
+        const last = list[list.length - 1] || (mode === 'time' ? { sec: x.sec || 45, w: x.weight || 0 } : { r: x.reps || 10, w: x.weight || 0 })
+        while (list.length < nextCount) list.push({ ...last })
+      } else if (nextCount < list.length) {
+        list = list.slice(0, nextCount)
+      }
+      return { ...x, sets: nextCount, targetSets: list }
+    })
+  }
+
   // Keep whatever the other mode already had (sets, weight) and fill only what is missing.
   const setMode = m => setC(x => {
     const next = { ...defaultConfig(ex.id, m), ...x, mode: m }
@@ -1154,8 +1290,23 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine, initial }) {
     const restSec = Math.max(0, Math.round(c.restSec) || 0)
     const withRest = restSec ? { restSec } : {}
     if (cardio) onSave({ sets, min: Math.max(1, Math.round(c.min) || 20), speed: Math.max(0, c.speed || 8), ...withNote, ...withRest })
-    else if (mode === 'time') onSave({ sets, mode: 'time', sec: Math.max(1, Math.round(c.sec) || 45), weight: Math.max(0, c.weight || 0), ...flags, ...prog, ...withNote, ...withWarmups, ...withRest })
-    else {
+    else if (mode === 'time') {
+      const customProps = c.customSets && resolvedTargetSets?.length ? {
+        customSets: true,
+        targetSets: resolvedTargetSets.map(s => ({
+          sec: Math.max(5, Math.round(Number(s.sec)) || 45),
+          w: Math.max(0, Number(s.w) || 0)
+        }))
+      } : {}
+      const finalSets = customProps.targetSets?.length || sets
+      onSave({
+        sets: finalSets,
+        mode: 'time',
+        sec: customProps.targetSets?.[0]?.sec || Math.max(1, Math.round(c.sec) || 45),
+        weight: customProps.targetSets?.[0]?.w ?? Math.max(0, c.weight || 0),
+        ...flags, ...prog, ...withNote, ...withWarmups, ...withRest, ...customProps
+      })
+    } else {
       // A unilateral target is stored even: the split has to divide, and a typed 15 would
       // otherwise plan seven reps on one side and eight on the other, every session.
       const typed = Math.max(1, Math.round(c.reps) || 10)
@@ -1166,7 +1317,21 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine, initial }) {
         range = normalizeRepRange(reps, c.repsMin, stride)
         reps = range.reps
       }
-      const out = { sets, mode: 'reps', reps, weight: Math.max(0, c.weight || 0), ...flags, ...(perSide ? { side: true } : {}), ...prog, ...withNote, ...withWarmups, ...withRest }
+      const customProps = c.customSets && resolvedTargetSets?.length ? {
+        customSets: true,
+        targetSets: resolvedTargetSets.map(s => ({
+          r: Math.max(1, Math.round(Number(s.r)) || 10),
+          w: Math.max(0, Number(s.w) || 0)
+        }))
+      } : {}
+      const finalSets = customProps.targetSets?.length || sets
+      const out = {
+        sets: finalSets,
+        mode: 'reps',
+        reps: customProps.targetSets?.[0]?.r || reps,
+        weight: customProps.targetSets?.[0]?.w ?? Math.max(0, c.weight || 0),
+        ...flags, ...(perSide ? { side: true } : {}), ...prog, ...withNote, ...withWarmups, ...withRest, ...customProps
+      }
       if (double) out.repsMin = range.repsMin
       // A ceiling below the working reps would tell you to add a set on day one.
       if (bw && !(out.weight > 0) && c.repsMax > 0) out.repsMax = Math.max(reps, Math.round(c.repsMax))
@@ -1199,20 +1364,67 @@ function ExConfig({ ex, existing, onSave, onDelete, close, routine, initial }) {
         <Stepper label={t('Minutes')} value={c.min} step={1} decimal={false} onChange={v => setC(x => ({ ...x, min: v }))} />
         <Stepper label={t('Speed (km/h)')} value={c.speed} step={0.5} onChange={v => setC(x => ({ ...x, speed: v }))} />
       </> : mode === 'time' ? <>
-        <Stepper label={t('Sets')} value={c.sets} step={1} decimal={false} onChange={v => setC(x => ({ ...x, sets: v }))} />
-        <Stepper label={t('Seconds')} value={c.sec} step={5} decimal={false} onChange={v => setC(x => ({ ...x, sec: v }))} />
-        <Stepper label={t('Weight ({0})', st.unit)} value={c.weight} step={2.5} onChange={v => setC(x => ({ ...x, weight: v }))} />
+        <Stepper label={t('Sets')} value={c.sets} step={1} decimal={false} onChange={onSetsChange} />
+        {!c.customSets && <Stepper label={t('Seconds')} value={c.sec} step={5} decimal={false} onChange={v => setC(x => ({ ...x, sec: v }))} />}
+        {!c.customSets && !bw && <Stepper label={t('Weight ({0})', st.unit)} value={c.weight} step={2.5} onChange={v => setC(x => ({ ...x, weight: v }))} />}
       </> : <>
         {/* Rest-pause always trains as exactly two rows — a warm-up at this rep count, then one
             rest-pause work set — so "Sets" has nothing left to mean and only invites a mismatch. */}
         {c.intensifier?.type !== 'restpause' &&
-          <Stepper label={t('Sets')} value={c.sets} step={1} decimal={false} onChange={v => setC(x => ({ ...x, sets: v }))} />}
-        {!double && <Stepper label={t('Reps')} value={c.reps} step={perSide ? 2 : 1} decimal={false} onChange={v => setC(x => ({ ...x, reps: v }))} />}
+          <Stepper label={t('Sets')} value={c.sets} step={1} decimal={false} onChange={onSetsChange} />}
+        {!c.customSets && !double && <Stepper label={t('Reps')} value={c.reps} step={perSide ? 2 : 1} decimal={false} onChange={v => setC(x => ({ ...x, reps: v }))} />}
         {/* On bodyweight work the weight stepper is the click #32 is about, so it is not here
             until there is a belt to describe — see the added-weight row below. */}
-        {!bw && <Stepper label={t('Weight ({0})', st.unit)} value={c.weight} step={2.5} onChange={v => setC(x => ({ ...x, weight: v }))} />}
+        {!c.customSets && !bw && <Stepper label={t('Weight ({0})', st.unit)} value={c.weight} step={loadStep} onChange={v => setC(x => ({ ...x, weight: v }))} />}
       </>}
     </div>
+    {!cardio && c.intensifier?.type !== 'restpause' && <>
+      <div className="sect-b" style={{ marginBottom: c.customSets ? 10 : 16 }}>
+        <Row icon="list" iconTint="var(--acc)" title={t('Different weight & reps per set')}
+          subtitle={c.customSets ? t('Each set has its own target weight and reps') : t('All sets use the same target weight and reps')}>
+          <Switch checked={!!c.customSets} onChange={toggleCustomSets} />
+        </Row>
+      </div>
+      {c.customSets && <div className="card" style={{ marginBottom: 16 }}>
+        <div className="sethead">
+          <span className="n-sp" style={{ width: 28, textAlign: 'center' }}>{t('Set')}</span>
+          {!bw && <span className="w-sp">{bw ? t('Added ({0})', st.unit) : t('Weight ({0})', st.unit)}</span>}
+          <span className="r-sp">{mode === 'time' ? t('Seconds') : t('Reps')}</span>
+          <span className="ck-sp" style={{ width: 32 }} />
+        </div>
+        {resolvedTargetSets.map((ts, i) => (
+          <div key={i} className="setrow">
+            <span className="n" style={{ cursor: 'default' }}>{i + 1}</span>
+            {!bw && (
+              <div className="stp w">
+                <button type="button" aria-label="Decrease" onClick={() => stepTargetSetField(i, 'w', -1)}><Icon name="minus" /></button>
+                <span className="val"><NumberField decimal={true} value={ts.w ?? ''} onChange={v => updateTargetSetField(i, 'w', v)} /></span>
+                <button type="button" aria-label="Increase" onClick={() => stepTargetSetField(i, 'w', 1)}><Icon name="plus" /></button>
+              </div>
+            )}
+            <div className="stp r">
+              <button type="button" aria-label="Decrease" onClick={() => stepTargetSetField(i, mode === 'time' ? 'sec' : 'r', -1)}><Icon name="minus" /></button>
+              <span className="val"><NumberField decimal={false} value={mode === 'time' ? (ts.sec ?? '') : (ts.r ?? '')} onChange={v => updateTargetSetField(i, mode === 'time' ? 'sec' : 'r', v)} /></span>
+              <button type="button" aria-label="Increase" onClick={() => stepTargetSetField(i, mode === 'time' ? 'sec' : 'r', 1)}><Icon name="plus" /></button>
+            </div>
+            <button type="button" className="iconbtn" disabled={resolvedTargetSets.length <= 1}
+              aria-label={t('Remove set')} title={t('Remove set')}
+              onClick={() => removeTargetSet(i)}>
+              <Icon name="trash" />
+            </button>
+          </div>
+        ))}
+        <div className="row" style={{ gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+          <Button size="xs" variant="tinted" icon="plus" onClick={addTargetSet}>{t('Add set')}</Button>
+          {!bw && resolvedTargetSets.length >= 2 && (
+            <Button size="xs" variant="ghost" icon="trendingUp" onClick={applyPyramidPreset}>{t('Pyramid preset')}</Button>
+          )}
+          {resolvedTargetSets.length >= 2 && (
+            <Button size="xs" variant="ghost" icon="shuffle" onClick={applyMatchFirstSet}>{t('Match set 1')}</Button>
+          )}
+        </div>
+      </div>}
+    </>}
     {c.intensifier?.type === 'restpause' && <div className="small dim" style={{ marginTop: -10, marginBottom: 18 }}>
       {t('Rest-pause always trains as one warm-up set at this rep count, then one rest-pause work set — "Sets" is not used.')}
     </div>}

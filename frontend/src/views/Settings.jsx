@@ -382,6 +382,9 @@ function WorkoutControlsSheet() {
       <Row icon="shuffle" iconTint="var(--teal)" title={t('Move, swap and remove buttons below the exercise')}>
         <Switch checked={wc.exerciseButtons} onChange={v => set('exerciseButtons', v)} />
       </Row>
+      <Row icon="arrowDown" iconTint="var(--acc)" title={t('Cascade weight to next sets')} subtitle={t('Carry weight changes forward to following matching sets')}>
+        <Switch checked={wc.cascadeWeight !== false} onChange={v => set('cascadeWeight', v)} />
+      </Row>
     </Section>
   </>
 }

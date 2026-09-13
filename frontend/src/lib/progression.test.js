@@ -616,4 +616,51 @@ describe('drop-sets and rest-pause sets in progression', () => {
     expect(out).toHaveLength(2)
     expect(out[1]).toEqual({ type: 'dropset', w: 0, r: 10, done: false })
   })
+
+  it('readSession checks each set against its own target for customSets', () => {
+    const target = {
+      id: LIFT,
+      customSets: true,
+      targetSets: [
+        { r: 12, w: 40 },
+        { r: 10, w: 50 },
+        { r: 8, w: 60 }
+      ]
+    }
+    const hitAll = readSession({
+      id: LIFT,
+      target,
+      sets: [
+        { w: 40, r: 12, done: true },
+        { w: 50, r: 10, done: true },
+        { w: 60, r: 8, done: true }
+      ]
+    })
+    expect(hitAll.ok).toBe(true)
+
+    const missedOne = readSession({
+      id: LIFT,
+      target,
+      sets: [
+        { w: 40, r: 12, done: true },
+        { w: 50, r: 9, done: true }, // missed target 10
+        { w: 60, r: 8, done: true }
+      ]
+    })
+    expect(missedOne.ok).toBe(false)
+  })
+
+  it('applyPrescription advances each set of a varied pyramid by weightDelta', () => {
+    const pyramid = [
+      { w: 40, r: 12, done: false },
+      { w: 50, r: 10, done: false },
+      { w: 60, r: 8, done: false }
+    ]
+    const out = applyPrescription(pyramid, { kind: 'up', weightDelta: 2.5 }, 2.5)
+    expect(out).toEqual([
+      { w: 42.5, r: 12, done: false },
+      { w: 52.5, r: 10, done: false },
+      { w: 62.5, r: 8, done: false }
+    ])
+  })
 })

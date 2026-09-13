@@ -134,6 +134,32 @@ export function readSession(entry, fallback) {
       ok: goal > 0 && enough && held.length > 0 && held.every(h => h >= goal)
     }
   }
+  if (target.customSets && Array.isArray(target.targetSets) && target.targetSets.length > 0) {
+    if (mode === 'time') {
+      const held = sets.map(s => (s.done ? (s.sec || 0) : 0))
+      const ok = enough && target.targetSets.every((ts, i) => (sets[i]?.done && (sets[i].sec || 0) >= (ts.sec || 0)))
+      return {
+        mode,
+        goal: target.sec || target.targetSets[0]?.sec || 0,
+        held,
+        weight: Math.max(0, ...sets.filter(s => s.done).map(s => s.w || 0)),
+        best: Math.max(0, ...held),
+        ok
+      }
+    }
+    const reps = sets.map(s => (s.done ? (s.r || 0) : 0))
+    const ok = enough && target.targetSets.every((ts, i) => (sets[i]?.done && (sets[i].r || 0) >= (ts.r || 0)))
+    return {
+      mode,
+      goal: target.reps || target.targetSets[0]?.r || 0,
+      reps,
+      weight: Math.max(0, ...sets.filter(s => s.done).map(s => s.w || 0)),
+      count: reps.length,
+      low: reps.length ? Math.min(...reps) : 0,
+      amrap: reps.length ? reps[reps.length - 1] : 0,
+      ok
+    }
+  }
   const goal = target.reps || 0
   const reps = sets.map(s => (s.done ? (s.r || 0) : 0))
   return {
@@ -255,7 +281,7 @@ export function nextPrescription(S, cfg, routine) {
     const dbl = policy === 'greyskull' && last.goal > 0 && last.amrap >= last.goal * 2
     const step = dbl ? inc * 2 : inc
     return {
-      policy, kind: 'up', weight: snapWeight(w + step, inc),
+      policy, kind: 'up', weight: snapWeight(w + step, inc), weightDelta: step,
       why: dbl
         ? ['Last set hit {0} reps — twice the target, so take a double jump of {1} {2}.', last.amrap, step, unit]
         : ['Every rep last time — {0} {1} more.', step, unit]
@@ -279,13 +305,19 @@ export function nextPrescription(S, cfg, routine) {
  */
 export function applyPrescription(sets, p, step = 2.5) {
   if (!p || p.kind === 'off' || p.kind === 'first') return sets
+  const origWorkRows = sets.filter(s => !isWarmupRow(s))
+  const weightsVary = origWorkRows.length > 1 && new Set(origWorkRows.map(s => s.w)).size > 1
   const out = sets.map(s => {
     // Never rewrite a logged set, and never rewrite a warm-up: the prescription speaks to
     // the work rows only (a ticked warm-up falling through here would be the data-loss the
     // cascade fix removed, two files over).
     if (s.done || isWarmupRow(s)) return s
     const o = { ...s }
-    if (p.weight != null) o.w = p.weight
+    if (weightsVary && p.weightDelta != null) {
+      o.w = snapWeight(Math.max(0, (o.w || 0) + p.weightDelta), step)
+    } else if (p.weight != null) {
+      o.w = p.weight
+    }
     if (p.reps != null) o.r = p.reps
     if (p.sec != null) o.sec = p.sec
     return o

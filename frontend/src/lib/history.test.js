@@ -332,6 +332,32 @@ describe('exLine', () => {
     expect(exLine({ id: LIFT, sets: 2, sec: 90, weight: 20, mode: 'time' }, 'kg')).toBe('2 × 1:30 · 20 kg')
     expect(exLine({ id: CARDIO, sets: 1, min: 20, speed: 8 }, 'kg')).toBe('1 × 20 min @ 8 km/h')
   })
+  it('summarises custom per-set reps and weights', () => {
+    expect(exLine({
+      id: LIFT,
+      customSets: true,
+      targetSets: [{ r: 12, w: 40 }, { r: 10, w: 50 }, { r: 8, w: 60 }]
+    }, 'kg')).toBe('3 sets · 12, 10, 8 reps · 40–60 kg')
+
+    expect(exLine({
+      id: LIFT,
+      customSets: true,
+      targetSets: [{ r: 8, w: 10 }, { r: 8, w: 12.5 }, { r: 8, w: 15 }]
+    }, 'kg')).toBe('3 × 8 · 10–15 kg')
+
+    expect(exLine({
+      id: BW,
+      customSets: true,
+      targetSets: [{ r: 15, w: 0 }, { r: 12, w: 0 }, { r: 10, w: 0 }]
+    }, 'kg')).toBe('3 sets · 15, 12, 10 reps')
+
+    expect(exLine({
+      id: LIFT,
+      mode: 'time',
+      customSets: true,
+      targetSets: [{ sec: 30, w: 10 }, { sec: 45, w: 15 }]
+    }, 'kg')).toBe('0:30, 0:45 · 10–15 kg')
+  })
 })
 
 const emptyS = { workouts: [], exWeights: {} }
@@ -499,6 +525,46 @@ describe('buildSets', () => {
     ] }] }] }
     expect(buildSets(S, { id: LIFT, sets: 2, reps: 12, weight: 40 }, { useTarget: true }))
       .toEqual([{ w: 40, r: 12, done: false }, { w: 40, r: 12, done: false }])
+  })
+
+  it('builds custom per-set weights and reps from targetSets', () => {
+    const cfg = {
+      id: LIFT,
+      customSets: true,
+      targetSets: [
+        { r: 12, w: 10 },
+        { r: 10, w: 12.5 },
+        { r: 8, w: 15 }
+      ]
+    }
+    expect(buildSets(emptyS, cfg)).toEqual([
+      { w: 10, r: 12, done: false },
+      { w: 12.5, r: 10, done: false },
+      { w: 15, r: 8, done: false }
+    ])
+  })
+
+  it('preserves varied per-set weights from previous workout when exWeights has single max', () => {
+    const S = {
+      exWeights: { [LIFT]: { w: 15 } },
+      workouts: [{
+        d: '2026-01-01',
+        entries: [{
+          id: LIFT,
+          sets: [
+            { w: 10, r: 12, done: true },
+            { w: 12.5, r: 10, done: true },
+            { w: 15, r: 8, done: true }
+          ]
+        }]
+      }]
+    }
+    const cfg = { id: LIFT, sets: 3, reps: 10, weight: 0 }
+    expect(buildSets(S, cfg)).toEqual([
+      { w: 10, r: 12, done: false },
+      { w: 12.5, r: 10, done: false },
+      { w: 15, r: 8, done: false }
+    ])
   })
 
   it('uses the current routine target instead of another routine\'s bodyweight history', () => {
@@ -813,6 +879,28 @@ describe('session row helpers', () => {
     expect(next[0].w).toBe(60)             // done set untouched
     expect('w' in next[1]).toBe(false)
     expect('w' in next[2]).toBe(false)
+  })
+
+  it('cascadeWeight with preserveVaried keeps custom/pyramid sets untouched', () => {
+    const rows = [
+      { w: 10, done: false },
+      { w: 12.5, done: false },
+      { w: 15, done: false }
+    ]
+    const next = cascadeWeight(rows, 0, 11, { prevWeight: 10, preserveVaried: true })
+    expect(next[1].w).toBe(12.5) // preserved!
+    expect(next[2].w).toBe(15)   // preserved!
+  })
+
+  it('cascadeWeight with preserveVaried cascades when following sets had matching weight', () => {
+    const rows = [
+      { w: 60, done: false },
+      { w: 60, done: false },
+      { w: 60, done: false }
+    ]
+    const next = cascadeWeight(rows, 0, 62.5, { prevWeight: 60, preserveVaried: true })
+    expect(next[1].w).toBe(62.5) // cascaded!
+    expect(next[2].w).toBe(62.5) // cascaded!
   })
 
   it('insertWarmupRow inserts before the first work row, ramping toward the work weight', () => {

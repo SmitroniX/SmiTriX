@@ -78,4 +78,41 @@ describe('exercise configuration progression step', () => {
     expect(config.onSave).toHaveBeenCalledWith(expect.objectContaining({ inc: 0.5 }))
     expect(useUI.getState().sheets).toHaveLength(0)
   })
+
+  it('saves customSets and targetSets when per-set targets are configured', () => {
+    const onSave = vi.fn()
+    exConfigSheet(ex, {
+      sets: 3,
+      reps: 10,
+      weight: 40,
+      mode: 'reps',
+      prog: 'off',
+      customSets: true,
+      targetSets: [
+        { r: 12, w: 40 },
+        { r: 10, w: 50 },
+        { r: 8, w: 60 }
+      ]
+    }, onSave)
+    const sheet = useUI.getState().sheets.at(-1)
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    mounted.push(root)
+    act(() => root.render(sheet.render(() => useUI.getState().closeSheet(sheet.id))))
+
+    const save = [...host.querySelectorAll('button')]
+      .find(b => /^(save|add to routine)$/i.test(b.textContent.trim()))
+    act(() => { save.click() })
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      customSets: true,
+      sets: 3,
+      targetSets: [
+        { r: 12, w: 40 },
+        { r: 10, w: 50 },
+        { r: 8, w: 60 }
+      ]
+    }))
+  })
 })

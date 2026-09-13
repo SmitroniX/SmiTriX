@@ -51,6 +51,16 @@ function cleanEx(e) {
   if (e.restSec > 0) o.restSec = e.restSec
   if (e.sg) o.sg = e.sg
   if (e.note) o.note = e.note
+  if (e.customSets && Array.isArray(e.targetSets) && e.targetSets.length > 0) {
+    o.customSets = true
+    o.targetSets = e.targetSets.map(s => {
+      const row = {}
+      if (s.r != null) row.r = Math.max(1, Math.round(Number(s.r)) || 10)
+      if (s.sec != null) row.sec = Math.max(1, Math.round(Number(s.sec)) || 45)
+      if (s.w != null) row.w = Math.max(0, Number(s.w) || 0)
+      return row
+    })
+  }
   const warm = cleanWarmupSets(e.warmupSets)
   if (warm) o.warmupSets = warm
   // Drop-sets and rest-pause are part of how the exercise is prescribed, not a logging detail.
@@ -134,8 +144,18 @@ export function parsePlan(raw) {
       const warm = cleanWarmupSets(e.warmupSets)
       const intens = cleanIntensifier(e.intensifier)
       const rest = cleanRestSec(e.restSec)
-      const { warmupSets, intensifier, restSec, ...passthrough } = e
-      return { ...passthrough, ...(warm ? { warmupSets: warm } : {}), ...(intens ? { intensifier: intens } : {}), ...(rest ? { restSec: rest } : {}) }
+      const customSets = e.customSets && Array.isArray(e.targetSets) && e.targetSets.length > 0
+        ? {
+          customSets: true,
+          targetSets: e.targetSets.map(s => ({
+            ...(s.r != null ? { r: Math.max(1, Math.round(Number(s.r)) || 10) } : {}),
+            ...(s.sec != null ? { sec: Math.max(1, Math.round(Number(s.sec)) || 45) } : {}),
+            ...(s.w != null ? { w: Math.max(0, Number(s.w) || 0) } : {})
+          }))
+        }
+        : {}
+      const { warmupSets, intensifier, restSec, targetSets, ...passthrough } = e
+      return { ...passthrough, ...(warm ? { warmupSets: warm } : {}), ...(intens ? { intensifier: intens } : {}), ...(rest ? { restSec: rest } : {}), ...customSets }
     })
   }))
   return {

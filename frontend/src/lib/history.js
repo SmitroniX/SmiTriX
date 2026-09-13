@@ -136,6 +136,34 @@ export function defaultConfig(id, mode) {
 export function exLine(cfg, unit) {
   const mode = modeOf(cfg)
   const n = cfg.sets || 1
+  if (cfg.customSets && Array.isArray(cfg.targetSets) && cfg.targetSets.length > 0) {
+    const setsCount = cfg.targetSets.length
+    if (mode === 'time') {
+      const secs = cfg.targetSets.map(s => s.sec || 45)
+      const weights = cfg.targetSets.map(s => s.w || 0)
+      const secVary = new Set(secs).size > 1
+      const weightVary = new Set(weights).size > 1
+      const minW = Math.min(...weights), maxW = Math.max(...weights)
+      const wStr = weightVary ? `${fmtNum(minW)}–${fmtNum(maxW)} ${unit}` : (minW > 0 ? `${fmtNum(minW)} ${unit}` : '')
+      const sStr = secVary ? secs.map(s => fmtSec(s)).join(', ') : `${setsCount} × ${fmtSec(secs[0])}`
+      return `${sStr}${wStr ? ' · ' + wStr : ''}`
+    }
+    const reps = cfg.targetSets.map(s => s.r || 10)
+    const weights = cfg.targetSets.map(s => s.w || 0)
+    const repsVary = new Set(reps).size > 1
+    const weightVary = new Set(weights).size > 1
+    const minW = Math.min(...weights), maxW = Math.max(...weights)
+    const bw = isBw(cfg)
+    const wPrefix = bw ? '+' : ''
+    const wStr = weightVary
+      ? `${wPrefix}${fmtNum(minW)}–${fmtNum(maxW)} ${unit}`
+      : (minW > 0 ? `${wPrefix}${fmtNum(minW)} ${unit}` : '')
+    const split = isPerSide(cfg) ? ' · ' + t('{0}/side', fmtNum(sideReps(reps[0]))) : ''
+    if (repsVary) {
+      return `${setsCount} sets · ${reps.join(', ')} reps${wStr ? ' · ' + wStr : ''}${split}`
+    }
+    return `${setsCount} × ${reps[0]}${wStr ? ' · ' + wStr : ''}${split}`
+  }
   // Added weight reads as added: "+10 kg" on a dip belt, "60 kg" on a barbell.
   const load = cfg.weight ? ' · ' + (isBw(cfg) ? '+' : '') + fmtNum(cfg.weight) + ' ' + unit : ''
   if (mode === 'cardio') return `${n} × ${cfg.min || 20} min @ ${fmtNum(cfg.speed || 8)} km/h`
@@ -336,12 +364,31 @@ function buildWorkSets(S, cfg, options = {}) {
     ? { ...S, workouts: S.workouts.filter(w => w.excludeFromProgression !== true) }
     : S
   const last = lastEntryFor(regular, cfg.id)
-  const n = Math.max(1, cfg.sets || 1)
   const mode = modeOf(cfg)
-  const sets = []
-  // A deload routine must use its own prescription instead of carrying regular-session values
-  // into the workout. Other planned sessions keep the existing history-first behaviour.
   const prevAt = i => (!useTarget && last ? (last.sets[i] || last.sets[last.sets.length - 1]) : null)
+
+  if (cfg.customSets && Array.isArray(cfg.targetSets) && cfg.targetSets.length > 0) {
+    const sets = []
+    const count = cfg.targetSets.length
+    for (let i = 0; i < count; i++) {
+      const ts = cfg.targetSets[i]
+      const prev = prevAt(i)
+      const usable = prev && (mode === 'time' ? prev.sec > 0 : prev.r > 0) ? prev : null
+      if (mode === 'time') {
+        const sec = useTarget ? (ts.sec || cfg.sec || 45) : (usable ? usable.sec : (ts.sec || cfg.sec || 45))
+        const w = useTarget ? (ts.w ?? cfg.weight ?? 0) : (preferLast && usable ? usable.w : (ts.w ?? cfg.weight ?? 0))
+        sets.push({ sec, w, done: false })
+      } else {
+        const r = useTarget ? (ts.r || cfg.reps || 10) : (usable ? usable.r : (ts.r || cfg.reps || 10))
+        const w = useTarget ? (ts.w ?? cfg.weight ?? 0) : (preferLast && usable ? usable.w : (ts.w ?? cfg.weight ?? 0))
+        sets.push({ w, r, done: false })
+      }
+    }
+    return sets
+  }
+
+  const n = Math.max(1, cfg.sets || 1)
+  const sets = []
 
   if (mode === 'cardio') {
     for (let i = 0; i < n; i++) {
@@ -361,6 +408,8 @@ function buildWorkSets(S, cfg, options = {}) {
     return sets
   }
   const conf = S.exWeights[cfg.id]
+  const lastWorkSets = last ? last.sets.filter(s => !isWarmupRow(s)) : []
+  const lastWeightsVary = lastWorkSets.length > 1 && new Set(lastWorkSets.map(s => s.w)).size > 1
   for (let i = 0; i < n; i++) {
     const prev = prevAt(i)
     const usable = prev && prev.r > 0 ? prev : null
@@ -371,7 +420,7 @@ function buildWorkSets(S, cfg, options = {}) {
     const lastRegular = last ? (last.sets[i] || last.sets[last.sets.length - 1]) : null
     const w = useTarget
       ? (cfg.weight > 0 ? cfg.weight : (lastRegular && lastRegular.r > 0 ? lastRegular.w : cfg.weight))
-      : preferLast && usable ? usable.w : (conf && conf.w > 0 ? conf.w : (usable ? usable.w : cfg.weight))
+      : (preferLast || lastWeightsVary) && usable ? usable.w : (conf && conf.w > 0 ? conf.w : (usable ? usable.w : cfg.weight))
     sets.push({ w, r: usable ? usable.r : cfg.reps, done: false })
   }
   return sets
@@ -489,12 +538,19 @@ export function streakWeeks(S) {
 /**
  * Cascade a weight change forward: following sets of the same warm-up flag that are still
  * undone take the new value (null deletes the key). Done sets are never rewritten.
+ * If options.preserveVaried is true, following sets with distinct weights from the previous
+ * weight of the edited set are preserved (e.g. pyramid sets).
  */
-export function cascadeWeight(rows, from, value) {
+export function cascadeWeight(rows, from, value, options = {}) {
   const warm = isWarmupRow(rows[from])
   const next = rows.slice()
+  const preserveVaried = !!options.preserveVaried
+  const prevWeight = options.prevWeight
   for (let j = from + 1; j < next.length; j++) {
     if (isWarmupRow(next[j]) === warm && !next[j].done) {
+      if (preserveVaried && prevWeight !== undefined && next[j].w !== undefined && next[j].w !== prevWeight) {
+        continue
+      }
       if (value == null) delete next[j].w
       else next[j].w = value
     }
