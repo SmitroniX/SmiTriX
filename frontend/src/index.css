@@ -210,6 +210,9 @@ h4.sec{
 .card{
   background:var(--surface);border-radius:var(--r-card);
   padding:16px;margin-bottom:12px;
+  border:1px solid var(--sep-op);
+  box-shadow:0 4px 16px -4px rgba(0,0,0,.25);
+  transition:border-color var(--fast),box-shadow var(--fast);
 }
 .card .big{font-size:30px;font-weight:600;letter-spacing:-.026em;line-height:1.1}
 
@@ -219,7 +222,11 @@ h4.sec{
   font-size:13px;font-weight:400;color:var(--label-2);
   letter-spacing:-.004em;padding:0 4px 7px;display:block;
 }
-.sect-b{background:var(--surface);border-radius:var(--r-card);overflow:hidden}
+.sect-b{
+  background:var(--surface);border-radius:var(--r-card);overflow:hidden;
+  border:1px solid var(--sep-op);
+  box-shadow:0 4px 16px -4px rgba(0,0,0,.2);
+}
 .sect-f{font-size:13px;color:var(--label-2);padding:7px 4px 0;line-height:1.38}
 
 .lrow{
@@ -313,8 +320,9 @@ h4.sec{
 #tabbar button{
   flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
   color:var(--label-3);font-size:10px;font-weight:500;letter-spacing:.005em;padding-top:3px;
-  transition:color var(--fast);
+  transition:color var(--fast),transform var(--fast) var(--ease);
 }
+#tabbar button:active:not(.start){transform:scale(.92)}
 /* The inactive tint is semi-transparent, so wherever two strokes cross inside an
    icon (the calendar's hangers over its frame, the divider's caps on its sides)
    the alpha doubled up and the icon read as a stack of loose layers. Carrying the
@@ -597,14 +605,22 @@ h4.sec{
 /* 30px is the right look next to a stepper but a poor target: extend the tap area to 44px
    without painting it; the left side stays shorter so the stepper's + button keeps its edge */
 .chk::before,.ck::before{content:'';position:absolute;inset:-7px -7px -7px -4px}
-.chk.on{background:var(--acc);box-shadow:none;color:var(--on-acc)}
+.chk.on,.ck.on{
+  background:var(--acc);box-shadow:0 0 12px color-mix(in srgb,var(--acc) 45%,transparent);
+  animation:checkSpring .32s cubic-bezier(.175,.885,.32,1.275);
+}
+.chk.on{color:var(--on-acc)}
 .chk:active,.ck:active{transform:scale(.9)}
 .ck svg{
   width:16px;height:16px;stroke:transparent;fill:none;stroke-width:2.6;
   stroke-linecap:round;stroke-linejoin:round;transition:stroke var(--fast);
 }
-.ck.on{background:var(--acc);box-shadow:none}
 .ck.on svg{stroke:var(--on-acc)}
+@keyframes checkSpring{
+  0%{transform:scale(.8)}
+  50%{transform:scale(1.18)}
+  100%{transform:scale(1)}
+}
 
 /* ------------------------------------------------------------- workout --- */
 /* Workout header. In list mode it is pinned: pulled up over #app's top padding so it sits flush
@@ -622,10 +638,45 @@ h4.sec{
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
   .whdr.stick{background:var(--bg)}
 }
-.wprog{height:4px;background:var(--surface-2);border-radius:99px;overflow:hidden;margin-bottom:16px}
-.wprog i{display:block;height:100%;background:var(--acc);border-radius:99px;transition:width var(--med) var(--ease)}
-.exmedia{position:relative;border-radius:var(--r-lg);overflow:hidden;background:#fff;margin-bottom:12px}
-.exmedia img{width:100%;height:320px;object-fit:contain;display:block}
+.wprog{height:5px;background:var(--surface-2);border-radius:99px;overflow:hidden;margin-bottom:16px;box-shadow:inset 0 1px 2px rgba(0,0,0,.3)}
+.wprog i{display:block;height:100%;background:linear-gradient(90deg, color-mix(in srgb, var(--acc) 75%, #00d2ff), var(--acc));border-radius:99px;box-shadow:0 0 8px var(--acc);transition:width var(--med) var(--ease)}
+.exmedia{
+  position:relative;border-radius:var(--r-lg);overflow:hidden;background:#fff;margin-bottom:12px;
+  border:1px solid rgba(255,255,255,.1);box-shadow:0 8px 24px -6px rgba(0,0,0,.45);
+  transition:transform var(--fast) ease;
+}
+.exmedia:active{transform:scale(.99)}
+.exmedia img{width:100%;height:320px;object-fit:contain;display:block;transition:opacity .25s ease}
+.exmedia img.img-loading{opacity:0}
+.exmedia img.img-loaded{opacity:1}
+.exmedia-skeleton{
+  position:absolute;inset:0;background:var(--surface-2);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--label-3);font-size:32px;overflow:hidden;
+}
+.exmedia-shimmer{
+  position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);
+  animation:skeletonShimmer 1.5s infinite;
+}
+@keyframes skeletonShimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.exmedia-skeleton-icon{opacity:.4;animation:pulseDumbbell 1.5s ease-in-out infinite}
+@keyframes pulseDumbbell{0%,100%{transform:scale(1);opacity:.35}50%{transform:scale(1.1);opacity:.6}}
+
+.motion-guide-badge{
+  position:absolute;top:9px;right:9px;
+  display:inline-flex;align-items:center;gap:5px;
+  background:rgba(0,0,0,.68);color:#fff;border-radius:99px;padding:5px 11px;
+  font-size:12px;font-weight:600;letter-spacing:-.01em;
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  border:1px solid rgba(255,255,255,.2);cursor:pointer;
+  box-shadow:0 4px 12px rgba(0,0,0,.35);
+  transition:background var(--fast),transform var(--fast);
+  z-index:2;
+}
+.motion-guide-badge .icn{font-size:11px;color:var(--acc)}
+.motion-guide-badge:active{transform:scale(.92)}
+
 .exmedia .gifhint,.exmedia .giftoggle{
   position:absolute;bottom:9px;display:inline-flex;align-items:center;gap:4px;
   background:rgba(0,0,0,.45);color:#fff;border-radius:99px;padding:5px 11px;
@@ -655,7 +706,10 @@ h4.sec{
 .sethead .r-sp{flex:1;text-align:center}
 .sethead .eff-sp{text-align:center}
 .sethead .ck-sp{width:30px;flex:none}
-.setrow{display:flex;align-items:center;gap:8px;padding:7px 0;position:relative}
+.setrow{
+  display:flex;align-items:center;gap:8px;padding:7px 0;position:relative;
+  transition:opacity var(--med) var(--ease),transform var(--fast) ease;
+}
 .setrow+.setrow::before{
   content:'';position:absolute;left:32px;right:0;top:0;height:var(--hair);background:var(--sep);
 }
@@ -666,11 +720,12 @@ h4.sec{
   width:24px;height:24px;border-radius:50%;background:var(--surface-2);color:var(--label-2);
   display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;flex:none;
   position:relative;padding:0;border:0;font-family:inherit;cursor:pointer;
-  transition:background var(--fast),color var(--fast);
+  transition:background var(--fast),color var(--fast),transform var(--fast);
 }
 .setrow .stp.w{flex:1.4;min-width:0}
 .setrow .stp.r{flex:1;min-width:0}
-.setrow .stp button{width:32px;height:40px}
+.setrow .stp button{width:32px;height:40px;transition:transform .12s cubic-bezier(.2,.8,.2,1),background var(--fast)}
+.setrow .stp button:active{transform:scale(.86)}
 /* The effort column is a single tap-to-pick button, not a stepper. It is a direct flex child
    of the row (like the .stp cells), carrying its own column width via flex. `align-self` and
    a fixed height stop the row from stretching it taller than the weight/reps cells; it is NOT
@@ -733,8 +788,8 @@ h4.sec{
 .effpick .effpick-free .stp{flex:none;width:148px}
 .effpick .effpick-free .stp .num{font-size:17px;font-weight:600}
 .effpick .effpick-free .stp .num::placeholder{color:var(--label-3);font-weight:500}
-.setrow.done .n{background:var(--acc);color:var(--on-acc)}
-.setrow.done{opacity:.45}
+.setrow.done .n{background:var(--acc);color:var(--on-acc);transform:scale(1.04)}
+.setrow.done{opacity:.45;transition:opacity .32s var(--ease)}
 /* drop-set drops / rest-pause bursts riding on a work row, editable like the row itself
    (issue: drop-sets & rest-pause) */
 .subrow{display:flex;align-items:center;gap:6px;padding:3px 0 3px 32px}
@@ -786,19 +841,27 @@ h4.sec{
 /* --- rest timer --- */
 #timer{
   position:fixed;left:12px;right:12px;bottom:calc(88px + var(--sab));z-index:60;
-  /* nearly opaque: the set rows underneath were reading through the old 82% and made the
-     clock hard to pick out mid-set. The blur stays, so it still sits above the page. */
   background:color-mix(in srgb,var(--surface) 97%,transparent);
-  -webkit-backdrop-filter:saturate(180%) blur(10px);backdrop-filter:saturate(180%) blur(10px);
+  -webkit-backdrop-filter:saturate(180%) blur(12px);backdrop-filter:saturate(180%) blur(12px);
   border-radius:var(--r-lg);padding:12px 14px;
   display:flex;align-items:center;gap:12px;
-  box-shadow:0 12px 34px -8px rgba(0,0,0,.55);
-  animation:slideup var(--med) var(--ease);
+  border:1px solid rgba(255,255,255,.08);
+  box-shadow:0 12px 34px -8px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.05);
+  animation:timerSlideUp .32s cubic-bezier(.16,1,.3,1);
+  transition:border-color var(--fast),box-shadow var(--fast);
 }
-@keyframes slideup{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
+@keyframes timerSlideUp{from{transform:translateY(24px) scale(.97);opacity:0}to{transform:none;opacity:1}}
+#timer.rest.urgent{
+  border-color:color-mix(in srgb,var(--acc) 60%,transparent);
+  animation:timerUrgentPulse 1s ease-in-out infinite;
+}
+@keyframes timerUrgentPulse{
+  0%,100%{box-shadow:0 12px 34px -8px rgba(0,0,0,.6),0 0 0 0 rgba(166,255,0,.3)}
+  50%{box-shadow:0 12px 34px -8px rgba(0,0,0,.6),0 0 20px 4px color-mix(in srgb,var(--acc) 45%,transparent)}
+}
 #timer .t{font-size:26px;font-weight:600;letter-spacing:-.026em;font-variant-numeric:tabular-nums;min-width:66px}
-#timer .bar{flex:1;height:4px;background:var(--surface-3);border-radius:99px;overflow:hidden}
-#timer .bar i{display:block;height:100%;background:var(--acc);transition:width 1s linear}
+#timer .bar{flex:1;height:5px;background:var(--surface-3);border-radius:99px;overflow:hidden}
+#timer .bar i{display:block;height:100%;background:linear-gradient(90deg,color-mix(in srgb,var(--acc) 65%,#00e5ff),var(--acc));border-radius:99px;box-shadow:0 0 8px var(--acc);transition:width 1s linear}
 /* rest variant: −15/+15/Skip and the clock won't share one line on a phone, so the clock and
    bar take the top row and the controls take their own. The work timer keeps a single row —
    it only ever has two buttons. */
@@ -815,6 +878,110 @@ h4.sec{
 #timer.working .lbl{
   font-size:12px;color:var(--label-2);margin-bottom:5px;text-transform:capitalize;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+
+/* --- Motion & Form Guide Modal --- */
+.motion-modal-backdrop{
+  position:fixed;inset:0;z-index:150;
+  background:rgba(0,0,0,.75);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  display:flex;align-items:flex-end;justify-content:center;
+  animation:motionFadeIn .22s var(--ease);
+}
+@keyframes motionFadeIn{from{opacity:0}to{opacity:1}}
+.motion-modal-sheet{
+  width:100%;max-width:540px;max-height:88vh;overflow-y:auto;
+  background:var(--bg-el,#141820);
+  border-radius:var(--r-xl) var(--r-xl) 0 0;
+  padding:20px;box-shadow:0 -12px 40px rgba(0,0,0,.7);
+  border:1px solid rgba(255,255,255,.12);border-bottom:0;
+  animation:sheetup .32s var(--ease);
+  display:flex;flex-direction:column;
+}
+.motion-modal-hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:14px}
+.motion-modal-title{display:flex;flex-direction:column;gap:4px}
+.motion-modal-title h3{margin:0;font-size:19px;font-weight:700;letter-spacing:-.02em}
+.motion-pill{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--acc);
+}
+.motion-modal-close{width:32px;height:32px;border-radius:50%;background:var(--surface-2);color:var(--label);flex:none}
+.motion-player-stage{
+  position:relative;border-radius:var(--r-lg);overflow:hidden;background:#fff;
+  box-shadow:0 8px 30px rgba(0,0,0,.45);margin-bottom:14px;
+}
+.motion-player-media{width:100%;height:260px;object-fit:contain;display:block}
+.motion-player-overlay{
+  position:absolute;bottom:10px;right:10px;display:flex;align-items:center;gap:8px;
+}
+.motion-player-playbtn{
+  display:inline-flex;align-items:center;gap:5px;
+  background:rgba(0,0,0,.72);color:#fff;border-radius:99px;padding:7px 14px;
+  font-size:12px;font-weight:600;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,.2);cursor:pointer;
+  transition:background var(--fast),transform var(--fast);
+}
+.motion-player-playbtn:active{transform:scale(.92)}
+.motion-player-playbtn .icn{font-size:12px;color:var(--acc)}
+.motion-tags-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.motion-tags-row .tag{font-size:12px;padding:4px 10px}
+.tag.acc-sub{background:color-mix(in srgb,var(--acc) 14%,var(--surface-2));color:var(--acc);border:1px solid color-mix(in srgb,var(--acc) 30%,transparent)}
+.tag.muted-tag{background:var(--surface-2);color:var(--label-2)}
+
+.motion-steps-card{
+  background:var(--surface);border-radius:var(--r);padding:14px;
+  border:1px solid var(--sep-op);margin-bottom:12px;
+}
+.motion-steps-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.motion-steps-title{font-size:13px;font-weight:700;letter-spacing:-.01em;display:inline-flex;align-items:center;gap:6px}
+.motion-steps-title .icn{color:var(--acc);font-size:13px}
+.motion-steps-list{display:flex;flex-direction:column;gap:8px}
+.motion-step-item{
+  display:flex;align-items:flex-start;gap:10px;padding:8px 10px;border-radius:var(--r-sm);
+  background:var(--surface-2);cursor:pointer;transition:background var(--fast),transform var(--fast);
+}
+.motion-step-item:active{transform:scale(.98)}
+.motion-step-item.active{
+  background:color-mix(in srgb,var(--acc) 12%,var(--surface-2));
+  border:1px solid color-mix(in srgb,var(--acc) 30%,transparent);
+}
+.motion-step-num{
+  width:20px;height:20px;border-radius:50%;background:var(--surface-3);color:var(--label);
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex:none;
+}
+.motion-step-item.active .motion-step-num{background:var(--acc);color:var(--on-acc)}
+.motion-step-text{font-size:13px;line-height:1.42;color:var(--label-2)}
+.motion-step-item.active .motion-step-text{color:var(--label)}
+
+.motion-pro-tip{
+  display:flex;align-items:flex-start;gap:9px;padding:10px 12px;
+  background:color-mix(in srgb,var(--yellow) 10%,var(--surface));
+  border:1px solid color-mix(in srgb,var(--yellow) 28%,transparent);
+  border-radius:var(--r-sm);font-size:12px;line-height:1.45;color:var(--label);
+}
+.motion-pro-tip .tip-ico{color:var(--yellow);font-size:15px;flex:none;margin-top:2px}
+
+/* In-workout animations */
+.live-workout-pulse{
+  display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--acc);box-shadow:0 0 8px var(--acc);
+  animation:livePulse 1.8s ease-in-out infinite;flex:none;
+}
+@keyframes livePulse{
+  0%,100%{transform:scale(1);opacity:.9}
+  50%{transform:scale(1.45);opacity:.35}
+}
+.ex-completed-banner{
+  display:inline-flex;align-items:center;gap:6px;padding:6px 14px;
+  background:color-mix(in srgb,var(--acc) 14%,var(--surface));
+  border:1px solid color-mix(in srgb,var(--acc) 35%,transparent);
+  color:var(--acc);border-radius:99px;font-size:12px;font-weight:600;
+  margin-top:10px;animation:bannerPop .3s cubic-bezier(.175,.885,.32,1.275);
+}
+@keyframes bannerPop{
+  0%{transform:scale(.85);opacity:0}
+  100%{transform:scale(1);opacity:1}
 }
 
 /* ---------------------------------------------------------------- modal -- */

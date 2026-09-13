@@ -38,8 +38,9 @@ export default function RestTimer() {
   // with about 30px and stops saying anything. So the rest variant stacks: clock and bar
   // read at a glance, controls get their own row. −15 and +15 sit together in number-line
   // order; Skip is pushed to the far edge, away from the button you tap to buy more time.
+  const isUrgent = timer && timer.left <= 5
   return (
-    <div id="timer" className="rest">
+    <div id="timer" className={'rest' + (isUrgent ? ' urgent' : '')}>
       <div className="head">
         <div className="t">{clock(timer.left)}</div>
         <div className="bar"><i style={{ width: pct + '%' }} /></div>
