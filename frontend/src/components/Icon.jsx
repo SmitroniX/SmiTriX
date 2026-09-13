@@ -113,6 +113,8 @@ const P = {
   signOut: <><path d="M14.2 4.6H7a1.9 1.9 0 0 0-1.9 1.9v11a1.9 1.9 0 0 0 1.9 1.9h7.2" /><path d="m16.8 8.4 3.6 3.6-3.6 3.6M20.4 12H10.2" /></>,
   shuffle: <><path d="M3.6 7.2h2.9c1.6 0 2.8.9 3.8 2.4l3 4.8c1 1.5 2.2 2.4 3.8 2.4h2.9M3.6 16.8h2.9c1.6 0 2.8-.9 3.8-2.4l.7-1.1M15.6 9.9l.7-1.1c1-1.5 2.2-2.4 3.8-2.4h1.9" /><path d="m17.9 4.3 2.8 2.1-2.8 2.1M17.9 14.7l2.8 2.1-2.8 2.1" /></>,
   info: <><circle cx="12" cy="12" r="8.2" /><path d="M12 11v5.4" /><circle cx="12" cy="7.9" r=".9" fill="currentColor" stroke="none" /></>,
+  help: <><circle cx="12" cy="12" r="8.2" /><path d="M9.2 9a3 3 0 0 1 5.6 1.4c0 1.8-2.8 2.2-2.8 4.2" /><circle cx="12" cy="17.2" r=".9" fill="currentColor" stroke="none" /></>,
+  question: <><circle cx="12" cy="12" r="8.2" /><path d="M9.2 9a3 3 0 0 1 5.6 1.4c0 1.8-2.8 2.2-2.8 4.2" /><circle cx="12" cy="17.2" r=".9" fill="currentColor" stroke="none" /></>,
   // Three position-detection squares plus a scatter of modules — reads as "QR / scan this"
   // at tab-bar size without trying to draw a real (unscannable) code.
   qr: <><rect x="3.6" y="3.6" width="6" height="6" rx="1.2" /><rect x="14.4" y="3.6" width="6" height="6" rx="1.2" /><rect x="3.6" y="14.4" width="6" height="6" rx="1.2" /><path d="M14.4 14.4h2.4v2.4M20.4 14.4v.01M14.4 20.4h.01M17.4 17.4h3M17.4 20.4h3" /></>,

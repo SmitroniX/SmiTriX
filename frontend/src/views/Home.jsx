@@ -10,6 +10,7 @@ import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
 import { tappable } from '../lib/use-sheet-keyboard.js'
 import { glyphOf } from '../lib/glyphs.js'
+import { openTutorial, TutorialWelcomeCard, hasSeenTutorial } from '../components/TutorialDialog.jsx'
 
 // Home = what to do now + a quick glance. Deep charts & history live in Stats.
 export default function Home() {
@@ -17,6 +18,7 @@ export default function Home() {
   const S = useStore(s => s.S)
   const user = useStore(s => s.user)
   const [weekOffset, setWeekOffset] = useState(0)
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false)
 
   const today = new Date()
   const routine = effectiveRoutine(S, todayISO())
@@ -58,8 +60,15 @@ export default function Home() {
   return <div className="narrow">
     <div className="hdr">
       <div><h1>{user ? t('Hi {0}', user.name) : 'SmiTriX'}</h1><div className="sub">{today.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' })}</div></div>
-      <button className="iconbtn" onClick={() => nav('/settings')} aria-label={t('Settings')}><Icon name="gear" /></button>
+      <div className="row" style={{ gap: 6 }}>
+        <button className="iconbtn" onClick={() => openTutorial(0)} aria-label={t('Tutorial & Guide')} title={t('Tutorial & Guide')}><Icon name="help" /></button>
+        <button className="iconbtn" onClick={() => nav('/settings')} aria-label={t('Settings')}><Icon name="gear" /></button>
+      </div>
     </div>
+
+    {S.workouts.length === 0 && !welcomeDismissed && !hasSeenTutorial() && (
+      <TutorialWelcomeCard onDismiss={() => setWelcomeDismissed(true)} />
+    )}
 
     <div className="card">
       <div className="row between" style={{ marginBottom: 8 }}>
@@ -119,6 +128,7 @@ export default function Home() {
         </div>
         <div className="muted small" style={{ marginBottom: 12 }}>{t('Set up your weekly routine to get going — or load a ready-made starter plan.')}</div>
         <Button variant="primary" icon="sparkles" onClick={starterPlanSheet}>{t('Load starter plan')}</Button>
+        <div style={{ height: 8 }} /><Button icon="lightbulb" onClick={() => openTutorial(0)}>{t('How SmiTriX works (Tour)')}</Button>
         <div style={{ height: 8 }} /><Button onClick={() => nav('/plan')}>{t('Build my own plan')}</Button>
       </div>
     )}

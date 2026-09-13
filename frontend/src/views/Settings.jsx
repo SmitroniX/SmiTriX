@@ -15,6 +15,7 @@ import { MOBILE, isAndroid, shareExport, syncReminder } from '../lib/mobile.js'
 import { checkForUpdate, downloadAndInstall } from '../lib/update.js'
 import { ConnectSheet } from './MobileOnboarding.jsx'
 import { starterPlanSheet, confirmSheet, importFromApp, importFromHevy, equipmentProfileSheet, menuSheet } from '../sheets.jsx'
+import { openTutorial } from '../components/TutorialDialog.jsx'
 import Icon from '../components/Icon.jsx'
 import { Section, Row, SelectRow, Switch, Segmented, Button, TextField } from '../components/ui.jsx'
 
@@ -315,6 +316,15 @@ export default function Settings() {
           ))}
         </div>
       </div>
+    </Section>
+
+    {/* ---------- help & guide ---------- */}
+    <Section title={t('Help & Guide')}>
+      <Row icon="lightbulb" iconTint="var(--yellow)"
+        title={t('How SmiTriX works (App Tour)')}
+        subtitle={t('Step-by-step visual guide to routines, workouts, rest timer & stats')}
+        accessory="chevron"
+        onClick={() => openTutorial(0)} />
     </Section>
 
     {/* ---------- data: fill it, bring things over, back it up, wipe it ---------- */}

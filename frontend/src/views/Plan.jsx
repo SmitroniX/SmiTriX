@@ -10,6 +10,7 @@ import { glyphOf, DEFAULT_GLYPH } from '../lib/glyphs.js'
 import { DEMO } from '../lib/demo.js'
 import { MOBILE } from '../lib/mobile.js'
 import { coachAvailable } from '../lib/coach.js'
+import { openTutorial } from '../components/TutorialDialog.jsx'
 
 export default function Plan() {
   const nav = useNavigate()
@@ -34,7 +35,10 @@ export default function Plan() {
   return <>
     <div className="hdr">
       <div><h1>{t('Plan')}</h1><div className="sub">{t('Your weekly routine')}</div></div>
-      <button className="iconbtn" onClick={planToolsSheet} aria-label={t('Share your plan')} title={t('Share your plan')}><Icon name="upload" /></button>
+      <div className="row" style={{ gap: 6 }}>
+        <button className="iconbtn" onClick={() => openTutorial(1)} aria-label={t('How planning works')} title={t('How planning works')}><Icon name="help" /></button>
+        <button className="iconbtn" onClick={planToolsSheet} aria-label={t('Share your plan')} title={t('Share your plan')}><Icon name="upload" /></button>
+      </div>
     </div>
     {showCoach && <button className="coach-cta" onClick={() => nav('/coach')}>
       <span className="coach-cta-av"><Icon name="sparkles" /></span>
@@ -67,6 +71,8 @@ export default function Plan() {
         <Icon name="chevronRight" className="chev" /></div>)}</div> : <>
         <div className="empty"><div className="ico"><Icon name="clipboard" /></div>{t('No routines yet.')}<br />{t('Create one or load the starter plan.')}</div>
         <Button icon="sparkles" onClick={starterPlanSheet}>{t('Load starter plan')}</Button>
+        <div style={{ height: 8 }} />
+        <Button variant="ghost" className="dim" icon="lightbulb" onClick={() => openTutorial(1)}>{t('How planning works (Guide)')}</Button>
       </>}
     </div></div>
   </>
