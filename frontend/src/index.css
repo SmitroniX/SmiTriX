@@ -406,7 +406,11 @@ h4.sec{
   position:absolute;left:6px;right:6px;height:3px;border-radius:99px;
   background:var(--acc);transform:translateY(-50%);pointer-events:none;z-index:3;
 }
-.thumb{width:50px;height:50px;border-radius:9px;object-fit:cover;background:#fff;flex:none}
+.thumb{
+  width:50px;height:50px;border-radius:9px;object-fit:cover;background:#fff;flex:none;
+  image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;
+  filter:contrast(1.04) saturate(1.05);
+}
 /* exercise pictures are decoration inside tappable rows/cards: no save-image callout on
    a long press and no drag ghost when a scroll starts on the picture */
 .thumb,.exmedia img{-webkit-touch-callout:none;-webkit-user-drag:none;user-select:none;-webkit-user-select:none}
@@ -641,12 +645,19 @@ h4.sec{
 .wprog{height:5px;background:var(--surface-2);border-radius:99px;overflow:hidden;margin-bottom:16px;box-shadow:inset 0 1px 2px rgba(0,0,0,.3)}
 .wprog i{display:block;height:100%;background:linear-gradient(90deg, color-mix(in srgb, var(--acc) 75%, #00d2ff), var(--acc));border-radius:99px;box-shadow:0 0 8px var(--acc);transition:width var(--med) var(--ease)}
 .exmedia{
-  position:relative;border-radius:var(--r-lg);overflow:hidden;background:#fff;margin-bottom:12px;
-  border:1px solid rgba(255,255,255,.1);box-shadow:0 8px 24px -6px rgba(0,0,0,.45);
+  position:relative;border-radius:var(--r-lg);overflow:hidden;
+  background:radial-gradient(circle at center, #ffffff 45%, #f1f5f9 100%);
+  margin-bottom:12px;
+  border:1px solid rgba(255,255,255,.12);box-shadow:0 8px 24px -6px rgba(0,0,0,.45);
   transition:transform var(--fast) ease;
 }
 .exmedia:active{transform:scale(.99)}
-.exmedia img{width:100%;height:320px;object-fit:contain;display:block;transition:opacity .25s ease}
+.exmedia img{
+  width:100%;height:240px;object-fit:contain;display:block;
+  image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;
+  filter:contrast(1.05) saturate(1.06);
+  transition:opacity .25s ease;
+}
 .exmedia img.img-loading{opacity:0}
 .exmedia img.img-loaded{opacity:1}
 .exmedia-skeleton{
@@ -662,6 +673,27 @@ h4.sec{
 @keyframes skeletonShimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
 .exmedia-skeleton-icon{opacity:.4;animation:pulseDumbbell 1.5s ease-in-out infinite}
 @keyframes pulseDumbbell{0%,100%{transform:scale(1);opacity:.35}50%{transform:scale(1.1);opacity:.6}}
+
+.motion-live-pill{
+  position:absolute;top:9px;left:9px;
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(0,0,0,.72);color:#fff;border-radius:99px;padding:5px 10px;
+  font-size:11px;font-weight:600;letter-spacing:-.01em;
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  border:1px solid rgba(255,255,255,.18);box-shadow:0 4px 12px rgba(0,0,0,.35);
+  pointer-events:none;z-index:2;
+}
+.motion-live-dot{
+  width:7px;height:7px;border-radius:50%;background:#94a3b8;flex:none;
+  transition:background var(--fast),transform var(--fast);
+}
+.motion-live-dot.active{
+  background:#10b981;
+  box-shadow:0 0 8px #10b981;
+  animation:motionDotPulse 2s cubic-bezier(0.4,0,0.6,1) infinite;
+}
+.motion-live-dot.paused{background:#f59e0b}
+@keyframes motionDotPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.85)}}
 
 .motion-guide-badge{
   position:absolute;top:9px;right:9px;
@@ -679,21 +711,22 @@ h4.sec{
 
 .exmedia .gifhint,.exmedia .giftoggle{
   position:absolute;bottom:9px;display:inline-flex;align-items:center;gap:4px;
-  background:rgba(0,0,0,.45);color:#fff;border-radius:99px;padding:5px 11px;
+  background:rgba(0,0,0,.6);color:#fff;border-radius:99px;padding:5px 11px;
   font-size:12px;font-weight:500;
   -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  border:1px solid rgba(255,255,255,.15);
+  cursor:pointer;z-index:2;
 }
 .exmedia .gifhint{right:9px}
 .exmedia .giftoggle{left:9px}
 .exmedia .gifhint .icn,.exmedia .giftoggle .icn{font-size:13px}
-/* superset: both exercises are on screen together, so the animations have to give way —
-   at 180px you had to scroll a full screen between two exercises done back-to-back */
+/* superset: both exercises are on screen together, so the animations have to give way */
 .exmedia.compact img{height:120px}
 .exmedia.mini img{height:84px}
 /* both the animation and the still failed to load: a neutral tile instead of the browser's
    broken-image glyph; same heights as the picture so the card does not jump. tap retries. */
 .exmedia.broken{background:var(--surface-2)}
-.exmedia-x{width:100%;height:320px;display:flex;align-items:center;justify-content:center;color:var(--label-3);font-size:34px}
+.exmedia-x{width:100%;height:240px;display:flex;align-items:center;justify-content:center;color:var(--label-3);font-size:34px}
 .exmedia.compact .exmedia-x{height:120px}
 .exmedia.mini .exmedia-x{height:84px}
 
@@ -956,19 +989,50 @@ h4.sec{
 }
 .motion-modal-close{width:32px;height:32px;border-radius:50%;background:var(--surface-2);color:var(--label);flex:none}
 .motion-player-stage{
-  position:relative;border-radius:var(--r-lg);overflow:hidden;background:#fff;
+  position:relative;border-radius:var(--r-lg);overflow:hidden;
+  background:radial-gradient(circle at center, #ffffff 45%, #f1f5f9 100%);
   box-shadow:0 8px 30px rgba(0,0,0,.45);margin-bottom:14px;
+  border:1px solid rgba(255,255,255,.12);
 }
-.motion-player-media{width:100%;height:260px;object-fit:contain;display:block}
+.motion-player-media{
+  width:100%;height:250px;object-fit:contain;display:block;
+  image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;
+  filter:contrast(1.05) saturate(1.06);
+  transition:opacity .25s ease;
+}
+.motion-player-media.img-loading{opacity:0}
+.motion-player-media.img-loaded{opacity:1}
+.motion-player-badges{position:absolute;top:10px;left:10px;z-index:3}
+.motion-player-failed{
+  width:100%;height:250px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:10px;color:var(--label-2);background:var(--surface-2);
+}
+.motion-player-failed .failed-icon{font-size:32px;color:var(--label-3)}
+.motion-player-failed .failed-text{font-size:13px;font-weight:500}
 .motion-player-overlay{
-  position:absolute;bottom:10px;right:10px;display:flex;align-items:center;gap:8px;
+  position:absolute;bottom:10px;left:10px;right:10px;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  pointer-events:none;
 }
+.motion-mode-toggle{
+  display:inline-flex;background:rgba(0,0,0,.75);border-radius:99px;padding:3px;
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,.2);pointer-events:auto;
+}
+.motion-mode-btn{
+  display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:99px;
+  font-size:11px;font-weight:600;color:var(--label-2);background:transparent;border:0;
+  cursor:pointer;transition:all var(--fast);
+}
+.motion-mode-btn.active{background:var(--acc);color:var(--on-acc)}
+.motion-mode-btn .icn{font-size:10px}
 .motion-player-playbtn{
   display:inline-flex;align-items:center;gap:5px;
-  background:rgba(0,0,0,.72);color:#fff;border-radius:99px;padding:7px 14px;
+  background:rgba(0,0,0,.72);color:#fff;border-radius:99px;padding:6px 12px;
   font-size:12px;font-weight:600;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
   border:1px solid rgba(255,255,255,.2);cursor:pointer;
   transition:background var(--fast),transform var(--fast);
+  pointer-events:auto;
 }
 .motion-player-playbtn:active{transform:scale(.92)}
 .motion-player-playbtn .icn{font-size:12px;color:var(--acc)}
@@ -1357,7 +1421,7 @@ h4.sec{
   /* 520px fits the clock, the bar and all three controls on one line again */
   #timer.rest{flex-direction:row;align-items:center;gap:14px}
   #timer.rest .head{flex:1;min-width:0}
-  .exmedia img{height:380px}
+  .exmedia img{height:250px;max-height:270px}
   .hm-wrap{display:flex;flex-direction:column;align-items:center}
 }
 

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { workoutControls } from '../lib/workout-controls.js'
 import { useUI } from '../store/useUI.js'
-import { exOr } from '../lib/exercises.js'
+import { exOr, mediaUrlsFor } from '../lib/exercises.js'
 import { usesBar, barWeightFor, plateSplit } from '../lib/bar.js'
 import { effectiveRoutine, lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, freestyleConfig, defaultConfig, setsDoneActive, supersetUnits, unitOf, setLabel, modeOf, isBw, isPerSide, sideReps, repStep, EFFORT, effortOf, stepEffort, capEffort, cascadeWeight, insertWarmupRow, removeRowAt, pairAdjacent, unpairSuperset, cleanupSg, applyIntensifierPlan, pinnedNoteFor, exNoteFor, generateWarmupPyramid } from '../lib/history.js'
 import { fmtNum, fmtDate, todayISO, exCount, DAYN } from '../lib/format.js'
@@ -535,6 +535,24 @@ function ActiveWorkout() {
     const el = (setIdx >= 0 && setRefs.current.get(entry)?.get(setIdx)) || exRefs.current.get(entry)
     if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [cur, isSuperset, listMode, A.entries.length])
+
+  // Prefetch workout media for current and upcoming exercises so transitions are instantaneous
+  useEffect(() => {
+    if (!A?.entries?.length || typeof Image === 'undefined') return
+    const indices = [cur, cur + 1, cur + 2].filter(i => i >= 0 && i < A.entries.length)
+    indices.forEach(idx => {
+      const entry = A.entries[idx]
+      if (!entry?.id) return
+      const ex = exOr(entry.id)
+      if (ex?.gif) {
+        const urls = mediaUrlsFor(ex, 'gif')
+        if (urls[0]) {
+          const img = new Image()
+          img.src = urls[0]
+        }
+      }
+    })
+  }, [cur, A?.entries])
 
   const total = A.entries.reduce((n, e) => n + e.sets.length, 0)
   const done = setsDoneActive(A)

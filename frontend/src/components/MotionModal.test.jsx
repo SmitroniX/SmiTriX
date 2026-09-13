@@ -65,4 +65,42 @@ describe('MotionModal', () => {
     })
     expect(playBtn.textContent).toContain('Play')
   })
+
+  it('toggles between loop and setup frame modes', () => {
+    act(() => {
+      root.render(<MotionModal ex={EX} onClose={() => {}} />)
+    })
+
+    const modeBtns = host.querySelectorAll('.motion-mode-btn')
+    expect(modeBtns.length).toBe(2)
+
+    // Setup mode button
+    act(() => {
+      modeBtns[1].click()
+    })
+    expect(host.querySelector('.motion-live-pill').textContent).toContain('Setup Frame')
+    expect(host.querySelector('.motion-player-media').src).toContain('bench.jpg')
+
+    // Back to loop mode
+    act(() => {
+      modeBtns[0].click()
+    })
+    expect(host.querySelector('.motion-live-pill').textContent).toContain('Motion HD')
+    expect(host.querySelector('.motion-player-media').src).toContain('bench.gif')
+  })
+
+  it('allows clicking different steps to set them active', () => {
+    act(() => {
+      root.render(<MotionModal ex={EX} onClose={() => {}} />)
+    })
+
+    const steps = host.querySelectorAll('.motion-step-item')
+    expect(steps[0].classList.contains('active')).toBe(true)
+    expect(steps[1].classList.contains('active')).toBe(false)
+
+    act(() => {
+      steps[1].click()
+    })
+    expect(steps[1].classList.contains('active')).toBe(true)
+  })
 })

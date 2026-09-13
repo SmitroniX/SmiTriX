@@ -125,15 +125,35 @@ export function matchesExerciseSearch(exercise, query) {
   return searchScore(exercise, query) > 0
 }
 
-// Media normally sits next to the app (img/ and gif/, mounted into the web container).
-// A build can point them somewhere else — the demo build pulls them off a CDN instead of
-// shipping ~140 MB of images into the deployment. `import.meta.env` is undefined in plain
-// Node; the guard keeps this module loadable without Vite.
+// High-availability CDN mirrors for exercise media (GIFs and JPGs).
+// Primary CDN is jsDelivr with immutable commit hash; fallback is raw GitHub mirror.
+export const PRIMARY_CDN_IMG = 'https://cdn.jsdelivr.net/gh/hasaneyldrm/exercises-dataset@7455efae41b330c265e7cd4b78dfa848e7ce5ebd/images/'
+export const PRIMARY_CDN_GIF = 'https://cdn.jsdelivr.net/gh/hasaneyldrm/exercises-dataset@7455efae41b330c265e7cd4b78dfa848e7ce5ebd/videos/'
+
+export const FALLBACK_CDN_IMG = 'https://raw.githubusercontent.com/hasaneyldrm/exercises-dataset/7455efae41b330c265e7cd4b78dfa848e7ce5ebd/images/'
+export const FALLBACK_CDN_GIF = 'https://raw.githubusercontent.com/hasaneyldrm/exercises-dataset/7455efae41b330c265e7cd4b78dfa848e7ce5ebd/videos/'
+
+// Media sits on high-availability CDNs by default so mobile builds and web builds
+// never have broken, motionless, or missing animation media. Self-hosted deployments
+// can override via VITE_IMG_BASE and VITE_GIF_BASE.
 const ENV = import.meta.env || {}
-const IMG_BASE = ENV.VITE_IMG_BASE || 'img/'
-const GIF_BASE = ENV.VITE_GIF_BASE || 'gif/'
-export const imgSrc = ex => IMG_BASE + ex.img
-export const gifSrc = ex => GIF_BASE + ex.gif
+const IMG_BASE = ENV.VITE_IMG_BASE || PRIMARY_CDN_IMG
+const GIF_BASE = ENV.VITE_GIF_BASE || PRIMARY_CDN_GIF
+export const imgSrc = ex => ex?.img ? (IMG_BASE + ex.img) : ''
+export const gifSrc = ex => ex?.gif ? (GIF_BASE + ex.gif) : ''
+
+export function mediaUrlsFor(ex, type = 'gif') {
+  if (!ex) return []
+  const file = type === 'gif' ? ex.gif : ex.img
+  if (!file) return []
+  const configured = type === 'gif' ? ENV.VITE_GIF_BASE : ENV.VITE_IMG_BASE
+  const primary = type === 'gif' ? PRIMARY_CDN_GIF : PRIMARY_CDN_IMG
+  const fallback = type === 'gif' ? FALLBACK_CDN_GIF : FALLBACK_CDN_IMG
+  const urls = []
+  if (configured) urls.push(configured + file)
+  urls.push(primary + file, fallback + file)
+  return [...new Set(urls)]
+}
 
 // Cardio exercises log time + speed instead of weight × reps.
 export const isCardio = idOrEx => (typeof idOrEx === 'string' ? EXIDX[idOrEx] : idOrEx)?.bp === 'cardio'
