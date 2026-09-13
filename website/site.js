@@ -398,5 +398,182 @@ function panel({ opener, panelEl, flag, closeBtn }) {
       const sizeMb = apk && apk.size ? (apk.size / (1024 * 1024)).toFixed(1) : '27.7'
       meta.textContent = `${ver} · ${sizeMb} MB · Android 6.0+ · signed APK. Your browser will ask before installing; that is normal outside the Play Store.`
     }
+    if (rel.body) {
+      const hashMatch = rel.body.match(/[a-f0-9]{64}/i)
+      const hashEl = document.getElementById('apkHashVal')
+      if (hashMatch && hashEl) hashEl.textContent = hashMatch[0].toLowerCase()
+    }
   } catch (e) { /* fail soft: keep latest download link and static meta */ }
+})()
+
+/* --------------------------------------------------- dynamic accent theme
+   Allows visitors to preview SmiTriX in any of the 8 in-app accents (lime, sky,
+   orange, violet, pink, red, teal, gold). Stores choice in localStorage and
+   updates active swatch indicators across the page. */
+;(() => {
+  const swatches = document.querySelectorAll('[data-accent-pick]')
+  if (!swatches.length) return
+  const setAccent = (name, persist = true) => {
+    document.documentElement.setAttribute('data-accent', name)
+    swatches.forEach(btn => btn.classList.toggle('on', btn.dataset.accentPick === name))
+    if (persist) {
+      try { localStorage.setItem('smitrix_accent', name) } catch (e) {}
+    }
+  }
+  const saved = (() => {
+    try { return localStorage.getItem('smitrix_accent') } catch (e) { return null }
+  })()
+  if (saved) setAccent(saved, false)
+  swatches.forEach(btn => {
+    btn.addEventListener('click', () => setAccent(btn.dataset.accentPick))
+  })
+})()
+
+/* ----------------------------------------------- screenshots rail tabs & nav
+   Segmented tab controls and carousel arrows for desktop / touch screen.
+   Clicking a tab smoothly centers that screen in view; scrolling the rail updates
+   the active tab indicator. */
+;(() => {
+  const rail = document.querySelector('#screens .rail')
+  const tabs = document.querySelectorAll('.screen-tab')
+  const navBtns = document.querySelectorAll('.snav-btn')
+  if (!rail || !tabs.length) return
+
+  const figures = [...rail.querySelectorAll('figure')]
+  const getScreenPos = idx => {
+    const fig = figures[idx]
+    if (!fig) return 0
+    return fig.offsetLeft - (rail.clientWidth - fig.clientWidth) / 2
+  }
+
+  const selectTab = (idx, scroll = true) => {
+    tabs.forEach((t, i) => {
+      const active = i === idx
+      t.classList.toggle('on', active)
+      t.setAttribute('aria-selected', String(active))
+    })
+    figures.forEach((f, i) => f.classList.toggle('active-screen', i === idx))
+    if (scroll) {
+      rail.scrollTo({ left: getScreenPos(idx), behavior: 'smooth' })
+    }
+  }
+
+  tabs.forEach((tab, idx) => {
+    tab.addEventListener('click', () => selectTab(idx, true))
+  })
+
+  navBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const dir = Number(btn.dataset.sdir)
+      const curIdx = figures.findIndex(f => f.classList.contains('active-screen'))
+      const nextIdx = Math.max(0, Math.min(figures.length - 1, (curIdx >= 0 ? curIdx : 0) + dir))
+      selectTab(nextIdx, true)
+    })
+  })
+
+  let raf = 0
+  const syncActiveScreen = () => {
+    raf = 0
+    const center = rail.scrollLeft + rail.clientWidth / 2
+    let closestIdx = 0
+    let minDiff = Infinity
+    figures.forEach((fig, i) => {
+      const figCenter = fig.offsetLeft + fig.clientWidth / 2
+      const diff = Math.abs(center - figCenter)
+      if (diff < minDiff) {
+        minDiff = diff
+        closestIdx = i
+      }
+    })
+    tabs.forEach((t, i) => {
+      t.classList.toggle('on', i === closestIdx)
+      t.setAttribute('aria-selected', String(i === closestIdx))
+    })
+    figures.forEach((f, i) => f.classList.toggle('active-screen', i === closestIdx))
+  }
+
+  rail.addEventListener('scroll', () => {
+    if (!raf) raf = requestAnimationFrame(syncActiveScreen)
+  }, { passive: true })
+
+  selectTab(0, false)
+})()
+
+/* --------------------------------------------------- clipboard & toast helpers
+   Allows 1-click copying of the SHA-256 checksum and Docker compose run command,
+   with animated button state and transient floating toast notification. */
+;(() => {
+  const toast = document.getElementById('toast')
+  let toastTimer = null
+  const showToast = msg => {
+    if (!toast) return
+    toast.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg><span>${msg}</span>`
+    toast.classList.add('show')
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 2600)
+  }
+
+  const copyText = async (text, btn, successMsg) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      if (btn) {
+        btn.classList.add('copied')
+        const lbl = btn.querySelector('.copy-text')
+        const oldText = lbl ? lbl.textContent : ''
+        if (lbl) lbl.textContent = 'Copied!'
+        setTimeout(() => {
+          btn.classList.remove('copied')
+          if (lbl) lbl.textContent = oldText
+        }, 2000)
+      }
+      showToast(successMsg)
+    } catch (e) {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      try {
+        document.execCommand('copy')
+        showToast(successMsg)
+      } catch (err) {}
+      document.body.removeChild(ta)
+    }
+  }
+
+  const copyHashBtn = document.getElementById('copyHashBtn')
+  const apkHashVal = document.getElementById('apkHashVal')
+  if (copyHashBtn && apkHashVal) {
+    copyHashBtn.addEventListener('click', () => {
+      copyText(apkHashVal.textContent.trim(), copyHashBtn, 'SHA-256 hash copied to clipboard!')
+    })
+  }
+
+  const copyDockerBtn = document.getElementById('copyDockerBtn')
+  if (copyDockerBtn) {
+    copyDockerBtn.addEventListener('click', () => {
+      const cmd = 'docker run -d -p 8080:8080 --name smitrix ghcr.io/smitronix/smitrix:latest'
+      copyText(cmd, copyDockerBtn, 'Docker command copied to clipboard!')
+    })
+  }
+})()
+
+/* ---------------------------------------------------- floating back-to-top
+   Appears smoothly when scrolled past 400px; smooth-scrolls back to page top. */
+;(() => {
+  const btn = document.getElementById('backToTop')
+  if (!btn) return
+  let raf = 0
+  const checkY = () => {
+    raf = 0
+    btn.classList.toggle('visible', window.scrollY > 400)
+  }
+  window.addEventListener('scroll', () => {
+    if (!raf) raf = requestAnimationFrame(checkY)
+  }, { passive: true })
+  btn.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  })
+  checkY()
 })()
