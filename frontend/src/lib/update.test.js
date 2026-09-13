@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { checkForUpdate, sha256, resetUpdateCheck } from './update.js'
+import { checkForUpdate, sha256, resetUpdateCheck, fetchChecksum } from './update.js'
 
 // __APP_VERSION__ is defined at build time by vite.config.js (reads package.json).
 // In the test environment vitest applies the same define, so it's available here.
@@ -278,5 +278,41 @@ describe('semver comparison (via checkForUpdate behavior)', () => {
     // minus one on the minor when possible.
     mockRelease('v' + [MAJ, Math.max(0, MIN - 1), 0].join('.'))
     expect((await checkForUpdate()).hasUpdate).toBe(false)
+  })
+})
+
+describe('fetchChecksum', () => {
+  it('extracts SHA-256 hash embedded in release notes without network', async () => {
+    const notes = '### Downloads\nSHA-256: c5dde4b6dcb189eaf947b2a2d802229f25c80d0981ab62a039b27eb2360c65f7\n'
+    const hash = await fetchChecksum('https://example.com/file.sha256', notes)
+    expect(hash).toBe('c5dde4b6dcb189eaf947b2a2d802229f25c80d0981ab62a039b27eb2360c65f7')
+  })
+
+  it('fetches hash from hashUrl when no hash in release notes', async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = vi.fn(() => Promise.resolve({
+      ok: true,
+      text: () => Promise.resolve('c5dde4b6dcb189eaf947b2a2d802229f25c80d0981ab62a039b27eb2360c65f7  SmiTriX.apk\n'),
+    }))
+    try {
+      const hash = await fetchChecksum('https://example.com/file.sha256', '')
+      expect(hash).toBe('c5dde4b6dcb189eaf947b2a2d802229f25c80d0981ab62a039b27eb2360c65f7')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it('returns null when no valid hash is found', async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = vi.fn(() => Promise.resolve({
+      ok: false,
+      status: 404,
+    }))
+    try {
+      const hash = await fetchChecksum('https://example.com/file.sha256', 'no hash here')
+      expect(hash).toBe(null)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
   })
 })

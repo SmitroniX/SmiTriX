@@ -145,6 +145,43 @@ export async function sha256(buffer) {
 }
 
 /**
+ * Resolves the expected SHA-256 checksum for an update.
+ * Checks release notes/body first (zero-network), then native CapacitorHttp (bypasses CORS),
+ * then standard web fetch.
+ */
+export async function fetchChecksum(hashUrl, releaseNotes = '') {
+  if (releaseNotes) {
+    const match = releaseNotes.match(/\b([0-9a-f]{64})\b/i)
+    if (match) return match[1].toLowerCase()
+  }
+  if (!hashUrl) return null
+
+  if (MOBILE) {
+    try {
+      const { CapacitorHttp } = await import('@capacitor/core')
+      if (CapacitorHttp && typeof CapacitorHttp.get === 'function') {
+        const res = await CapacitorHttp.get({ url: hashUrl })
+        if (res?.data) {
+          const hash = String(res.data).split(/\s/)[0]
+          if (/^[0-9a-f]{64}$/i.test(hash)) return hash.toLowerCase()
+        }
+      }
+    } catch { /* try web fetch fallback */ }
+  }
+
+  try {
+    const res = await fetch(hashUrl)
+    if (res.ok) {
+      const text = await res.text()
+      const hash = text.split(/\s/)[0]
+      if (/^[0-9a-f]{64}$/i.test(hash)) return hash.toLowerCase()
+    }
+  } catch { /* ignore */ }
+
+  return null
+}
+
+/**
  * Downloads the APK from `url`, verifies its SHA-256 hash against `expectedHash`
  * (if provided), and triggers the Android installer.
  * Only works on the MOBILE (Capacitor) build with Android.
@@ -156,60 +193,85 @@ export async function sha256(buffer) {
 export async function downloadAndInstall(url, expectedHash = null, onProgress = null) {
   if (!MOBILE) {
     // On web, just open the release page
-    window.open('https://github.com/SmitroniX/SmiTriX/releases', '_blank', 'noopener')
+    window.open(url || 'https://github.com/SmitroniX/SmiTriX/releases', '_blank', 'noopener')
     return
   }
 
   const { Filesystem, Directory } = await import('@capacitor/filesystem')
-
-  // Download with progress tracking via ReadableStream
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`Download failed: ${res.status}`)
-
-  const total = parseInt(res.headers.get('content-length') || '0', 10)
-  const reader = res.body.getReader()
-  const chunks = []
-  let received = 0
-
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    chunks.push(value)
-    received += value.length
-    if (onProgress) onProgress(received, total)
-  }
-
-  // Reassemble into a single blob
-  const blob = new Blob(chunks)
-
-  // Size check: an APK should be at least 100 KB
-  if (blob.size < 100_000) {
-    throw new Error('Downloaded file is too small to be a valid APK (' + blob.size + ' bytes)')
-  }
-
-  // SHA-256 integrity check
-  if (expectedHash) {
-    const buffer = await blob.arrayBuffer()
-    const actualHash = await sha256(buffer)
-    if (actualHash !== expectedHash.toLowerCase().trim()) {
-      throw new Error('SHA-256 mismatch — download may be corrupted or tampered with')
-    }
-  }
-
-  // Convert blob to base64
-  const base64 = await new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result.split(',')[1])
-    reader.onerror = reject
-    reader.readAsDataURL(blob)
-  })
-
   const fileName = 'smitrix-update.apk'
-  await Filesystem.writeFile({
-    path: fileName,
-    directory: Directory.Cache,
-    data: base64,
-  })
+  let downloaded = false
+
+  // 1. Try native Filesystem.downloadFile (direct background streaming, bypasses WebView CORS)
+  try {
+    if (typeof Filesystem.downloadFile === 'function') {
+      let listener = null
+      if (onProgress) {
+        listener = await Filesystem.addListener('progress', status => {
+          onProgress(status.bytes || 0, status.contentLength || 0)
+        })
+      }
+      await Filesystem.downloadFile({
+        url,
+        path: fileName,
+        directory: Directory.Cache,
+        progress: Boolean(onProgress),
+      })
+      if (listener) await listener.remove()
+      downloaded = true
+    }
+  } catch (err) {
+    console.warn('Native downloadFile failed, attempting fetch fallback:', err)
+  }
+
+  // 2. Fallback to fetch if downloadFile was unavailable or failed
+  if (!downloaded) {
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`Download failed: ${res.status}`)
+
+    const total = parseInt(res.headers.get('content-length') || '0', 10)
+    const reader = res.body.getReader()
+    const chunks = []
+    let received = 0
+
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+      received += value.length
+      if (onProgress) onProgress(received, total)
+    }
+
+    // Reassemble into a single blob
+    const blob = new Blob(chunks)
+
+    // Size check: an APK should be at least 100 KB
+    if (blob.size < 100_000) {
+      throw new Error('Downloaded file is too small to be a valid APK (' + blob.size + ' bytes)')
+    }
+
+    // SHA-256 integrity check
+    if (expectedHash) {
+      const buffer = await blob.arrayBuffer()
+      const actualHash = await sha256(buffer)
+      if (actualHash !== expectedHash.toLowerCase().trim()) {
+        throw new Error('SHA-256 mismatch — download may be corrupted or tampered with')
+      }
+    }
+
+    // Convert blob to base64
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result.split(',')[1])
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+
+    await Filesystem.writeFile({
+      path: fileName,
+      directory: Directory.Cache,
+      data: base64,
+    })
+  }
 
   // Use the local InstallPlugin to trigger the Android package installer
   const { registerPlugin } = await import('@capacitor/core')

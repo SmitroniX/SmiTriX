@@ -1,7 +1,7 @@
 import { useState, useEffect, forwardRef } from 'react'
 import { t } from '../lib/i18n.js'
 import { MOBILE, isAndroid } from '../lib/mobile.js'
-import { checkForUpdate, shouldShowUpdatePrompt, remindUpdateLater, downloadAndInstall } from '../lib/update.js'
+import { checkForUpdate, shouldShowUpdatePrompt, remindUpdateLater, downloadAndInstall, fetchChecksum } from '../lib/update.js'
 import { useUI } from '../store/useUI.js'
 import { useStore } from '../store/useStore.js'
 import { Button } from './ui.jsx'
@@ -42,6 +42,11 @@ export async function startAppUpdate(updateInfo) {
   let onAndroid = false
   try { onAndroid = await isAndroid() } catch { /* ignore */ }
 
+  const fallbackToBrowser = () => {
+    const targetUrl = updateInfo.apkUrl || updateInfo.releaseUrl || 'https://github.com/SmitroniX/SmiTriX/releases'
+    window.open(targetUrl, '_blank', 'noopener')
+  }
+
   if (MOBILE && onAndroid && updateInfo.apkUrl) {
     let closeProgress = null
     let setProgress = null
@@ -51,27 +56,34 @@ export async function startAppUpdate(updateInfo) {
     }, { locked: true })
 
     try {
-      let expectedHash = null
-      if (updateInfo.hashUrl) {
-        try {
-          const hashRes = await fetch(updateInfo.hashUrl)
-          if (hashRes.ok) expectedHash = (await hashRes.text()).split(/\s/)[0]
-        } catch (e) { /* reported below */ }
-      }
-      if (!/^[0-9a-f]{64}$/i.test(expectedHash || '')) {
-        throw new Error(t('Checksum not available — not installing'))
-      }
+      const expectedHash = await fetchChecksum(updateInfo.hashUrl, updateInfo.releaseNotes)
       await downloadAndInstall(updateInfo.apkUrl, expectedHash, (received, total) => {
         if (setProgress) setProgress(received, total)
       })
       if (closeProgress) closeProgress()
     } catch (e) {
       if (closeProgress) closeProgress()
-      ui.toast(t('Update failed: {0}', e.message))
+      ui.openSheet(close => (
+        <div style={{ textAlign: 'center', padding: '12px 4px' }}>
+          <div style={{ fontWeight: 600, fontSize: '1.05rem', marginBottom: 8 }}>
+            {t('Update issue')}
+          </div>
+          <p className="muted small" style={{ marginBottom: 16 }}>
+            {t('In-app installer could not complete: {0}. Would you like to download directly in your browser?', e.message)}
+          </p>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+            <button className="btn ghost" onClick={close}>
+              {t('Cancel')}
+            </button>
+            <button className="btn primary" onClick={() => { close(); fallbackToBrowser() }}>
+              {t('Download in Browser')}
+            </button>
+          </div>
+        </div>
+      ))
     }
   } else {
-    const targetUrl = updateInfo.releaseUrl || updateInfo.apkUrl || 'https://github.com/SmitroniX/SmiTriX/releases'
-    window.open(targetUrl, '_blank', 'noopener')
+    fallbackToBrowser()
   }
 }
 

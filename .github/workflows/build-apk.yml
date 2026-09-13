@@ -119,11 +119,13 @@ jobs:
           sha256sum "SmiTriX-${APP_VERSION}.apk" > "SmiTriX-${APP_VERSION}.apk.sha256"
           cp "SmiTriX-${APP_VERSION}.apk" "SmiTriX.apk"
           sha256sum "SmiTriX.apk" > "SmiTriX.apk.sha256"
+          APK_HASH=$(cut -d' ' -f1 "SmiTriX.apk.sha256")
+          echo "APK_SHA256=$APK_HASH" >> $GITHUB_ENV
 
           # Cleanup keystore file from runner
           rm -f release.keystore aligned.apk
 
-          echo "Signed APK successfully created: SmiTriX-${APP_VERSION}.apk"
+          echo "Signed APK successfully created: SmiTriX-${APP_VERSION}.apk (SHA-256: $APK_HASH)"
 
       - name: Upload APK Artifacts
         uses: actions/upload-artifact@v4
@@ -142,6 +144,11 @@ jobs:
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', env.APP_VERSION) }}
           name: SmiTriX v${{ env.APP_VERSION }}
+          body: |
+            ### Downloads
+            - **Signed APK**: [SmiTriX.apk](https://github.com/SmitroniX/SmiTriX/releases/download/${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', env.APP_VERSION) }}/SmiTriX.apk)
+            - **Versioned APK**: [SmiTriX-${{ env.APP_VERSION }}.apk](https://github.com/SmitroniX/SmiTriX/releases/download/${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', env.APP_VERSION) }}/SmiTriX-${{ env.APP_VERSION }}.apk)
+            - **SHA-256 Checksum**: `${{ env.APK_SHA256 }}`
           files: |
             SmiTriX-${{ env.APP_VERSION }}.apk
             SmiTriX-${{ env.APP_VERSION }}.apk.sha256

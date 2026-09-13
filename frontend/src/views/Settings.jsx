@@ -16,6 +16,7 @@ import { checkForUpdate, downloadAndInstall } from '../lib/update.js'
 import { ConnectSheet } from './MobileOnboarding.jsx'
 import { starterPlanSheet, confirmSheet, importFromApp, importFromHevy, equipmentProfileSheet, menuSheet } from '../sheets.jsx'
 import { openTutorial } from '../components/TutorialDialog.jsx'
+import { startAppUpdate } from '../components/UpdateDialog.jsx'
 import Icon from '../components/Icon.jsx'
 import { Section, Row, SelectRow, Switch, Segmented, Button, TextField } from '../components/ui.jsx'
 
@@ -67,38 +68,11 @@ export default function Settings() {
         message: t('The latest version will be downloaded and the installer will open.'),
         confirmText: t('Download & Install'),
         cancelText: t('Remind me later'),
-        onConfirm: async () => {
-          // Open a progress sheet
-          let closeProgress = null
-          let setProgress = null
-          useUI.getState().openSheet(close => {
-            closeProgress = close
-            return <DownloadProgress ref={fn => { setProgress = fn }} />
-          }, { locked: true })
-          try {
-            // The release always publishes the checksum next to the APK. Without it the file is
-            // not installed — a sideloaded binary is exactly the thing that should be verified.
-            let expectedHash = null
-            if (updateInfo.hashUrl) {
-              try {
-                const hashRes = await fetch(updateInfo.hashUrl)
-                if (hashRes.ok) expectedHash = (await hashRes.text()).split(/\s/)[0]
-              } catch (e) { /* reported below */ }
-            }
-            if (!/^[0-9a-f]{64}$/i.test(expectedHash || '')) throw new Error(t('Checksum not available — not installing'))
-            await downloadAndInstall(updateInfo.apkUrl, expectedHash, (received, total) => {
-              if (setProgress) setProgress(received, total)
-            })
-            if (closeProgress) closeProgress()
-          } catch (e) {
-            if (closeProgress) closeProgress()
-            toast(t('Update failed: {0}', e.message))
-          }
-        },
+        onConfirm: () => startAppUpdate(updateInfo),
       })
     } else {
       // Update available but no APK asset — open the releases page
-      window.open('https://github.com/SmitroniX/SmiTriX/releases', '_blank', 'noopener')
+      window.open(updateInfo.releaseUrl || 'https://github.com/SmitroniX/SmiTriX/releases', '_blank', 'noopener')
     }
   }
 
