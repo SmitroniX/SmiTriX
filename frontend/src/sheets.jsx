@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
-import { EXDB, EXIDX, BODYPARTS, isCardio, isBodyweightEq, allExercises, equipmentOf, smOf, matchExercise, exOr } from './lib/exercises.js'
+import { EXDB, EXIDX, BODYPARTS, isCardio, isBodyweightEq, allExercises, equipmentOf, smOf, matchExercise, scoreExercise, exOr, usageMap, QUICK_EQ_PRESETS, matchesMuscleGroup } from './lib/exercises.js'
 import { activeProfile, exAvailable, ALL_EQUIPMENT, newProfile } from './lib/equipment.js'
 import { fmtDate, fmtNum, fmtVol, fmtDur, durPart, todayISO, isoOf, uid, exCount, DAYN, DAYS, weekOrder, weekStartOf, weekDayOffset, MONTHS_LONG, ACCENTS } from './lib/format.js'
 import { lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, effectiveRoutineId, workoutVolume, setsDone, setsDoneActive, lastBW, supersetUnits, unitOf, setLabel, defaultConfig, cleanupSg, modeOf, effortOf, EFFORT, capEffort, stepEffort, isBw, isPerSide, sideReps, workSetsDone, applyIntensifierPlan, MAX_PLANNED_WARMUPS, NOTE_MAX } from './lib/history.js'
@@ -19,7 +19,9 @@ import Icon from './components/Icon.jsx'
 import { Button, Slider, Switch, Segmented, SelectRow, Row, TextField, NumberField, MultiSelectRow } from './components/ui.jsx'
 import { glyphOf, GLYPH_GROUPS, DEFAULT_GLYPH } from './lib/glyphs.js'
 import BodyMap from './components/BodyMap.jsx'
+import Confetti from './components/Confetti.jsx'
 import MuscleExplorer from './components/MuscleExplorer.jsx'
+import { announceWorkoutComplete } from './lib/voice.js'
 import { exerciseMuscleSnapshot, loadOfWorkouts, MUSCLES, MUSCLE_NAME, normalizeMuscleGroups, hasExplicitMuscleMetadata } from './lib/muscles.js'
 import { parseImport, mergeImport } from './lib/import-csv.js'
 import { importHevyData, HevyApiError, HEVY_DEV_SETTINGS, mergeHevyRoutines } from './lib/import-hevy.js'
@@ -847,19 +849,13 @@ export function deleteCustomEx(ex, afterDelete) {
 }
 
 /* ============================ exercise picker ============================ */
-// Exercises already used in your routines or past workouts (for the "Chosen" filter + a marker).
-function usageMap(st) {
-  const u = {}
-  st.routines.forEach(r => r.ex.forEach(e => { u[e.id] = (u[e.id] || 0) + 1 }))
-  st.workouts.forEach(w => w.entries.forEach(e => { u[e.id] = (u[e.id] || 0) + 1 }))
-  return u
-}
 function ExercisePicker({ onPick, close }) {
   const st = useStore(s => s.S)
   const usage = usageMap(st)
   const [q, setQ] = useState('')
   const [bp, setBp] = useState('')          // '' = all, '★' = chosen, '☆' = favourites, else a body part
-  const [eq, setEq] = useState('')          // '' = any equipment
+  const [eqQuick, setEqQuick] = useState('') // '' = all, 'machine', 'cable', etc.
+  const [eq, setEq] = useState('')          // specific raw equipment if selected
   const [showAll, setShowAll] = useState(false)
   const [shown, setShown] = useState(50)
   const [byMuscle, setByMuscle] = useState(false)
@@ -868,20 +864,40 @@ function ExercisePicker({ onPick, close }) {
   const onSearchFocus = useSheetKeyboard(searchRef)
   const all = allExercises(st)
   const profile = activeProfile(st)
-  const inScope = e => bp === '★' ? usage[e.id] : bp === '☆' ? isFav(st, e.id) : (!bp || e.bp === bp)
-  let base = all.filter(e => inScope(e) && matchExercise(e, q))
-  if (bp === '★') base = [...base].sort((a, b) => (usage[b.id] - usage[a.id]) || exerciseNameFor(a).localeCompare(exerciseNameFor(b)))
+
+  const inScope = e => {
+    if (bp === '★') return !!usage[e.id]
+    if (bp === '☆') return isFav(st, e.id)
+    return matchesMuscleGroup(e, bp)
+  }
+
+  const matchesEquipment = e => {
+    if (eqQuick) {
+      const preset = QUICK_EQ_PRESETS.find(p => p.id === eqQuick)
+      if (preset?.match && !preset.match(e.eq)) return false
+    }
+    if (eq && e.eq !== eq) return false
+    return true
+  }
+
+  let base = all.filter(e => inScope(e) && matchesEquipment(e) && matchExercise(e, q))
   const eqFiltered = (profile && !showAll) ? base.filter(e => exAvailable(st, e)) : base
   const eqOpts = equipmentOf(eqFiltered)
-  // Drop the equipment filter if the search narrowed it away, so you never hit a dead end.
   const eqOn = eqOpts.includes(eq) ? eq : ''
-  // Favourites float to the top of whatever the filters left (issue #6), the rest keeps its order.
-  const f = sortFavouritesFirst(eqOn ? eqFiltered.filter(e => e.eq === eqOn) : eqFiltered, st)
+
+  // Smart relevance ranking: exact name, starts-with, favourites, and logged exercises float to top
+  const f = [...eqFiltered].sort((a, b) => {
+    const sB = scoreExercise(b, q, usage, isFav(st, b.id))
+    const sA = scoreExercise(a, q, usage, isFav(st, a.id))
+    return sB - sA || (usage[b.id] || 0) - (usage[a.id] || 0) || exerciseNameFor(a).localeCompare(exerciseNameFor(b))
+  })
+
   const chosenCount = Object.keys(usage).length
   const favCount = (st.favEx || []).length
   const special = bp === '★' || bp === '☆'
   useRevealActiveChip(bpStrip, bp)
   useRevealActiveChip(eqStrip, eqOn)
+
   if (byMuscle) return <>
     <div className="row between" style={{ marginBottom: 10 }}><h3>{t('Add exercise')}</h3>
       <Button size="sm" variant="ghost" onClick={() => setByMuscle(false)}>{t('All')}</Button>
@@ -893,46 +909,125 @@ function ExercisePicker({ onPick, close }) {
     <div className="row between" style={{ marginBottom: 10 }}><h3>{t('Add exercise')}</h3>
       <Button size="sm" variant="tinted" icon="target" onClick={() => setByMuscle(true)}>{t('By muscle')}</Button>
     </div>
-    {/* .picker-search is what index.css keys the keyboard-aware sheet layout on: the sheet
-        lifts above the keys and the search stays put while the list scrolls under it. */}
-    <div className="picker-search"><div className="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
-      <input ref={searchRef} className="input" placeholder={t('Search {0} exercises…', all.length)} value={q} onFocus={onSearchFocus} onChange={e => { setQ(e.target.value); setShown(50) }} /></div></div>
-    {profile && <div className="small dim row" style={{ margin: '8px 0 2px', gap: 6, alignItems: 'center' }}>
+    {/* Search bar with instant one-tap clear button */}
+    <div className="picker-search">
+      <div className="search" style={{ position: 'relative' }}>
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+        <input
+          ref={searchRef}
+          className="input"
+          placeholder={t('Search machine, exercise, muscle…')}
+          value={q}
+          onFocus={onSearchFocus}
+          onChange={e => { setQ(e.target.value); setShown(50) }}
+        />
+        {q && (
+          <button
+            type="button"
+            className="iconbtn"
+            style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', padding: 4, width: 28, height: 28 }}
+            aria-label={t('Clear search')}
+            onClick={() => { setQ(''); searchRef.current?.focus() }}
+          >
+            <Icon name="xmark" style={{ fontSize: 13 }} />
+          </button>
+        )}
+      </div>
+    </div>
+
+    {profile && <div className="small dim row" style={{ margin: '6px 0 2px', gap: 6, alignItems: 'center' }}>
       <Icon name="dumbbell" style={{ fontSize: 13 }} />
       {showAll ? t('Showing all equipment') : t('Showing what you have in "{0}"', profile.name)}
       <button className="chip nocap" style={{ marginLeft: 'auto', padding: '3px 10px', fontSize: 12 }} onClick={() => setShowAll(v => !v)}>
         {showAll ? t('Filter by "{0}"', profile.name) : t('Show all equipment')}
       </button>
     </div>}
-    <div className="chips" ref={bpStrip} style={{ margin: eqOpts.length > 1 ? '10px 0 6px' : '10px 0' }}>
-      {favCount > 0 && <button className={'chip' + (bp === '☆' ? ' on' : '')} onClick={() => { setBp('☆'); setEq(''); setShown(50) }}><Icon name="starFill" className="fav-star" />{t('Favourites')} ({favCount})</button>}
-      {chosenCount > 0 && <button className={'chip' + (bp === '★' ? ' on' : '')} onClick={() => { setBp('★'); setEq(''); setShown(50) }}><Icon name="starFill" style={{ fontSize: 12, display: 'inline-block', marginRight: 4, verticalAlign: '-1px' }} />{t('Chosen')} ({chosenCount})</button>}
-      <button className={'chip nocap' + (!bp ? ' on' : '')} onClick={() => { setBp(''); setEq(''); setShown(50) }}>{t('All')}</button>
-      {BODYPARTS.map(b => <button key={b} className={'chip' + (bp === b ? ' on' : '')} onClick={() => { setBp(b); setEq(''); setShown(50) }}>{t(b)}</button>)}
+
+    {/* Primary Equipment & Machine Row */}
+    <div className="chips" style={{ margin: '8px 0 4px', display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      {QUICK_EQ_PRESETS.map(p => (
+        <button
+          key={p.id}
+          type="button"
+          className={'chip nocap' + (eqQuick === p.id ? ' on' : '')}
+          onClick={() => { setEqQuick(p.id); setEq(''); setShown(50) }}
+        >
+          {p.id === 'machine' && <Icon name="gear" style={{ fontSize: 11, marginRight: 4 }} />}
+          {p.id === 'cable' && <Icon name="link" style={{ fontSize: 11, marginRight: 4 }} />}
+          {p.id === 'dumbbell' && <Icon name="dumbbell" style={{ fontSize: 11, marginRight: 4 }} />}
+          {t(p.label)}
+        </button>
+      ))}
     </div>
-    {eqOpts.length > 1 && <div className="chips" ref={eqStrip} style={{ marginBottom: 10 }}>
-      <button className={'chip nocap' + (!eqOn ? ' on' : '')} onClick={() => { setEq(''); setShown(50) }}>{t('Any equipment')}</button>
-      {eqOpts.map(x => <button key={x} className={'chip' + (eqOn === x ? ' on' : '')} onClick={() => { setEq(x); setShown(50) }}>{t(x)}</button>)}
-    </div>}
+
+    {/* Muscle & Target Bodypart Row */}
+    <div className="chips" ref={bpStrip} style={{ margin: '4px 0 8px', display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      {favCount > 0 && <button type="button" className={'chip' + (bp === '☆' ? ' on' : '')} onClick={() => { setBp('☆'); setShown(50) }}><Icon name="starFill" className="fav-star" />{t('Favourites')} ({favCount})</button>}
+      {chosenCount > 0 && <button type="button" className={'chip' + (bp === '★' ? ' on' : '')} onClick={() => { setBp('★'); setShown(50) }}><Icon name="starFill" style={{ fontSize: 12, display: 'inline-block', marginRight: 4, verticalAlign: '-1px' }} />{t('Chosen')} ({chosenCount})</button>}
+      <button type="button" className={'chip nocap' + (!bp ? ' on' : '')} onClick={() => { setBp(''); setShown(50) }}>{t('All')}</button>
+      <button type="button" className={'chip' + (bp === 'chest' ? ' on' : '')} onClick={() => { setBp(b => b === 'chest' ? '' : 'chest'); setShown(50) }}>{t('Chest')}</button>
+      <button type="button" className={'chip' + (bp === 'back' ? ' on' : '')} onClick={() => { setBp(b => b === 'back' ? '' : 'back'); setShown(50) }}>{t('Back')}</button>
+      <button type="button" className={'chip' + (bp === 'legs' ? ' on' : '')} onClick={() => { setBp(b => b === 'legs' ? '' : 'legs'); setShown(50) }}>{t('Legs')}</button>
+      <button type="button" className={'chip' + (bp === 'shoulders' ? ' on' : '')} onClick={() => { setBp(b => b === 'shoulders' ? '' : 'shoulders'); setShown(50) }}>{t('Shoulders')}</button>
+      <button type="button" className={'chip' + (bp === 'arms' ? ' on' : '')} onClick={() => { setBp(b => b === 'arms' ? '' : 'arms'); setShown(50) }}>{t('Arms')}</button>
+      <button type="button" className={'chip' + (bp === 'core' ? ' on' : '')} onClick={() => { setBp(b => b === 'core' ? '' : 'core'); setShown(50) }}>{t('Core')}</button>
+      {BODYPARTS.filter(b => !['chest', 'back', 'upper legs', 'lower legs', 'shoulders', 'upper arms', 'lower arms', 'waist'].includes(b)).map(b => (
+        <button key={b} type="button" className={'chip' + (bp === b ? ' on' : '')} onClick={() => { setBp(b); setShown(50) }}>{t(b)}</button>
+      ))}
+    </div>
+
+    {/* Specific Equipment sub-strip if narrowing further */}
+    {eqOpts.length > 1 && !eqQuick && (
+      <div className="chips" ref={eqStrip} style={{ marginBottom: 10 }}>
+        <button type="button" className={'chip nocap' + (!eqOn ? ' on' : '')} onClick={() => { setEq(''); setShown(50) }}>{t('Any gear')}</button>
+        {eqOpts.map(x => <button key={x} type="button" className={'chip' + (eqOn === x ? ' on' : '')} onClick={() => { setEq(x); setShown(50) }}>{t(x)}</button>)}
+      </div>
+    )}
+
     <div className="list">
-      {!special && <div className="item" {...tappable(() => customExSheet(null, ex => onPick(ex), q.trim()))}>
-        <div className="thumb thumb-x"><Icon name="sparkles" /></div>
-        <div className="grow"><div className="tt">{t('Create your own exercise')}</div><div className="ss">{t('name + body part, no animation')}</div></div><Icon name="plus" className="chev" />
-      </div>}
-      {f.slice(0, shown).map(e => <div key={e.id} className="item" {...tappable(() => onPick(e))}>
-        <Thumb ex={e} /><div className="grow"><div className="tt capitalize">{isFav(st, e.id) && <Icon name="starFill" className="fav-star" />}{exerciseNameFor(e)}</div><div className="ss capitalize">{t(e.tg || e.bp)} · {t(e.eq)}</div></div>
-        {/* Accent tag = already in a routine/log ("Chosen"); the yellow star by the name = favourite. */}
-        {usage[e.id] && <span className="tag acc"><Icon name="starFill" /></span>}
-        {/* A "+" glyph reads as "add this now" — it used to just open the same detail sheet as
-            tapping the row, so it added nothing until you'd scrolled past the sets/reps config
-            and found the real button. Now it does what it looks like: adds with the default
-            config right away. Tapping the row itself still opens the detail/config sheet, for
-            when you want to set sets/reps before adding. */}
-        <button className="iconbtn chev" aria-label={t('Add “{0}”', exerciseNameFor(e))} style={{ padding: 8, margin: -8 }}
-          onClick={ev => { ev.stopPropagation(); onPick(e, true) }}><Icon name="plus" /></button>
-      </div>)}
-      {f.length === 0 && bp === '★' && <div className="empty">{t('Nothing chosen yet — add exercises and they’ll show up here.')}</div>}
-      {f.length === 0 && bp === '☆' && <div className="empty">{t('No favourites here — tap the star on an exercise to add it.')}</div>}
+      {!special && !q && !bp && !eqQuick && (
+        <div className="item" {...tappable(() => customExSheet(null, ex => onPick(ex), q.trim()))}>
+          <div className="thumb thumb-x"><Icon name="sparkles" /></div>
+          <div className="grow"><div className="tt">{t('Create your own exercise')}</div><div className="ss">{t('name + body part, no animation')}</div></div><Icon name="plus" className="chev" />
+        </div>
+      )}
+      {f.slice(0, shown).map(e => {
+        const isMachine = (e.eq || '').includes('machine') || e.eq === 'assisted'
+        const isCable = e.eq === 'cable'
+        return (
+          <div key={e.id} className="item" {...tappable(() => onPick(e))}>
+            <Thumb ex={e} />
+            <div className="grow">
+              <div className="tt capitalize">{isFav(st, e.id) && <Icon name="starFill" className="fav-star" />}{exerciseNameFor(e)}</div>
+              <div className="ss capitalize row" style={{ gap: 5, alignItems: 'center', marginTop: 2 }}>
+                <span>{t(e.tg || e.bp)}</span>
+                <span style={{ opacity: 0.35 }}>•</span>
+                <span style={{
+                  fontWeight: isMachine || isCable ? 600 : 400,
+                  color: isMachine ? 'var(--teal)' : isCable ? 'var(--blue)' : 'inherit'
+                }}>
+                  {isMachine && '⚙️ '}{isCable && '🔗 '}{t(e.eq)}
+                </span>
+              </div>
+            </div>
+            {usage[e.id] && <span className="tag acc"><Icon name="starFill" /></span>}
+            <button className="iconbtn chev" aria-label={t('Add “{0}”', exerciseNameFor(e))} style={{ padding: 8, margin: -8 }}
+              onClick={ev => { ev.stopPropagation(); onPick(e, true) }}><Icon name="plus" /></button>
+          </div>
+        )
+      })}
+      {f.length === 0 && (
+        <div className="empty" style={{ padding: '24px 16px' }}>
+          <div className="ico"><Icon name="magnifier" /></div>
+          <div style={{ fontWeight: 600, marginTop: 4 }}>{t('No exercises found')}</div>
+          <div className="dim small" style={{ marginTop: 2 }}>{t('Try searching by muscle (e.g. "chest") or machine name')}</div>
+          {(q || bp || eqQuick || eq) && (
+            <div style={{ marginTop: 12 }}>
+              <Button size="sm" onClick={() => { setQ(''); setBp(''); setEqQuick(''); setEq('') }}>{t('Reset filters')}</Button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
     {f.length > shown && <><div style={{ height: 8 }} /><Button onClick={() => setShown(s => s + 50)}>{t('Show more')}</Button></>}
   </>
@@ -2131,7 +2226,55 @@ export const workoutCompleteSheet = () => ui().openSheet(close => <WorkoutComple
 
 function FinishSummary({ w, prs, e1prs = [], close }) {
   const st = useStore(s => s.S)
-  return <div style={{ textAlign: 'center', padding: '8px 0' }}>
+  const hasPRs = Boolean((prs && prs.length > 0) || (e1prs && e1prs.length > 0))
+
+  const handleShare = async () => {
+    try {
+      const { generateShareCard } = await import('./lib/share-card.js')
+      const prDetails = [
+        ...prs.map(id => EXIDX[id] ? exerciseNameFor(EXIDX[id]) : id),
+        ...e1prs.map(p => `${EXIDX[p.id] ? exerciseNameFor(EXIDX[p.id]) : p.id} (1RM: ${fmtNum(p.est)} ${st.unit})`)
+      ]
+      const blob = await generateShareCard({
+        duration: fmtDur(w.end - w.start),
+        volume: w.vol,
+        sets: setsDone(w),
+        workSets: workSetsDone(w),
+        prs: prDetails,
+        unit: st.unit,
+        name: w.name || 'Workout',
+        date: fmtDate(w.d, true),
+      })
+      if (!blob) return
+      const file = new File([blob], `smitrix-workout-${w.d || 'summary'}.png`, { type: 'image/png' })
+      if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'SmiTriX Workout Summary',
+          text: `Crushed my workout on SmiTriX! ${setsDone(w)} sets, ${fmtVol(w.vol, st.unit)} volume!`,
+        })
+      } else if (typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share({
+          title: 'SmiTriX Workout Summary',
+          text: `Crushed my workout on SmiTriX! ${setsDone(w)} sets, ${fmtVol(w.vol, st.unit)} volume!`,
+        })
+      } else {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `smitrix-workout-${w.d || 'summary'}.png`
+        a.click()
+        URL.revokeObjectURL(url)
+      }
+    } catch (e) {
+      if (e?.name !== 'AbortError') {
+        useUI.getState().toast(t('Share card generated'))
+      }
+    }
+  }
+
+  return <div style={{ textAlign: 'center', padding: '8px 0', position: 'relative' }}>
+    {hasPRs && <Confetti />}
     <div style={{ fontSize: 44, display: 'flex', justifyContent: 'center', color: 'var(--acc)' }}><Icon name="trophy" /></div>
     <h3 style={{ margin: '8px 0' }}>{t('Workout complete!')}</h3>
     <div className="tiles" style={{ textAlign: 'left' }}>
@@ -2147,7 +2290,10 @@ function FinishSummary({ w, prs, e1prs = [], close }) {
     <h4 className="sec" style={{ textAlign: 'left' }}>{t('What you just trained')}</h4>
     <BodyMap load={loadOfWorkouts([w])} body={st.body} />
     <div style={{ height: 14 }} />
-    <Button variant="primary" onClick={() => { close(); nav('/home') }}>{t('Nice!')}</Button>
+    <div className="row" style={{ gap: 8 }}>
+      <Button icon="share" onClick={handleShare} style={{ flex: 1 }}>{t('Share card')}</Button>
+      <Button variant="primary" onClick={() => { close(); nav('/home') }} style={{ flex: 1 }}>{t('Nice!')}</Button>
+    </div>
   </div>
 }
 export function finishWorkout() {
@@ -2197,5 +2343,10 @@ function doFinishWorkout() {
   useStore.getState().autoBackupNow()
   useUI.getState().stopRest()
   beep(snd(), 880, 0.15); beep(snd(), 1100, 0.15, 0.18); beep(snd(), 1320, 0.3, 0.36)
+  if (prs.length > 0 || e1prs.length > 0) {
+    vibrate([100, 50, 100, 50, 200, 100, 400])
+  }
+  announceWorkoutComplete(st.voiceCoach, prs.length + e1prs.length)
   ui().openSheet(close => <FinishSummary w={w} prs={prs} e1prs={e1prs} close={close} />, { kind: 'center', locked: true })
 }
+

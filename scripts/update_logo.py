@@ -38,73 +38,77 @@ def make_round(img_rgb):
     return res
 
 def generate():
-    print(f"Loading source logo: {SOURCE_LOGO_PATH}")
-    src_im = Image.open(SOURCE_LOGO_PATH)
-    
-    # 1. Clean crop: remove top and bottom artifact bars (11px each)
-    # y: 11 to 713
-    arr_raw = np.array(src_im)[11:713, :]
-    h_c, w_c, _ = arr_raw.shape
-    
-    # Logo barbell center: x=377, y=353
-    cx, cy = 377, 353
-    half = 349 # 698x698 square
-    sq_arr = arr_raw[cy-half:cy+half, cx-half:cx+half].astype(np.float32)
-    h_sq, w_sq, _ = sq_arr.shape
-    
-    # Feather the outer 48px to exactly THEME_BG so there are zero edge seams
-    FEATHER = 48.0
-    y_dist = np.minimum(np.arange(h_sq), h_sq - 1 - np.arange(h_sq))
-    x_dist = np.minimum(np.arange(w_sq), w_sq - 1 - np.arange(w_sq))
-    edge_dist = np.minimum(y_dist[:, None], x_dist[None, :])
-    factor = np.clip(edge_dist / FEATHER, 0.0, 1.0)[:, :, None]
-    
-    target_bg_f = np.array(THEME_BG, dtype=np.float32)
-    feathered_sq = sq_arr * factor + target_bg_f * (1.0 - factor)
-    sq_img = Image.fromarray(feathered_sq.astype(np.uint8))
-    
-    # 2. Master dark canvases: 1024x1024 and 2048x2048
-    # Logo scaled to ~80% of canvas
-    def create_master_dark(canvas_sz):
-        canvas = Image.new('RGB', (canvas_sz, canvas_sz), THEME_BG)
-        scale = int(canvas_sz * 0.80)
-        resized = sq_img.resize((scale, scale), Image.Resampling.LANCZOS)
-        offset = (canvas_sz - scale) // 2
-        canvas.paste(resized, (offset, offset))
-        return canvas
-    
-    master_dark_1024 = create_master_dark(1024)
-    master_dark_2048 = create_master_dark(2048)
-    
-    # Master squircle icons
-    master_squircle_1024 = make_squircle(master_dark_1024)
-    master_squircle_2048 = make_squircle(master_dark_2048)
-    
-    # Master transparent logo:
-    # Key out background from master_dark_1024
-    arr_1024 = np.array(master_dark_1024)
-    is_logo = (arr_1024[:, :, 0] > 28) | (arr_1024[:, :, 1] > 32) | (arr_1024[:, :, 2] > 38)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (35, 35))
-    closed = cv2.morphologyEx(is_logo.astype(np.uint8), cv2.MORPH_CLOSE, kernel)
-    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    hull_mask = np.zeros((1024, 1024), dtype=np.uint8)
-    for c in contours:
-        if cv2.contourArea(c) > 5000:
-            cv2.drawContours(hull_mask, [c], -1, 255, -1)
-    smooth_mask = cv2.GaussianBlur(hull_mask, (15, 15), 0)
-    master_trans_1024 = Image.fromarray(np.dstack([arr_1024, smooth_mask]))
-    master_trans_2048 = master_trans_1024.resize((2048, 2048), Image.Resampling.LANCZOS)
-    
-    print("Generated master assets at 1024x1024 and 2048x2048")
-    
-    # 3. Save to assets/ folder
-    os.makedirs(os.path.join(REPO_ROOT, 'assets'), exist_ok=True)
-    master_trans_2048.save(os.path.join(REPO_ROOT, 'assets/logo.png'), optimize=True)
-    master_squircle_2048.save(os.path.join(REPO_ROOT, 'assets/logo-squircle.png'), optimize=True)
-    master_dark_2048.save(os.path.join(REPO_ROOT, 'assets/logo-dark.png'), optimize=True)
-    master_squircle_1024.save(os.path.join(REPO_ROOT, 'assets/logo-1024.png'), optimize=True)
-    master_squircle_1024.resize((512, 512), Image.Resampling.LANCZOS).save(os.path.join(REPO_ROOT, 'assets/logo-512.png'), optimize=True)
-    print("Saved master logo assets in assets/")
+    if os.path.exists(SOURCE_LOGO_PATH):
+        print(f"Loading source logo: {SOURCE_LOGO_PATH}")
+        src_im = Image.open(SOURCE_LOGO_PATH)
+        
+        # 1. Clean crop: remove top and bottom artifact bars (11px each)
+        # y: 11 to 713
+        arr_raw = np.array(src_im)[11:713, :]
+        h_c, w_c, _ = arr_raw.shape
+        
+        # Logo barbell center: x=377, y=353
+        cx, cy = 377, 353
+        half = 349 # 698x698 square
+        sq_arr = arr_raw[cy-half:cy+half, cx-half:cx+half].astype(np.float32)
+        h_sq, w_sq, _ = sq_arr.shape
+        
+        # Feather the outer 48px to exactly THEME_BG so there are zero edge seams
+        FEATHER = 48.0
+        y_dist = np.minimum(np.arange(h_sq), h_sq - 1 - np.arange(h_sq))
+        x_dist = np.minimum(np.arange(w_sq), w_sq - 1 - np.arange(w_sq))
+        edge_dist = np.minimum(y_dist[:, None], x_dist[None, :])
+        factor = np.clip(edge_dist / FEATHER, 0.0, 1.0)[:, :, None]
+        
+        target_bg_f = np.array(THEME_BG, dtype=np.float32)
+        feathered_sq = sq_arr * factor + target_bg_f * (1.0 - factor)
+        sq_img = Image.fromarray(feathered_sq.astype(np.uint8))
+        
+        # 2. Master dark canvases: 1024x1024 and 2048x2048
+        def create_master_dark(canvas_sz):
+            canvas = Image.new('RGB', (canvas_sz, canvas_sz), THEME_BG)
+            scale = int(canvas_sz * 0.80)
+            resized = sq_img.resize((scale, scale), Image.Resampling.LANCZOS)
+            offset = (canvas_sz - scale) // 2
+            canvas.paste(resized, (offset, offset))
+            return canvas
+        
+        master_dark_1024 = create_master_dark(1024)
+        master_dark_2048 = create_master_dark(2048)
+        
+        master_squircle_1024 = make_squircle(master_dark_1024)
+        master_squircle_2048 = make_squircle(master_dark_2048)
+        
+        arr_1024 = np.array(master_dark_1024)
+        is_logo = (arr_1024[:, :, 0] > 28) | (arr_1024[:, :, 1] > 32) | (arr_1024[:, :, 2] > 38)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (35, 35))
+        closed = cv2.morphologyEx(is_logo.astype(np.uint8), cv2.MORPH_CLOSE, kernel)
+        contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        hull_mask = np.zeros((1024, 1024), dtype=np.uint8)
+        for c in contours:
+            if cv2.contourArea(c) > 5000:
+                cv2.drawContours(hull_mask, [c], -1, 255, -1)
+        smooth_mask = cv2.GaussianBlur(hull_mask, (15, 15), 0)
+        master_trans_1024 = Image.fromarray(np.dstack([arr_1024, smooth_mask]))
+        master_trans_2048 = master_trans_1024.resize((2048, 2048), Image.Resampling.LANCZOS)
+        
+        print("Generated master assets at 1024x1024 and 2048x2048")
+        os.makedirs(os.path.join(REPO_ROOT, 'assets'), exist_ok=True)
+        master_trans_2048.save(os.path.join(REPO_ROOT, 'assets/logo.png'), optimize=True)
+        master_squircle_2048.save(os.path.join(REPO_ROOT, 'assets/logo-squircle.png'), optimize=True)
+        master_dark_2048.save(os.path.join(REPO_ROOT, 'assets/logo-dark.png'), optimize=True)
+        master_squircle_1024.save(os.path.join(REPO_ROOT, 'assets/logo-1024.png'), optimize=True)
+        master_squircle_1024.resize((512, 512), Image.Resampling.LANCZOS).save(os.path.join(REPO_ROOT, 'assets/logo-512.png'), optimize=True)
+        print("Saved master logo assets in assets/")
+    else:
+        print("Using existing master assets in assets/")
+        master_trans_path = os.path.join(REPO_ROOT, 'assets/logo.png')
+        master_dark_path = os.path.join(REPO_ROOT, 'assets/logo-dark.png')
+        master_trans_2048 = Image.open(master_trans_path).convert('RGBA')
+        master_trans_1024 = master_trans_2048.resize((1024, 1024), Image.Resampling.LANCZOS)
+        master_dark_1024 = Image.open(master_dark_path).convert('RGB').resize((1024, 1024), Image.Resampling.LANCZOS)
+        master_squircle_1024 = make_squircle(master_dark_1024)
+
     
     # 4. Web and PWA icons
     icon_512 = master_squircle_1024.resize((512, 512), Image.Resampling.LANCZOS)
@@ -177,9 +181,9 @@ def generate():
         bg_img = Image.new('RGBA', (adaptive_sz, adaptive_sz), (*THEME_BG, 255))
         bg_img.save(os.path.join(dir_path, 'ic_launcher_background.png'), optimize=True)
         
-        # Foreground: logo in center (safe zone ~72%)
+        # Foreground: logo in center (full bleed ~84%)
         fg_canvas = Image.new('RGBA', (adaptive_sz, adaptive_sz), (0, 0, 0, 0))
-        logo_sz = int(adaptive_sz * 0.72)
+        logo_sz = int(adaptive_sz * 0.84)
         resized_fg = master_trans_1024.resize((logo_sz, logo_sz), Image.Resampling.LANCZOS)
         offset = (adaptive_sz - logo_sz) // 2
         fg_canvas.paste(resized_fg, (offset, offset), mask=resized_fg)

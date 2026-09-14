@@ -4,6 +4,8 @@ import { beep, vibrate } from '../lib/sound.js'
 import { api } from '../lib/api.js'
 import { t } from '../lib/i18n.js'
 import { useStore } from './useStore.js'
+import { announceRest, announceRestCountdown, announceRestDone, cancelSpeech } from '../lib/voice.js'
+import { showRestTimerNotification, cancelRestTimerNotification } from '../lib/mobile.js'
 
 // Fire-and-forget: lets the server push a "rest over" alert if this tab gets suspended
 // before the local timer completes. No-ops for guests / offline.
@@ -100,6 +102,8 @@ export const useUI = create((set, get) => ({
     set({ timer: { left: sec, total: sec, endsAt, forIdx } })
     requestRestNotificationPermission()
     pushRestTimer(sec)
+    showRestTimerNotification(sec)
+    announceRest(useStore.getState().S.voiceCoach, sec)
     timerTick = () => {
       const tm = get().timer
       if (!tm) return
@@ -113,6 +117,7 @@ export const useUI = create((set, get) => ({
           beep(snd, 880, 0.15); beep(snd, 880, 0.15, 0.25); beep(snd, 1320, 0.4, 0.5)
           vibrate([200, 100, 200]); get().flashTimer()
         }
+        announceRestDone(useStore.getState().S.voiceCoach)
         // The toast stays even when the rest ran out while the app was hidden: a guest, or anyone
         // without push permission, gets no notification, and a countdown that silently vanishes
         // on reopen reads like a bug. Only the loud parts (beep, vibration, flash) are gated.
@@ -120,6 +125,9 @@ export const useUI = create((set, get) => ({
         maybeRestNotification(); get().stopRest(); return
       }
       if (left <= 3) beep(snd, 660, 0.1)
+      if ([10, 5, 3, 2, 1].includes(left)) {
+        announceRestCountdown(useStore.getState().S.voiceCoach, left)
+      }
       set({ timer: { ...tm, left } })
     }
     timerInt = setInterval(timerTick, 1000)
@@ -134,6 +142,7 @@ export const useUI = create((set, get) => ({
     if (left <= 0) { get().stopRest(); return }
     set({ timer: { ...tm, left, total: tm.total + sec, endsAt: tm.endsAt + sec * 1000 } })
     pushRestTimer(left)
+    showRestTimerNotification(left)
   },
   // The active list changed shape (an exercise removed or inserted at `at`): keep the rest
   // pointing at the same exercise. Returns nothing; the caller decides whether to stop instead.
@@ -146,6 +155,8 @@ export const useUI = create((set, get) => ({
     if (timerInt) clearInterval(timerInt); timerInt = null
     if (timerTick) document.removeEventListener('visibilitychange', timerTick); timerTick = null
     if (get().timer) cancelPushRestTimer()
+    cancelRestTimerNotification()
+    cancelSpeech()
     set({ timer: null })
   },
 

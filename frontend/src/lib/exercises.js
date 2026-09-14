@@ -192,6 +192,195 @@ export const normalizeStr = s => (s || '')
 // is the i18n version (bumped by every setLang), so switching language rebuilds the translated
 // terms. Custom exercises are re-cached automatically — the store clones state on update, so an
 // edited exercise arrives as a new object the WeakMap has never seen.
+function extraAliasesFor(e) {
+  const aliases = []
+  const n = (e?.n || '').toLowerCase()
+  const eq = (e?.eq || '').toLowerCase()
+  const bp = (e?.bp || '').toLowerCase()
+  const tg = (e?.tg || '').toLowerCase()
+
+  // Machine & equipment aliases
+  if (eq.includes('machine') || eq === 'assisted' || eq === 'sled machine') {
+    aliases.push('machine', 'machines', 'gym machine', 'lever', 'selectorized', 'pin loaded', 'plate loaded')
+  }
+  if (eq.includes('cable')) {
+    aliases.push('cable', 'cables', 'pulley', 'machine')
+  }
+  if (eq.includes('dumbbell')) {
+    aliases.push('db', 'dumbbell', 'dumbbells')
+  }
+  if (eq.includes('barbell') || eq.includes('trap bar')) {
+    aliases.push('bb', 'barbell', 'bar', 'barbells')
+  }
+  if (eq.includes('smith')) {
+    aliases.push('smith', 'smith machine')
+  }
+  if (eq.includes('body weight')) {
+    aliases.push('bw', 'bodyweight', 'calisthenics')
+  }
+
+  // Common movement & gym machine names
+  if (n.includes('seated fly') || n.includes('chest fly') || n.includes('butterfly') || n.includes('pec fly')) {
+    aliases.push('pec deck', 'pec dec', 'pec fly', 'butterfly', 'chest fly machine', 'peck deck')
+  }
+  if (n.includes('romanian deadlift') || n.includes('stiff leg')) {
+    aliases.push('rdl')
+  }
+  if (n.includes('overhead press') || n.includes('shoulder press') || n.includes('military press')) {
+    aliases.push('ohp')
+  }
+  if (n.includes('lateral pulldown') || n.includes('lat pulldown') || n.includes('pulldown')) {
+    aliases.push('lat pulldown', 'lat pull', 'pulldowns')
+  }
+  if (n.includes('biceps curl') || n.includes('bicep curl') || n.includes('arm curl')) {
+    aliases.push('bicep', 'biceps', 'bicep curl', 'biceps curl', 'curls')
+  }
+  if (n.includes('triceps pushdown') || n.includes('pushdown') || n.includes('tricep extension')) {
+    aliases.push('tricep', 'triceps', 'tricep pushdown', 'pushdown', 'rope pushdown')
+  }
+  if (n.includes('leg press')) {
+    aliases.push('leg press', 'leg press machine', '45 leg press', 'horizontal leg press')
+  }
+  if (n.includes('leg extension')) {
+    aliases.push('leg extension', 'quad extension', 'leg extension machine')
+  }
+  if (n.includes('leg curl') || n.includes('hamstring curl')) {
+    aliases.push('leg curl', 'hamstring curl', 'lying leg curl', 'seated leg curl')
+  }
+  if (n.includes('lateral raise') || n.includes('side lateral')) {
+    aliases.push('lateral raise', 'side raise', 'side lateral raise', 'lateral raises')
+  }
+  if (n.includes('calf raise') || n.includes('calf press')) {
+    aliases.push('calf raise', 'calves', 'calf machine', 'standing calf raise', 'seated calf raise')
+  }
+  if (n.includes('bench press')) {
+    aliases.push('bench press', 'chest press', 'flat bench')
+  }
+  if (n.includes('incline bench') || n.includes('incline chest')) {
+    aliases.push('incline press', 'incline bench', 'upper chest')
+  }
+  if (n.includes('preacher curl')) {
+    aliases.push('preacher curl', 'bicep preacher')
+  }
+  if (n.includes('hack squat')) {
+    aliases.push('hack squat', 'hack squat machine')
+  }
+  if (n.includes('seated row') || n.includes('cable row') || n.includes('cable seated row') || n.includes('bent over row')) {
+    aliases.push('cable row', 'seated row', 'back row', 'rows')
+  }
+  if (n.includes('face pull')) {
+    aliases.push('face pull', 'rear delt face pull')
+  }
+  if (n.includes('hip thrust') || n.includes('glute bridge')) {
+    aliases.push('hip thrust', 'glute bridge', 'glute drive', 'hip thrust machine')
+  }
+  if (n.includes('t-bar row') || n.includes('t bar')) {
+    aliases.push('t bar row', 't-bar row', 'chest supported row')
+  }
+  if (n.includes('assisted') && (n.includes('pull') || n.includes('chin'))) {
+    aliases.push('assisted pull up', 'assisted chin up', 'assisted pullup', 'pull up machine')
+  }
+  if (n.includes('assisted') && n.includes('dip')) {
+    aliases.push('assisted dip', 'assisted dips', 'dip machine')
+  }
+  if (n.includes('cable crossover') || (n.includes('cable') && n.includes('fly'))) {
+    aliases.push('cable fly', 'cable crossover', 'high to low fly', 'low to high fly')
+  }
+  if (n.includes('crunch') || n.includes('ab coaster')) {
+    aliases.push('cable crunch', 'ab machine', 'ab crunch')
+  }
+  if (n.includes('shrug')) {
+    aliases.push('shrugs', 'trap shrug', 'traps')
+  }
+
+  // Muscle aliases
+  if (bp === 'chest' || tg === 'pectorals') {
+    aliases.push('pec', 'pecs', 'chest')
+  }
+  if (bp === 'back' || tg === 'lats') {
+    aliases.push('lat', 'lats', 'back', 'wings')
+  }
+  if (bp === 'upper legs' || tg === 'quads') {
+    aliases.push('quad', 'quads', 'thighs', 'legs', 'leg')
+  }
+  if (tg === 'hamstrings') {
+    aliases.push('ham', 'hams', 'hamstring', 'hamstrings', 'legs', 'leg')
+  }
+  if (bp === 'lower legs' || tg === 'calves') {
+    aliases.push('calf', 'calves', 'lower leg', 'legs')
+  }
+  if (tg === 'glutes') {
+    aliases.push('glute', 'glutes', 'butt', 'booty', 'hips')
+  }
+  if (bp === 'upper arms' || tg === 'biceps' || tg === 'triceps') {
+    aliases.push('arms', 'arm')
+  }
+  if (bp === 'shoulders' || tg === 'delts') {
+    aliases.push('delt', 'delts', 'shoulder', 'shoulders')
+  }
+  if (bp === 'waist' || tg === 'abs') {
+    aliases.push('ab', 'abs', 'core', 'abdominal', 'abdominals')
+  }
+
+  return aliases
+}
+
+const COMMON_STAPLES = [
+  'barbell bench press', 'dumbbell bench press', 'incline barbell bench press',
+  'incline dumbbell bench press', 'lever chest press', 'lever seated fly',
+  'barbell squat', 'sled 45° leg press', 'lever leg extension', 'lever seated leg curl',
+  'barbell deadlift', 'cable bar lateral pulldown', 'cable seated row',
+  'overhead press', 'dumbbell lateral raise', 'cable triceps pushdown',
+  'dumbbell bicep curl', 'ez barbell curl', 'barbell bent over row',
+  'standing calf raise', 'hanging leg raise', 'smith bench press', 'smith squat'
+]
+
+export function scoreExercise(e, query = '', usage = {}, isFav = false) {
+  let score = 0
+  const name = (e?.n || '').toLowerCase()
+  const q = normalizeStr(query).trim()
+
+  if (isFav) score += 400
+  if (usage[e?.id]) score += Math.min(300, usage[e.id] * 50)
+
+  for (const staple of COMMON_STAPLES) {
+    if (name.includes(staple)) {
+      score += 150
+      break
+    }
+  }
+
+  if (!q) return score
+
+  const tokens = q.split(/\s+/).filter(Boolean)
+  if (!tokens.length) return score
+
+  if (name === q) score += 1000
+  else if (name.startsWith(q)) score += 600
+  else if (name.includes(q)) score += 400
+
+  tokens.forEach(tok => {
+    if (name.includes(tok)) score += 150
+    if ((e?.tg || '').toLowerCase().includes(tok)) score += 80
+    if ((e?.bp || '').toLowerCase().includes(tok)) score += 60
+    if ((e?.eq || '').toLowerCase().includes(tok)) score += 70
+  })
+
+  // Short clean names rank slightly higher than verbose ones
+  score -= Math.min(40, name.length * 0.4)
+
+  return score
+}
+
+const TYPO_MAP = {
+  'dumbell': 'dumbbell',
+  'dumbel': 'dumbbell',
+  'machin': 'machine',
+  'extention': 'extension',
+  'puldown': 'pulldown',
+  'peck': 'pec',
+}
+
 const corpusCache = new WeakMap()
 
 function corpusOf(e) {
@@ -199,12 +388,14 @@ function corpusOf(e) {
   const hit = corpusCache.get(e)
   if (hit && hit.v === v) return hit.s
   const sm = Array.isArray(e?.sm) ? e.sm : []
+  const aliases = extraAliasesFor(e)
   const s = normalizeStr([
     exerciseNameSearchText(e),
     e?.tg || '', t(e?.tg || ''),
     e?.eq || '', t(e?.eq || ''),
     e?.bp || '', t(e?.bp || ''),
     ...sm, ...sm.map(m => t(m)),
+    ...aliases,
     e?.desc || ''
   ].join(' '))
   corpusCache.set(e, { v, s })
@@ -217,5 +408,49 @@ export function matchExercise(e, query) {
   if (!tokens.length) return true
   if (!e || typeof e !== 'object') return false
   const corpus = corpusOf(e)
-  return tokens.every(tok => corpus.includes(tok))
+  return tokens.every(tok => {
+    if (corpus.includes(tok)) return true
+    const fixed = TYPO_MAP[tok]
+    if (fixed && corpus.includes(fixed)) return true
+    return false
+  })
 }
+
+export const QUICK_EQ_PRESETS = [
+  { id: '', label: 'All Gear' },
+  { id: 'machine', label: 'Machine', icon: 'gear', match: eq => (eq || '').includes('machine') || eq === 'assisted' },
+  { id: 'cable', label: 'Cable', icon: 'link', match: eq => eq === 'cable' },
+  { id: 'dumbbell', label: 'Dumbbell', icon: 'dumbbell', match: eq => eq === 'dumbbell' },
+  { id: 'barbell', label: 'Barbell', icon: 'dumbbell', match: eq => (eq || '').includes('barbell') || (eq || '').includes('trap bar') },
+  { id: 'bodyweight', label: 'Bodyweight', icon: 'figureStrength', match: eq => eq === 'body weight' },
+]
+
+export const QUICK_MUSCLE_GROUPS = [
+  { id: '', label: 'All' },
+  { id: 'chest', label: 'Chest' },
+  { id: 'back', label: 'Back' },
+  { id: 'legs', label: 'Legs' },
+  { id: 'shoulders', label: 'Shoulders' },
+  { id: 'arms', label: 'Arms' },
+  { id: 'core', label: 'Core' },
+]
+
+export function matchesMuscleGroup(e, group) {
+  if (!group || group === 'all') return true
+  if (group === 'chest') return e?.bp === 'chest' || e?.tg === 'pectorals'
+  if (group === 'back') return e?.bp === 'back' || e?.tg === 'lats' || e?.tg === 'upper back' || e?.tg === 'spine'
+  if (group === 'legs') return e?.bp === 'upper legs' || e?.bp === 'lower legs' || e?.tg === 'quads' || e?.tg === 'hamstrings' || e?.tg === 'calves' || e?.tg === 'glutes'
+  if (group === 'shoulders') return e?.bp === 'shoulders' || e?.tg === 'delts'
+  if (group === 'arms') return e?.bp === 'upper arms' || e?.bp === 'lower arms' || e?.tg === 'biceps' || e?.tg === 'triceps'
+  if (group === 'core') return e?.bp === 'waist' || e?.tg === 'abs'
+  return e?.bp === group
+}
+
+export function usageMap(st) {
+  const u = {}
+  if (!st) return u
+  st.routines?.forEach(r => r.ex?.forEach(e => { u[e.id] = (u[e.id] || 0) + 1 }))
+  st.workouts?.forEach(w => w.entries?.forEach(e => { u[e.id] = (u[e.id] || 0) + 1 }))
+  return u
+}
+

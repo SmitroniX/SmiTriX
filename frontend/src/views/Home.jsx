@@ -11,6 +11,9 @@ import { Button } from '../components/ui.jsx'
 import { tappable } from '../lib/use-sheet-keyboard.js'
 import { glyphOf } from '../lib/glyphs.js'
 import { openTutorial, TutorialWelcomeCard, hasSeenTutorial } from '../components/TutorialDialog.jsx'
+import ActivityHeatmap from '../components/ActivityHeatmap.jsx'
+import RecoveryMap from '../components/RecoveryMap.jsx'
+import PRWall from '../components/PRWall.jsx'
 
 // Home = what to do now + a quick glance. Deep charts & history live in Stats.
 export default function Home() {
@@ -175,5 +178,41 @@ export default function Home() {
         <Icon name="calendar" className="chev" style={{ fontSize: 20 }} />
       </div>
     </div>
+
+    {/* Activity Heatmap */}
+    {S.workouts.length > 0 && (
+      <div className="card">
+        <div className="row between" style={{ marginBottom: 6 }}>
+          <h2 style={{ margin: 0 }}>{t('Activity')}</h2>
+          <span className="dim small">{t('{0} total', S.workouts.length)}</span>
+        </div>
+        <ActivityHeatmap workouts={S.workouts} weekStart={ws} />
+      </div>
+    )}
+
+    {/* Muscle Recovery Heatmap */}
+    {S.workouts.length > 0 && (
+      <div className="card">
+        <div className="row between" style={{ marginBottom: 6 }}>
+          <h2 style={{ margin: 0 }}>{t('Muscle recovery')}</h2>
+          <span className="dim small">{t('Readiness')}</span>
+        </div>
+        <RecoveryMap workouts={S.workouts} body={S.body} />
+      </div>
+    )}
+
+    {/* PR Wall of Fame & Strength Standards */}
+    {Object.keys(S.exWeights || {}).length > 0 && (
+      <div className="card">
+        <div className="row between" style={{ marginBottom: 8 }}>
+          <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Icon name="trophy" style={{ color: 'var(--yellow)' }} />
+            {t('PR Wall of Fame')}
+          </h2>
+        </div>
+        <PRWall exWeights={S.exWeights} bw={bw?.w} unit={S.unit} />
+      </div>
+    )}
   </div>
 }
+

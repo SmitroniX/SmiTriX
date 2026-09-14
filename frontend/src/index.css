@@ -83,6 +83,16 @@
   --on-acc:#ffffff;
 }
 
+:root[data-theme="oled"] {
+  --bg:        #000000;
+  --bg-el:     #000000;
+  --surface:   #09090b;
+  --surface-2: #141416;
+  --surface-3: #202024;
+  --sep:       rgba(255,255,255,.14);
+  --sep-op:    rgba(255,255,255,.08);
+}
+
 /* accents — Apple's system colours, so a recolour never looks off-system */
 :root[data-accent="lime"]  { --acc:var(--green);  --acc-2:#248a3d; --on-acc:#000 }
 :root[data-accent="sky"]   { --acc:var(--blue);   --acc-2:#0060df; --on-acc:#fff }

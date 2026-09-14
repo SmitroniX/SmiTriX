@@ -37,10 +37,17 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <!-- Workout-day reminder: lets the local-notifications plugin fire at the exact minute
-         on Android 12+. Where it isn't granted, scheduling silently falls back to inexact
-         alarms — the reminder still arrives, just not to the minute. -->
+    <!-- Android 13+ (API 33+) Runtime Notification Permission: allows displaying notifications in the notification bar & lock screen -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Haptics / vibration for timers, PR alerts, and notifications -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Screen / CPU wake lock for timer alerts while locked -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Restore scheduled workout reminders across device reboots -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Exact alarms on Android 12+ (SCHEDULE_EXACT_ALARM) and Android 14+ (USE_EXACT_ALARM) for to-the-second timers -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <!-- Gym check-in: scanning a membership QR/barcode with the camera. -->
     <uses-permission android:name="android.permission.CAMERA" />
 </manifest>

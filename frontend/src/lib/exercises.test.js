@@ -118,4 +118,21 @@ describe('matchExercise', () => {
     expect(matchExercise(benchPress, 'supino')).toBe(false)
     expect(matchExercise(benchPress, 'bench')).toBe(true)
   })
+
+  it('matches common gym acronyms and machine aliases', () => {
+    const rdl = { id: '0032', n: 'barbell romanian deadlift', bp: 'upper legs', eq: 'barbell', tg: 'hamstrings' }
+    const ohp = { id: '0041', n: 'barbell overhead press', bp: 'shoulders', eq: 'barbell', tg: 'delts' }
+    const chestMachine = { id: '0523', n: 'lever chest press', bp: 'chest', eq: 'leverage machine', tg: 'pectorals' }
+    const pecDeck = { id: '0528', n: 'lever seated fly', bp: 'chest', eq: 'leverage machine', tg: 'pectorals' }
+    const dbCurl = { id: '0285', n: 'dumbbell biceps curl', bp: 'upper arms', eq: 'dumbbell', tg: 'biceps' }
+
+    expect(matchExercise(rdl, 'rdl')).toBe(true)
+    expect(matchExercise(ohp, 'ohp')).toBe(true)
+    expect(matchExercise(chestMachine, 'machine')).toBe(true)
+    expect(matchExercise(chestMachine, 'machine chest')).toBe(true)
+    expect(matchExercise(pecDeck, 'pec deck')).toBe(true)
+    expect(matchExercise(dbCurl, 'db curl')).toBe(true)
+    expect(matchExercise(dbCurl, 'bicep')).toBe(true)
+  })
 })
+

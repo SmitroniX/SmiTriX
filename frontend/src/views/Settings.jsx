@@ -11,7 +11,7 @@ import { pushSupported, enablePush, disablePush, sendTestPush } from '../lib/pus
 import { wakeLockSupported } from '../lib/wakelock.js'
 import { t, LANGS, INSTR_LANGS } from '../lib/i18n.js'
 import { DEMO, REPO } from '../lib/demo.js'
-import { MOBILE, isAndroid, shareExport, syncReminder } from '../lib/mobile.js'
+import { MOBILE, isAndroid, shareExport, syncReminder, checkNotificationPermission, requestNotificationPermission, sendTestNotification } from '../lib/mobile.js'
 import { checkForUpdate, downloadAndInstall } from '../lib/update.js'
 import { ConnectSheet } from './MobileOnboarding.jsx'
 import { starterPlanSheet, confirmSheet, importFromApp, importFromHevy, equipmentProfileSheet, menuSheet } from '../sheets.jsx'
@@ -240,6 +240,21 @@ export default function Settings() {
       <Row icon="bell" iconTint="var(--pink)" title={t('Sounds')}>
         <Switch checked={!!S.sound} onChange={v => update(s => { s.sound = v })} />
       </Row>
+      <Row icon="mic" iconTint="var(--teal)" title={t('Voice coach')}
+        subtitle={t('Spoken rest countdown and set announcements')}>
+        <Switch checked={!!S.voiceCoach} onChange={v => {
+          if (v && !S.voiceCoach) {
+            confirmSheet({
+              title: t('Enable voice coach?'),
+              message: t("SmiTriX will speak rest countdowns, set announcements, and workout achievements using your device's voice. You can turn this off anytime."),
+              confirmText: t('Turn on'),
+              onConfirm: () => update(s => { s.voiceCoach = true }),
+            })
+          } else {
+            update(s => { s.voiceCoach = v })
+          }
+        }} />
+      </Row>
       <Row icon="sun" iconTint="var(--yellow)" title={t('Flash screen when timer ends')}>
         <Switch checked={!!S.timerFlash} onChange={v => update(s => { s.timerFlash = v })} />
       </Row>
@@ -265,6 +280,7 @@ export default function Settings() {
           className="seg-inline"
           options={[
             { value: 'dark', icon: 'moon', label: t('Dark') },
+            { value: 'oled', icon: 'eye', label: t('OLED') },
             { value: 'light', icon: 'sun', label: t('Light') },
             { value: 'system', icon: 'gear', label: t('System') },
           ]}
@@ -449,15 +465,47 @@ function NotificationsCard({ S, update, toast }) {
 // no push server involved. The schedule itself is (re)synced by the store on every persist;
 // this card only owns the OS permission prompt when the switch turns on.
 function MobileReminderCard({ S, update, toast }) {
+  const [perm, setPerm] = useState('prompt')
   const setReminder = patch => update(s => { s.reminder = { ...(s.reminder || DEF.reminder), ...patch, tz: localTZ() } })
+
+  useEffect(() => {
+    if (typeof checkNotificationPermission === 'function') {
+      checkNotificationPermission().then(p => p && setPerm(p)).catch(() => {})
+    }
+  }, [])
+
   const toggle = async () => {
     const on = !S.reminder?.on
     if (on) {
       const ok = await syncReminder({ ...S, reminder: { ...(S.reminder || DEF.reminder), on: true } }, true)
       if (!ok) { toast(t('Could not change notification settings')); return }
+      if (typeof checkNotificationPermission === 'function') {
+        checkNotificationPermission().then(p => p && setPerm(p)).catch(() => {})
+      }
     }
     setReminder({ on })
   }
+
+  const askPerm = async () => {
+    if (typeof requestNotificationPermission !== 'function') return
+    const res = await requestNotificationPermission()
+    setPerm(res)
+    if (res === 'granted') {
+      toast(t('Notification permission granted!'))
+      if (typeof sendTestNotification === 'function') await sendTestNotification()
+    } else {
+      toast(t('Permission not granted'))
+    }
+  }
+
+  const testNotify = async ev => {
+    ev?.stopPropagation?.()
+    if (typeof sendTestNotification !== 'function') return
+    const ok = await sendTestNotification()
+    if (ok) toast(t('Notification sent — check your notification bar!'))
+    else toast(t('Please enable notification permission first'))
+  }
+
   return (
     <Section title={t('Notifications')}
       footer={S.reminder?.on ? t('Reminds you at this time on days that have a routine planned.') : null}>
@@ -470,6 +518,14 @@ function MobileReminderCard({ S, update, toast }) {
             onChange={e => setReminder({ time: e.target.value })} />
         </Row>
       )}
+      <Row icon="bell" iconTint="var(--blue)" title={t('Notification bar & Lock screen')}
+        subtitle={perm === 'granted' ? t('Permission granted (Android)') : t('Tap to allow notifications in status bar')}>
+        {perm === 'granted' ? (
+          <Button size="sm" variant="tinted" icon="sparkles" onClick={testNotify}>{t('Test')}</Button>
+        ) : (
+          <Button size="sm" variant="accent" onClick={askPerm}>{t('Allow')}</Button>
+        )}
+      </Row>
     </Section>
   )
 }

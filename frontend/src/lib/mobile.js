@@ -123,10 +123,86 @@ export function buildReminderNotifications(S, now = new Date()) {
       id: REMINDER_ID_BASE + offset,
       title: t('Workout day'),
       body: t('{0} is on the plan today — let’s go!', routine.name),
+      channelId: 'workout-reminders',
       schedule: { at, allowWhileIdle: true },
     })
   }
   return notifications
+}
+
+export async function setupNotificationChannels() {
+  if (!MOBILE) return
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications')
+    await LocalNotifications.createChannel({
+      id: 'rest-timer',
+      name: 'Rest Timer',
+      description: 'Rest timer countdown and rest completion alerts',
+      importance: 5,
+      visibility: 1,
+      vibration: true,
+      lights: true,
+      lightColor: '#30D158',
+    }).catch(() => {})
+    await LocalNotifications.createChannel({
+      id: 'workout-reminders',
+      name: 'Workout Reminders',
+      description: 'Daily training reminders and scheduled routine alerts',
+      importance: 4,
+      visibility: 1,
+      vibration: true,
+      lights: true,
+      lightColor: '#30D158',
+    }).catch(() => {})
+  } catch (e) { /* channels are Android only */ }
+}
+
+export async function checkNotificationPermission() {
+  if (!MOBILE) return 'granted'
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications')
+    const perm = await LocalNotifications.checkPermissions()
+    return perm.display || 'prompt'
+  } catch (e) {
+    return 'denied'
+  }
+}
+
+export async function requestNotificationPermission() {
+  if (!MOBILE) return 'granted'
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications')
+    await setupNotificationChannels()
+    const perm = await LocalNotifications.requestPermissions()
+    return perm.display || 'denied'
+  } catch (e) {
+    return 'denied'
+  }
+}
+
+export async function sendTestNotification() {
+  if (!MOBILE) return false
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications')
+    let perm = await checkNotificationPermission()
+    if (perm !== 'granted') {
+      perm = await requestNotificationPermission()
+    }
+    if (perm !== 'granted') return false
+    await setupNotificationChannels()
+    await LocalNotifications.schedule({
+      notifications: [{
+        id: 8888,
+        title: 'SmiTriX Active 🏋️',
+        body: 'Notifications are working! You will see rest timers and workout reminders here.',
+        channelId: 'workout-reminders',
+        schedule: { at: new Date(Date.now() + 500), allowWhileIdle: true },
+      }],
+    })
+    return true
+  } catch (e) {
+    return false
+  }
 }
 
 // (Re)schedule the workout-day reminder: one one-off notification per future calendar date in
@@ -142,6 +218,7 @@ export async function syncReminder(S, interactive = false) {
     ] }).catch(() => {})
     const r = S.reminder
     if (!r?.on) return true
+    await setupNotificationChannels()
     let perm = await LocalNotifications.checkPermissions()
     if (perm.display !== 'granted' && interactive) perm = await LocalNotifications.requestPermissions()
     if (perm.display !== 'granted') return false
@@ -149,6 +226,39 @@ export async function syncReminder(S, interactive = false) {
     if (notifications.length) await LocalNotifications.schedule({ notifications })
     return true
   } catch (e) { return false }
+}
+
+const REST_TIMER_NOTIFICATION_ID = 9999
+
+export async function showRestTimerNotification(sec) {
+  if (!MOBILE || !(sec > 0)) return
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications')
+    let perm = await LocalNotifications.checkPermissions()
+    if (perm.display !== 'granted') {
+      perm = await LocalNotifications.requestPermissions()
+    }
+    if (perm.display !== 'granted') return
+    await setupNotificationChannels()
+    await LocalNotifications.cancel({ notifications: [{ id: REST_TIMER_NOTIFICATION_ID }] }).catch(() => {})
+    await LocalNotifications.schedule({
+      notifications: [{
+        id: REST_TIMER_NOTIFICATION_ID,
+        title: 'Rest over — next set!',
+        body: 'Time to crush your next set! 💪',
+        channelId: 'rest-timer',
+        schedule: { at: new Date(Date.now() + sec * 1000), allowWhileIdle: true },
+      }],
+    })
+  } catch (e) { /* non-critical */ }
+}
+
+export async function cancelRestTimerNotification() {
+  if (!MOBILE) return
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications')
+    await LocalNotifications.cancel({ notifications: [{ id: REST_TIMER_NOTIFICATION_ID }] }).catch(() => {})
+  } catch (e) { /* non-critical */ }
 }
 
 // Capacitor emits appStateChange when the native shell returns to the foreground. The visibility
