@@ -21,6 +21,9 @@ jobs:
   build-apk:
     name: Build and Sign APK
     runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -40,8 +43,8 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Install Frontend Dependencies & Build Mobile Bundle
         run: |
@@ -71,11 +74,19 @@ jobs:
             exit 1
           fi
 
-          BT="$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)"
-          ZIPALIGN="$BT/zipalign"
-          APKSIGNER="$BT/apksigner"
+          if [ -d "${ANDROID_HOME:-}/build-tools" ]; then
+            BT="$(ls -d $ANDROID_HOME/build-tools/* 2>/dev/null | sort -V | tail -1)"
+            ZIPALIGN="${BT}/zipalign"
+            APKSIGNER="${BT}/apksigner"
+          fi
+          if [ ! -x "${ZIPALIGN:-}" ]; then
+            ZIPALIGN="$(which zipalign 2>/dev/null || true)"
+          fi
+          if [ ! -x "${APKSIGNER:-}" ]; then
+            APKSIGNER="$(which apksigner 2>/dev/null || true)"
+          fi
 
-          echo "Using Android Build Tools: $BT"
+          echo "Using Android Build Tools: ${BT:-PATH}"
 
           # 1. Zipalign the unsigned APK
           "$ZIPALIGN" -f -p 4 "$UNSIGNED" "aligned.apk"
