@@ -1,5 +1,34 @@
 # Changelog
 
+## v1.4.0 — 2026-09-14
+
+Android notification permissions & lock screen alerts, instant gym machine/muscle discovery, Voice Coach cues, Pure OLED Mode, and workout activity heatmaps.
+
+- 🔔 **Android Notification Permissions & Lock Screen Integration**:
+  - Added Android 13+ (API 33+) `POST_NOTIFICATIONS` runtime permission, `VIBRATE`, `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED`, and `USE_EXACT_ALARM` permissions to `AndroidManifest.xml`.
+  - Configured high-importance Android Notification Channels (`rest-timer` with public lock-screen visibility and `workout-reminders`).
+  - Added notification permission status, interactive "Allow" prompt, and "Test" button in **Settings → Notifications**.
+- ⚡ **Instant Gym Machine & Muscle Discovery**:
+  - Added Quick Equipment Filter Bar: `All Gear`, `⚙️ Machine`, `🔗 Cable`, `🏋️ Dumbbell`, `Barbell`, `Bodyweight` across Exercise Picker, Library, and Muscle Explorer.
+  - Added Quick Muscle Groups: `Chest`, `Back`, `Legs` (quads, hamstrings, calves, glutes), `Shoulders`, `Arms` (biceps, triceps), `Core`.
+  - Added instant one-tap clear button (`×`) to all exercise search inputs.
+  - Upgraded relevance search scoring (`scoreExercise`) with extensive aliases for gym equipment and machines (`pec deck`, `rdl`, `ohp`, `lat pull`, `cable row`, `leg press`, `leg extension`, `leg curl`, `hack squat`, `smith machine`, `t-bar row`, `assisted dip/pullup`, `cable crossover`, etc.) and typo tolerance (`machin`, `dumbell`, `extention`, `puldown`, `peck`).
+  - Added color-coded machine (`⚙️`) and cable (`🔗`) visual badges to all exercise rows.
+- 🎙️ **Voice Coach Audio Cues**:
+  - Spoken rest countdown cues (10s, 5s, 3s, 2s, 1s), set done, and workout completion announcements via SpeechSynthesis.
+  - Off by default (`voiceCoach: false`); requires explicit confirmation sheet before enabling.
+- 🖤 **Pure OLED True-Black Theme**:
+  - Added `data-theme="oled"` with pure `#000000` background and high-contrast surfaces for maximum AMOLED battery savings.
+- 📊 **Activity & Muscle Recovery Heatmaps & PR Wall**:
+  - Added 16-week GitHub-style workout activity heatmap on Home.
+  - Added muscle recovery & fatigue readiness map on Home using `fatigueOf()`.
+  - Added PR Wall of Fame with bodyweight-adjusted strength standards (Beginner to Elite).
+- 🎉 **PR Celebrations & Workout Share Card**:
+  - Added PR celebration canvas confetti burst and micro-haptic vibration patterns.
+  - Added 1080×1350 canvas shareable summary card generator for Instagram and WhatsApp.
+- 🎨 **App Icon & Visual Polish**:
+  - Scaled up Android adaptive launcher icon to 0.84 for full-bleed launcher display across all mipmap densities.
+
 ## v1.3.9 — 2026-09-13
 
 HD workout visual motion guides, blur reduction & edge contrast rendering, interactive form controls, and workout prefetching.
