@@ -59,7 +59,7 @@ vi.mock('../lib/update.js', () => ({
 vi.mock('./MobileOnboarding.jsx', () => ({ ConnectSheet: () => null }))
 vi.mock('../sheets.jsx', () => ({
   starterPlanSheet: vi.fn(), confirmSheet: (...a) => mocks.confirmSheet(...a), importFromApp: vi.fn(),
-  importFromHevy: vi.fn(), equipmentProfileSheet: vi.fn(), menuSheet: vi.fn(),
+  importFromHevy: vi.fn(), importHubSheet: vi.fn(), equipmentProfileSheet: vi.fn(), menuSheet: vi.fn(),
 }))
 
 globalThis.__APP_VERSION__ ??= 'test'

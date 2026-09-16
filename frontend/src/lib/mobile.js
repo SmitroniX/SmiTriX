@@ -130,6 +130,24 @@ export function buildReminderNotifications(S, now = new Date()) {
   return notifications
 }
 
+let actionListenerRegistered = false
+export async function initNotificationListeners() {
+  if (!MOBILE || actionListenerRegistered) return
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications')
+    actionListenerRegistered = true
+    await LocalNotifications.addListener('localNotificationActionPerformed', async action => {
+      if (action.actionId === 'ADD_30') {
+        const { useUI } = await import('../store/useUI.js')
+        useUI.getState().addRest(30)
+      } else if (action.actionId === 'SKIP') {
+        const { useUI } = await import('../store/useUI.js')
+        useUI.getState().stopRest()
+      }
+    })
+  } catch (e) { /* */ }
+}
+
 export async function setupNotificationChannels() {
   if (!MOBILE) return
   try {
@@ -154,6 +172,18 @@ export async function setupNotificationChannels() {
       lights: true,
       lightColor: '#30D158',
     }).catch(() => {})
+    await LocalNotifications.registerActionTypes({
+      types: [
+        {
+          id: 'REST_TIMER_ACTIONS',
+          actions: [
+            { id: 'ADD_30', title: '+30s', foreground: false },
+            { id: 'SKIP', title: 'Skip', foreground: false, destructive: true },
+          ],
+        },
+      ],
+    }).catch(() => {})
+    await initNotificationListeners()
   } catch (e) { /* channels are Android only */ }
 }
 
@@ -173,6 +203,7 @@ export async function requestNotificationPermission() {
   try {
     const { LocalNotifications } = await import('@capacitor/local-notifications')
     await setupNotificationChannels()
+    await initNotificationListeners()
     const perm = await LocalNotifications.requestPermissions()
     return perm.display || 'denied'
   } catch (e) {
@@ -255,6 +286,7 @@ export async function showRestTimerNotification(sec) {
           title: `Rest: ${sec}s`,
           body: 'Resting between sets · Tap to return to workout',
           channelId: 'rest-timer',
+          actionTypeId: 'REST_TIMER_ACTIONS',
           ongoing: true,
           autoCancel: false,
           schedule: { at: new Date(Date.now() + 200), allowWhileIdle: true },

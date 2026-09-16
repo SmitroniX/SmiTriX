@@ -846,6 +846,7 @@ function ActiveWorkout() {
     onRemoveSetAt: i => removeSetAt(idx, i),
     onStartTimed: i => startTimed(idx, i),
     onProgressionSettings: () => openProgressionSettings(idx),
+    onSetRowRef: (setIdx, el) => bindSetRef(A.entries[idx], setIdx, el),
   })
   const navigateUnit = direction => {
     const targetFor = active => {
@@ -980,6 +981,25 @@ function ActiveWorkout() {
       checked = e.sets[i].done
       if (e.sets[i].done) {
         beep(S.sound, 1040, 0.12); vibrate(30)
+        const nextIdx = e.sets.findIndex((s, sIdx) => sIdx > i && !s.done)
+        if (nextIdx === -1 && e.sets.every(s => s.done)) {
+          // If all sets in this exercise are done, check the next exercise.
+          const nextEx = s.active?.entries?.[idx + 1]
+          if (nextEx) nextEx.sets.findIndex(s => !s.done)
+        }
+        if (nextIdx !== -1) {
+          setTimeout(() => {
+            const curEntry = useStore.getState().S.active?.entries?.[idx] || e
+            const rowEl = (setRefs.current.get(curEntry)?.get(nextIdx))
+              || (setRefs.current.get(e)?.get(nextIdx))
+              || (setRefs.current.get(A.entries[idx])?.get(nextIdx))
+              || document.querySelectorAll(`[data-exidx="${idx}"] .setrow`)[nextIdx]
+              || document.querySelector(`[data-exidx="${idx}"] .setrow:nth-of-type(${nextIdx + 1})`)
+            const input = rowEl?.querySelector?.('input.num')
+              || document.querySelector(`[data-exidx="${idx}"] .setrow:nth-of-type(${nextIdx + 1}) input.num`)
+            input?.focus?.()
+          }, 120)
+        }
         // The unit that owns the ticked set — not the marked one. Since !92 the marker no longer
         // follows a finished exercise, and in list mode any exercise can be worked on, so judging
         // the marker's unit here declared the workout complete after one set elsewhere.
@@ -1192,7 +1212,9 @@ function ActiveWorkout() {
           })}
         </div>
       ) : (
-        <ExerciseBlock entryIdx={cur} onPairPrev={onPairPrev} onPairNext={onPairNext} {...blockProps(cur)} />
+        <div data-exidx={cur}>
+          <ExerciseBlock entryIdx={cur} onPairPrev={onPairPrev} onPairNext={onPairNext} {...blockProps(cur)} />
+        </div>
       )}
       </div>
     </>) : (

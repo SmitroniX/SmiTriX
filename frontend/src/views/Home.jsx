@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { effectiveRoutine, effectiveRoutineId, nextTrainingDay, streakWeeks, lastBW, setsDoneActive } from '../lib/history.js'
@@ -14,6 +14,29 @@ import { openTutorial, TutorialWelcomeCard, hasSeenTutorial } from '../component
 import ActivityHeatmap from '../components/ActivityHeatmap.jsx'
 import RecoveryMap from '../components/RecoveryMap.jsx'
 import PRWall from '../components/PRWall.jsx'
+
+function formatElapsed(start) {
+  if (!start) return '0:00'
+  const sec = Math.max(0, Math.floor((Date.now() - start) / 1000))
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  if (m >= 60) {
+    const h = Math.floor(m / 60)
+    const rm = m % 60
+    return `${h}:${String(rm).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  }
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+function ActiveDuration({ start }) {
+  const [str, setStr] = useState(() => formatElapsed(start))
+  useEffect(() => {
+    setStr(formatElapsed(start))
+    const iv = setInterval(() => setStr(formatElapsed(start)), 1000)
+    return () => clearInterval(iv)
+  }, [start])
+  return <span>{str}</span>
+}
 
 // Home = what to do now + a quick glance. Deep charts & history live in Stats.
 export default function Home() {
@@ -59,6 +82,7 @@ export default function Home() {
 
   // today's session shown right under the week strip
   const onToday = () => { if (S.active) nav('/workout'); else if (routine) startFlow(routine.id); else dayOverrideSheet(todayISO()) }
+  const activeSetsDone = S.active ? setsDoneActive(S.active) : 0
 
   return <div className="narrow">
     <div className="hdr">
@@ -68,6 +92,49 @@ export default function Home() {
         <button className="iconbtn" onClick={() => nav('/settings')} aria-label={t('Settings')}><Icon name="gear" /></button>
       </div>
     </div>
+
+    {/* Active Workout Resume Hero Banner */}
+    {S.active && (
+      <div
+        className="card active-workout-hero tappable"
+        style={{
+          background: 'linear-gradient(145deg, var(--surface) 0%, color-mix(in srgb, var(--acc) 14%, var(--surface)) 100%)',
+          border: '1.5px solid color-mix(in srgb, var(--acc) 50%, var(--surface-3))',
+          boxShadow: '0 4px 20px color-mix(in srgb, var(--acc) 15%, transparent)',
+          marginBottom: 16,
+          cursor: 'pointer',
+        }}
+        {...tappable(() => nav('/workout'))}
+      >
+        <div className="row between" style={{ marginBottom: 6 }}>
+          <div className="row" style={{ gap: 7, alignItems: 'center' }}>
+            <span className="live-workout-pulse" />
+            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--acc)' }}>
+              {t('In Progress')}
+            </span>
+          </div>
+        </div>
+        <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 700, color: 'var(--label)', letterSpacing: '-.02em' }}>
+          {S.active.name || t('Freestyle')}
+        </h2>
+        <div className="muted small row hero-subtitle" style={{ gap: 6, alignItems: 'center', marginBottom: 14 }}>
+          <span className="row" style={{ gap: 4, alignItems: 'center' }}>
+            <Icon name="clock" style={{ fontSize: 13 }} />
+            <ActiveDuration start={S.active.start} />
+          </span>
+          <span>·</span>
+          <span>{t(activeSetsDone === 1 ? '{0} completed set' : '{0} completed sets', activeSetsDone)}</span>
+        </div>
+        <Button
+          variant="primary"
+          icon="play"
+          style={{ width: '100%', minHeight: 48, fontSize: 17 }}
+          onClick={e => { e.stopPropagation(); nav('/workout') }}
+        >
+          {t('Resume Workout')}
+        </Button>
+      </div>
+    )}
 
     {S.workouts.length === 0 && !welcomeDismissed && !hasSeenTutorial() && (
       <TutorialWelcomeCard onDismiss={() => setWelcomeDismissed(true)} />

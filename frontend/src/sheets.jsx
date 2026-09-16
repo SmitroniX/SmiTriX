@@ -13,6 +13,7 @@ import { nav } from './lib/nav.js'
 import { buildStarterPlan, starterPlanDays, starterPlanOptions } from './lib/starter.js'
 import Media, { Thumb } from './components/Media.jsx'
 import PlateCalculatorSheet from './components/PlateCalculatorSheet.jsx'
+import ImportHubSheet from './components/ImportHubSheet.jsx'
 import LineChart from './components/LineChart.jsx'
 import Stepper from './components/Stepper.jsx'
 import Icon from './components/Icon.jsx'
@@ -340,6 +341,8 @@ export function importFromApp(file, onDone) {
 export function importFromHevy() {
   ui().openSheet(close => <HevyImportSheet close={close} />)
 }
+
+export const importHubSheet = () => ui().openSheet(close => <ImportHubSheet close={close} onFile={f => importFromApp(f)} onHevyApi={() => { close(); importFromHevy() }} />)
 
 function hevyProgressLabel(p) {
   if (!p) return t('Fetching from Hevy…')

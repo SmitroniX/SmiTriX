@@ -1149,3 +1149,28 @@ describe('workout controls: the more menu and the set menu', () => {
     expect(container.querySelector('.setrow .stp.plain .num')).toBeTruthy()
   })
 })
+
+describe('auto-advance set focus', () => {
+  it('focuses the input of the next undone set after checking a set', async () => {
+    await mount([exercise('plain-bench', [false, false, false])])
+    const focusSpy = vi.fn()
+    dom.HTMLElement.prototype.focus = focusSpy
+
+    await toggleSet(0)
+    await new Promise(r => setTimeout(r, 150))
+
+    expect(focusSpy).toHaveBeenCalled()
+  })
+
+  it('does not focus when the completed set is the last undone set in the exercise', async () => {
+    await mount([exercise('plain-bench', [true, false])])
+    const focusSpy = vi.fn()
+    dom.HTMLElement.prototype.focus = focusSpy
+
+    await toggleSet(1)
+    await new Promise(r => setTimeout(r, 150))
+
+    expect(focusSpy).not.toHaveBeenCalled()
+  })
+})
+
