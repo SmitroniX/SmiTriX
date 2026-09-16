@@ -2,7 +2,7 @@
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Slider, Stepper, SLIDER_GRAB_PX } from './ui.jsx'
+import { NumberField, Slider, Stepper, SLIDER_GRAB_PX } from './ui.jsx'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
@@ -104,5 +104,16 @@ describe('Stepper', () => {
     const plus = mountStepper(10, onChange)
     act(() => plus.click())
     expect(onChange).toHaveBeenCalledWith(11)
+  })
+})
+
+describe('NumberField', () => {
+  it('renders input with autoComplete, autoCorrect, and spellCheck turned off', () => {
+    act(() => root.render(<NumberField value={10} onChange={() => {}} />))
+    const input = host.querySelector('input.num')
+    expect(input).not.toBeNull()
+    expect(input.getAttribute('autocomplete')).toBe('off')
+    expect(input.getAttribute('autocorrect')).toBe('off')
+    expect(input.getAttribute('spellcheck')).toBe('false')
   })
 })

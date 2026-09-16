@@ -1858,3 +1858,64 @@ h4.sec{
 .plate-item-count{color:var(--label-2);font-weight:600}
 .plate-item-weight{color:var(--label)}
 
+/* Weight Quick Bump Chips */
+.weight-quick-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  margin: 4px 0 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  animation: fadeIn 0.15s ease;
+}
+.quick-chip-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--label-3);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-right: 2px;
+  flex: none;
+}
+.quick-weight-chip {
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 4px 9px;
+  min-height: 28px;
+  border-radius: 6px;
+  background: var(--surface-3);
+  color: var(--label);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: all 0.15s ease;
+}
+.quick-weight-chip:active {
+  background: var(--acc);
+  color: var(--on-acc);
+  border-color: var(--acc);
+  transform: scale(.94);
+}
+.quick-chip-close {
+  flex: none;
+  margin-left: auto;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--label-3);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.quick-chip-close:active {
+  color: var(--label);
+}
+

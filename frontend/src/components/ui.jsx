@@ -41,11 +41,21 @@ export function NumberField({ value, onChange, decimal = true, nullable = false,
     <input
       type="text"
       inputMode={decimal ? 'decimal' : 'numeric'}
+      autoComplete="off"
+      autoCorrect="off"
+      spellCheck="false"
       className={'num ' + className}
       value={draft ?? (value ?? '')}
-      onFocus={e => e.target.select()}
+      onFocus={e => {
+        e.target.select()
+        rest.onFocus?.(e)
+      }}
       onChange={e => commit(e.target.value)}
-      onBlur={() => { setDraft(null); committed.current = null }}
+      onBlur={e => {
+        setDraft(null)
+        committed.current = null
+        rest.onBlur?.(e)
+      }}
       {...rest}
     />
   )

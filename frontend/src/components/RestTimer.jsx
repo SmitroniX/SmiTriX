@@ -48,6 +48,7 @@ export default function RestTimer() {
       <div className="acts">
         <Button size="sm" icon="minus" onClick={() => addRest(-15)}>15s</Button>
         <Button size="sm" icon="plus" onClick={() => addRest(15)}>15s</Button>
+        <Button size="sm" icon="plus" onClick={() => addRest(30)}>30s</Button>
         <Button size="sm" variant="primary" className="skip" onClick={stopRest}>{t('Skip')}</Button>
       </div>
     </div>

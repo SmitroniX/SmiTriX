@@ -239,6 +239,7 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
     const delta = (Number(v) || 0) - (clustersOf(row)[ci]?.r || 0)
     return { ...setClusterAt(row, ci, { r: v }), r: Math.max(0, (row.r || 0) + delta) }
   })
+  const [activeBumpSet, setActiveBumpSet] = useState(null)
   const ex = exOr(entry.id)
   const mode = modeOf({ ...(entry.target || {}), id: entry.id })
   const cardio = mode === 'cardio'
@@ -305,6 +306,9 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
       {wc.steppers && <button aria-label="Decrease" onClick={() => bump(s, i, col, -1)}><Icon name="minus" /></button>}
       <span className="val"><NumberField decimal={col.dec} nullable={col.opt} value={s[col.f] ?? ''}
         placeholder={ph != null && ph !== '' ? String(ph) : ''}
+        onFocus={() => {
+          if (col.f === 'w' && mode === 'reps' && !s.done) setActiveBumpSet(i)
+        }}
         onChange={v => onField(i, col.f, v)} /></span>
       {wc.steppers && <button aria-label="Increase" onClick={() => bump(s, i, col, 1)}><Icon name="plus" /></button>}
     </div>
@@ -444,6 +448,15 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
       <Icon name={plan.kind === 'up' ? 'arrowUp' : plan.kind === 'deload' ? 'arrowDown' : 'lightbulb'} />
       <span><strong>{t(guidance.policyLabel)}</strong> · {t(...guidance.why)}</span>
     </button>}
+    {mode === 'reps' && onAutoWarmups && !entry.sets.some(isWarmupRow) && (
+      <div className="row between" style={{ margin: '8px 2px 4px', alignItems: 'center' }}>
+        <span className="dim small">{t('Need warm-up sets?')}</span>
+        <button type="button" className="chip" style={{ fontSize: 12, padding: '4px 8px', fontWeight: 600, color: 'var(--orange)', borderColor: 'var(--orange)' }} onClick={onAutoWarmups}>
+          <Icon name="flame" style={{ marginRight: 4 }} />
+          <span>{t('Auto warm-ups')}</span>
+        </button>
+      </div>
+    )}
     <div className="card set-table-card" style={{ marginTop: 10, marginBottom: 0 }}>
       {/* the header carries the same eff3 sizing as the rows, or the labels drift off their columns */}
       <div className={'sethead' + (col3 ? ' eff3' : '')}>
@@ -510,8 +523,40 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
                 set off itself. The checkbox stays for anyone who timed it on their own watch. */}
             {timed && <button className="setgo" aria-label={t('Start set')} disabled={s.done || !!working}
               onClick={() => onStartTimed(i)}><Icon name="play" /></button>}
-            <Check checked={s.done} onChange={() => onToggle(i)} />
+            <Check checked={s.done} onChange={() => {
+              if (activeBumpSet === i) setActiveBumpSet(null)
+              onToggle(i)
+            }} />
           </div>
+          {activeBumpSet === i && mode === 'reps' && !s.done && (
+            <div className="weight-quick-chips">
+              <span className="quick-chip-label">{t('Bump')}:</span>
+              {(S.unit === 'lb' ? [-5, -2.5, 2.5, 5, 10] : [-2.5, -1.25, 1.25, 2.5, 5]).map(delta => (
+                <button
+                  key={delta}
+                  type="button"
+                  className="quick-weight-chip"
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={() => {
+                    const curW = Number(s.w) || (Number(phCol1) || 0)
+                    const nextW = Math.max(0, Math.round((curW + delta) * 100) / 100)
+                    onField(i, 'w', nextW)
+                  }}
+                >
+                  {delta > 0 ? `+${delta}` : delta}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="quick-chip-close"
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => setActiveBumpSet(null)}
+                aria-label={t('Close')}
+              >
+                <Icon name="xmark" />
+              </button>
+            </div>
+          )}
           {s.done && (isPR || (prevSet && (wDelta > 0 || rDelta > 0))) && (
             <div className="set-meta-row">
               {isPR ? (
