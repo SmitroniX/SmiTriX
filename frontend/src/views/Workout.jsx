@@ -174,10 +174,11 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
   // workout → Workout controls). The lean default keeps the sets and one "more" button; each
   // switch brings one of the old always-visible button rows back.
   const wc = workoutControls(S)
-  const cell = (s, i, col, cls) => (
+  const cell = (s, i, col, cls, ph) => (
     <div className={'stp ' + cls + (wc.steppers ? '' : ' plain')}>
       {wc.steppers && <button aria-label="Decrease" onClick={() => bump(s, i, col, -1)}><Icon name="minus" /></button>}
       <span className="val"><NumberField decimal={col.dec} nullable={col.opt} value={s[col.f] ?? ''}
+        placeholder={ph != null && ph !== '' ? String(ph) : ''}
         onChange={v => onField(i, col.f, v)} /></span>
       {wc.steppers && <button aria-label="Increase" onClick={() => bump(s, i, col, 1)}><Icon name="plus" /></button>}
     </div>
@@ -317,9 +318,17 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
       <Icon name={plan.kind === 'up' ? 'arrowUp' : plan.kind === 'deload' ? 'arrowDown' : 'lightbulb'} />
       <span><strong>{t(guidance.policyLabel)}</strong> · {t(...guidance.why)}</span>
     </button>}
-    <div className="card" style={{ marginTop: 10, marginBottom: 0 }}>
+    <div className="card set-table-card" style={{ marginTop: 10, marginBottom: 0 }}>
       {/* the header carries the same eff3 sizing as the rows, or the labels drift off their columns */}
-      <div className={'sethead' + (col3 ? ' eff3' : '')}><span className="n-sp" /><span className="w-sp">{col1.hd}</span>{col2 && <span className="r-sp">{col2.hd}</span>}{col3 && <span className="eff-sp">{col3.hd}</span>}{timed && <span className="ck-sp" />}<span className="ck-sp" /></div>
+      <div className={'sethead' + (col3 ? ' eff3' : '')}>
+        <span className="n-sp">{t('Set')}</span>
+        <span className="prev-sp">{t('Previous')}</span>
+        <span className="w-sp">{col1.hd}</span>
+        {col2 && <span className="r-sp">{col2.hd}</span>}
+        {col3 && <span className="eff-sp">{col3.hd}</span>}
+        {timed && <span className="ck-sp" />}
+        <span className="ck-sp" />
+      </div>
       {entry.sets.map((s, i) => {
         const warm = isWarmupRow(s)
         const warmBefore = i > 0 && isWarmupRow(entry.sets[i - 1])
@@ -328,6 +337,10 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
         const phaseNum = entry.sets.slice(0, i + 1).filter(x => isWarmupRow(x) === warm).length
         const workIdx = !warm ? entry.sets.slice(0, i).filter(x => !isWarmupRow(x)).length : -1
         const prevSet = (workIdx >= 0 && lastWorkSets[workIdx]) ? lastWorkSets[workIdx] : null
+        const warmIdx = warm ? entry.sets.slice(0, i).filter(x => isWarmupRow(x)).length : -1
+        const lastWarmSets = (!cardio && mode === 'reps' && last?.sets) ? last.sets.filter(x => isWarmupRow(x)) : []
+        const prevWarmSet = (warmIdx >= 0 && lastWarmSets[warmIdx]) ? lastWarmSets[warmIdx] : null
+        const activePrev = warm ? prevWarmSet : prevSet
 
         const isWeightPR = !warm && mode === 'reps' && s.done && s.w > 0 && best > 0 && s.w > best
         const est1RM = (!warm && mode === 'reps' && s.w > 0 && s.r > 0) ? estimate1RM(s.w, s.r) : 0
@@ -337,15 +350,35 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
         const wDelta = prevSet ? Math.round(((Number(s.w) || 0) - (Number(prevSet.w) || 0)) * 100) / 100 : 0
         const rDelta = prevSet ? ((Number(s.r) || 0) - (Number(prevSet.r) || 0)) : 0
 
+        const prevLabel = activePrev ? (
+          mode === 'reps' ? (bw && !added ? `${activePrev.r} ${t('rep')}` : `${fmtNum(activePrev.w)} × ${activePrev.r}`)
+          : cardio ? `${activePrev.min || 0}m @ ${fmtNum(activePrev.speed || 0)}`
+          : timed ? `${activePrev.sec || 0}s`
+          : '—'
+        ) : '—'
+
+        const phCol1 = activePrev ? (col1.f === 'w' ? activePrev.w : col1.f === 'r' ? activePrev.r : col1.f === 'min' ? activePrev.min : activePrev.sec) : (entry.target?.weight || entry.target?.reps || '')
+        const phCol2 = activePrev ? (col2?.f === 'r' ? activePrev.r : col2?.f === 'speed' ? activePrev.speed : activePrev.w) : (entry.target?.reps || entry.target?.speed || '')
+
         return <div key={i}>
           {isFirstWarmup && <div className="setph">{t('Warm-up')}</div>}
           {!warm && warmBefore && <div className="setsep" />}
-          <div ref={el => onSetRowRef?.(i, el)} className={'setrow' + (s.done ? ' done' : '') + (isPR ? ' is-pr' : '') + (col3 ? ' eff3' : '')}>
-            <button type="button" className={'n' + (isPR ? ' pr-star' : '')} aria-label={t('Set {0}', phaseNum)} title={t('More')} onClick={() => openSetMenu(s, i)}>
-              {isPR ? <Icon name="trophy" style={{ fontSize: 11 }} /> : phaseNum}
+          <div ref={el => onSetRowRef?.(i, el)} className={'setrow' + (s.done ? ' done' : '') + (isPR ? ' is-pr' : '') + (warm ? ' is-warmup' : '') + (col3 ? ' eff3' : '')}>
+            <button type="button" className={'n' + (isPR ? ' pr-star' : warm ? ' badge-warm' : isDropSet(s) ? ' badge-drop' : '')}
+              aria-label={warm ? t('Warm-up') : t('Set {0}', phaseNum)}
+              title={t('More')}
+              onClick={() => openSetMenu(s, i)}>
+              {isPR ? <Icon name="trophy" style={{ fontSize: 11 }} /> : warm ? 'W' : isDropSet(s) ? 'D' : phaseNum}
             </button>
-            {cell(s, i, col1, 'w')}
-            {col2 && cell(s, i, col2, 'r')}
+            <div className="prev-col" title={prevLabel !== '—' ? `${t('Previous')}: ${prevLabel}` : ''}>
+              {isPR && s.done ? (
+                <span className="prev-pr-badge"><Icon name="trophy" style={{ fontSize: 9 }} /> PR</span>
+              ) : (
+                <span className={prevLabel === '—' ? 'prev-dim' : 'prev-text'}>{prevLabel}</span>
+              )}
+            </div>
+            {cell(s, i, col1, 'w', phCol1)}
+            {col2 && cell(s, i, col2, 'r', phCol2)}
             {col3 && effortCell(s, i, col3)}
             {/* A timed set is started, not typed: the timer counts the hold down and checks the
                 set off itself. The checkbox stays for anyone who timed it on their own watch. */}
@@ -353,42 +386,24 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
               onClick={() => onStartTimed(i)}><Icon name="play" /></button>}
             <Check checked={s.done} onChange={() => onToggle(i)} />
           </div>
-          {!warm && mode === 'reps' && (prevSet || isPR) && (
+          {s.done && (isPR || (prevSet && (wDelta > 0 || rDelta > 0))) && (
             <div className="set-meta-row">
-              {!s.done && prevSet && (
-                <span className="set-ghost-pill">
-                  <Icon name="history" style={{ fontSize: 10 }} />
-                  <span>{t('Last:')} <b>{fmtNum(prevSet.w)} {S.unit} × {prevSet.r}</b></span>
-                </span>
-              )}
-              {s.done && isPR && (
+              {isPR ? (
                 <span className="set-pr-tag animate-pop">
                   <Icon name="trophy" style={{ fontSize: 11 }} />
                   <b>{isWeightPR ? t('Weight PR!') : t('1RM PR!')}</b>
                   {wDelta > 0 && <span className="pr-delta">+{fmtNum(wDelta)} {S.unit}</span>}
                 </span>
-              )}
-              {s.done && !isPR && prevSet && (
-                wDelta > 0 ? (
-                  <span className="set-overload-tag pos">
-                    <Icon name="arrowUp" style={{ fontSize: 10 }} />
-                    <span>+{fmtNum(wDelta)} {S.unit} {t('vs last')}</span>
-                  </span>
-                ) : (wDelta === 0 && rDelta > 0) ? (
-                  <span className="set-overload-tag pos">
-                    <Icon name="arrowUp" style={{ fontSize: 10 }} />
-                    <span>+{rDelta} {rDelta === 1 ? t('rep') : t('reps')} {t('vs last')}</span>
-                  </span>
-                ) : (wDelta === 0 && rDelta === 0) ? (
-                  <span className="set-overload-tag match">
-                    <Icon name="check" style={{ fontSize: 10 }} />
-                    <span>{t('Matched')} ({fmtNum(prevSet.w)} {S.unit} × {prevSet.r})</span>
-                  </span>
-                ) : (
-                  <span className="set-overload-tag dim">
-                    <span>{t('Last:')} {fmtNum(prevSet.w)} {S.unit} × {prevSet.r}</span>
-                  </span>
-                )
+              ) : wDelta > 0 ? (
+                <span className="set-overload-tag pos">
+                  <Icon name="arrowUp" style={{ fontSize: 10 }} />
+                  <span>+{fmtNum(wDelta)} {S.unit} {t('vs last')}</span>
+                </span>
+              ) : (
+                <span className="set-overload-tag pos">
+                  <Icon name="arrowUp" style={{ fontSize: 10 }} />
+                  <span>+{rDelta} {rDelta === 1 ? t('rep') : t('reps')} {t('vs last')}</span>
+                </span>
               )}
             </div>
           )}
@@ -426,9 +441,9 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
         )}
         <Button size="sm" icon="flame" onClick={onAddWarmup}>{t('Add warm-up set')}</Button>
         <Button size="sm" icon="minus" disabled={entry.sets.length <= 1} onClick={onRemoveSet}>{t('Remove set')}</Button>
-        <Button size="sm" icon="plus" onClick={onAddSet}>{t('Add set')}</Button>
+        <Button size="sm" icon="plus" className="hevy-add-set" onClick={onAddSet}>{t('Add set')}</Button>
       </div> : <div className="row" style={{ gap: 6 }}>
-        <Button size="sm" icon="plus" onClick={onAddSet}>{t('Add set')}</Button>
+        <Button size="sm" icon="plus" className="hevy-add-set" onClick={onAddSet}>{t('Add set')}</Button>
         {mode === 'reps' && onAutoWarmups && (
           <Button size="sm" icon="flame" variant="tinted" onClick={onAutoWarmups} title={t('Smart warm-up pyramid')}>{t('Auto warm-ups')}</Button>
         )}
@@ -556,6 +571,11 @@ function ActiveWorkout() {
 
   const total = A.entries.reduce((n, e) => n + e.sets.length, 0)
   const done = setsDoneActive(A)
+  const liveVolume = A.entries.reduce((acc, e) => {
+    const m = modeOf({ ...(e.target || {}), id: e.id })
+    if (m !== 'reps') return acc
+    return acc + (e.sets || []).filter(s => s.done).reduce((v, s) => v + (Number(s.w) || 0) * (Number(s.r) || 0), 0)
+  }, 0)
 
   const mutEntry = (idx, fn) => update(s => { fn(s.active.entries[idx]) }, true)
   // Clearing an optional field drops the key rather than storing null, so a set only carries
@@ -886,16 +906,25 @@ function ActiveWorkout() {
         set counter, discard/finish, progress) stays pinned — the one thing you want in view
         while you are somewhere in the middle of a long stack. Cards mode never scrolls far. */}
     <div className={'whdr' + (listMode ? ' stick' : '')}>
-    <div className="hdr">
+    <div className="hdr hevy-top-bar">
       <button className="iconbtn" aria-label={t('Discard')} onClick={() => confirmSheet({ title: t('Discard workout?'), message: t('The sets you logged in this session will be lost.'), confirmText: t('Discard'), danger: true, onConfirm: () => { update(s => { s.active = null }); stopRest(); stopWork(); nav('/home') } })}><Icon name="xmark" /></button>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+      <div className="hevy-title-center">
+        <div className="hevy-workout-name">
           {!A.backfill && <span className="live-workout-pulse" />}
           <span>{A.name}</span>
         </div>
-        <div className="sub">{A.backfill ? fmtDate(A.d, true) : <Elapsed start={A.start} />} · {t('{0} sets', done + '/' + total)}</div>
+        <div className="sub hevy-stats-chips">
+          <span className="h-stat"><Icon name="clock" style={{ fontSize: 11 }} /> {A.backfill ? fmtDate(A.d, true) : <Elapsed start={A.start} />}</span>
+          <span className="h-stat-sep">·</span>
+          <span className="h-stat"><Icon name="dumbbell" style={{ fontSize: 11 }} /> {fmtNum(liveVolume)} {S.unit}</span>
+          <span className="h-stat-sep">·</span>
+          <span className="h-stat"><Icon name="check" style={{ fontSize: 11 }} /> {done}/{total}</span>
+        </div>
       </div>
-      <button className="iconbtn" style={{ color: 'var(--acc)' }} aria-label={t('Finish')} onClick={finishWorkout}><Icon name="check" /></button>
+      <button className="btn primary sm hevy-finish-btn" aria-label={t('Finish')} onClick={finishWorkout}>
+        <Icon name="check" />
+        <span>{t('Finish')}</span>
+      </button>
     </div>
     <div className="wprog"><i style={{ width: (total ? done / total * 100 : 0) + '%' }} /></div>
     </div>
@@ -1002,7 +1031,7 @@ function ActiveWorkout() {
       // who wants to set sets/reps first.
       if (quick) { commit(seed || defaultConfig(ex.id)); useUI.getState().toast(t('“{0}” added to {1}', exerciseNameFor(ex), routine ? routine.name : t('Freestyle'))) }
       else exConfigSheet(ex, null, commit, null, routine, seed)
-    })} icon="plus">{t('Add exercise')}</Button>
+    })} icon="plus" className="hevy-add-exercise">{t('Add exercise')}</Button>
     {wc.exerciseButtons && A.entries.length > 0 && <>
       <div style={{ height: 6 }} />
       <div className="row">
@@ -1032,7 +1061,7 @@ function ActiveWorkout() {
     {(() => {
       const exDone = A.entries.filter(e => e.sets.length && e.sets.every(s => s.done)).length
       const allDone = A.entries.length > 0 && exDone === A.entries.length
-      return <button className={allDone ? 'btn primary' : 'btn ghost dim'} onClick={finishWorkout}>
+      return <button className={allDone ? 'btn primary hevy-finish-full' : 'btn ghost dim hevy-finish-full'} onClick={finishWorkout}>
         {allDone ? t('Finish workout') : t('Finish workout early · {0} exercises', exDone + '/' + A.entries.length)}
       </button>
     })()}
