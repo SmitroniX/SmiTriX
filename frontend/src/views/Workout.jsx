@@ -6,7 +6,7 @@ import { useUI } from '../store/useUI.js'
 import { exOr, mediaUrlsFor } from '../lib/exercises.js'
 import { usesBar, barWeightFor, plateSplit } from '../lib/bar.js'
 import { effectiveRoutine, lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, freestyleConfig, defaultConfig, setsDoneActive, supersetUnits, unitOf, setLabel, modeOf, isBw, isPerSide, sideReps, repStep, EFFORT, effortOf, stepEffort, capEffort, cascadeWeight, insertWarmupRow, removeRowAt, pairAdjacent, unpairSuperset, cleanupSg, applyIntensifierPlan, pinnedNoteFor, exNoteFor, generateWarmupPyramid } from '../lib/history.js'
-import { fmtNum, fmtDate, todayISO, exCount, DAYN } from '../lib/format.js'
+import { fmtNum, fmtDate, todayISO, exCount, DAYN, uid } from '../lib/format.js'
 import { beep, vibrate } from '../lib/sound.js'
 import { t, exerciseNameFor } from '../lib/i18n.js'
 import { api } from '../lib/api.js'
@@ -19,7 +19,7 @@ import Icon from '../components/Icon.jsx'
 import { Button, Check, NumberField } from '../components/ui.jsx'
 import { nextPrescription, applyPrescription, defaultIncrement, weightIncrement, stepWeight } from '../lib/progression.js'
 import { progressionGuidance } from '../lib/progression-copy.js'
-import { glyphOf } from '../lib/glyphs.js'
+import { glyphOf, DEFAULT_GLYPH } from '../lib/glyphs.js'
 import { isWarmupRow, isDropSet, isRestPauseSet, dropsOf, clustersOf, addDrop, addCluster, removeDropAt, removeClusterAt, setDropAt, setClusterAt, nextDropWeight, nextBurstReps } from '../lib/workout-model.js'
 import { canMoveActiveWorkoutUnit, moveActiveWorkoutUnit } from '../lib/active-workout-order.js'
 import { openTutorial } from '../components/TutorialDialog.jsx'
@@ -32,38 +32,164 @@ const SWIPE_IGNORED_TARGETS = 'button,input,textarea,select,a,[role="button"],[r
 function StartChooser() {
   const nav = useNavigate()
   const S = useStore(s => s.S)
+  const update = useStore(s => s.update)
   const todayR = effectiveRoutine(S, todayISO())
   const todayOvr = S.dayPlan[todayISO()] !== undefined
   const others = S.routines.filter(r => r !== todayR)
+
+  const handleRoutineMenu = (r, ev) => {
+    ev?.stopPropagation?.()
+    menuSheet({
+      title: r.name,
+      items: [
+        { icon: 'pencil', label: t('Edit routine'), onClick: () => nav('/plan/r/' + r.id) },
+        {
+          icon: 'copy',
+          label: t('Duplicate routine'),
+          onClick: () => {
+            const copy = { ...structuredClone(r), id: uid(), name: t('{0} (Copy)', r.name) }
+            update(s => { s.routines.push(copy) })
+            useUI.getState().toast(t('Routine duplicated'))
+          }
+        },
+        {
+          icon: 'trash',
+          label: t('Delete routine'),
+          danger: true,
+          onClick: () => confirmSheet({
+            title: t('Delete {0}?', r.name),
+            message: t('This will remove the routine from your plan.'),
+            confirmText: t('Delete'),
+            danger: true,
+            onConfirm: () => {
+              update(s => { s.routines = s.routines.filter(x => x.id !== r.id) })
+              useUI.getState().toast(t('Routine deleted'))
+            }
+          })
+        }
+      ]
+    })
+  }
+
+  const routinePreview = r => {
+    if (!r.ex?.length) return t('No exercises yet')
+    return r.ex.slice(0, 4).map(e => exerciseNameFor(exOr(e.id))).join(', ') + (r.ex.length > 4 ? ', …' : '')
+  }
+
   return <div className="narrow">
     <div className="hdr">
       <div>
-        <h1>{t('Start workout')}</h1>
+        <h1>{t('Workout')}</h1>
         <div className="sub">{t(DAYN[new Date().getDay()])} — {todayR ? t('today is {0}', todayR.name) : t('rest day, but no one’s stopping you')}</div>
       </div>
       <button className="iconbtn" onClick={() => openTutorial(2)} aria-label={t('How workouts work')} title={t('How workouts work')}><Icon name="help" /></button>
     </div>
-    {todayR && <div className="card" style={{ borderColor: 'var(--acc)' }}>
-      <h2 className="accent">{t("Today's plan")}{todayOvr ? ' · ' + t('rescheduled') : ''}</h2>
-      <div className="row between" style={{ marginBottom: 12 }}>
-        <div><div className="big">{todayR.name}</div><div className="muted small">{exCount(todayR.ex.length)}</div></div>
-        <span className="lrow-i" style={{ width: 38, height: 38, borderRadius: 9, fontSize: 22 }}><Icon name={glyphOf(todayR.emoji)} /></span>
+
+    {/* Hero Card: Start Empty Workout (Freestyle) */}
+    <div className="card start-freestyle-card" onClick={() => startFlow(null)} style={{ cursor: 'pointer' }}>
+      <div className="row between" style={{ alignItems: 'center' }}>
+        <div className="row" style={{ gap: 12, alignItems: 'center' }}>
+          <div className="start-freestyle-icon">
+            <Icon name="plus" />
+          </div>
+          <div>
+            <div className="start-freestyle-title">{t('Start Empty Workout')}</div>
+            <div className="dim small">{t('Freestyle workout — pick exercises as you go')}</div>
+          </div>
+        </div>
+        <Icon name="chevronRight" className="chev" />
       </div>
-      <Button variant="primary" icon="play" onClick={() => startFlow(todayR.id)}>{t('Start {0}', todayR.name)}</Button>
-    </div>}
-    {others.length > 0 && <><h4 className="sec">{t('Other routines')}</h4>
-      <div className="list">{others.map(r => <div key={r.id} className="item" onClick={() => startFlow(r.id)}>
-        <span className="lrow-i"><Icon name={glyphOf(r.emoji)} /></span>
-        <div className="grow"><div className="tt">{r.name}</div><div className="ss">{exCount(r.ex.length)}</div></div>
-        <span className="tag acc">{t('Start')}</span></div>)}</div></>}
-    <div style={{ height: 14 }} />
-    <Button icon="shuffle" onClick={() => startFlow(null)}>{t('Freestyle workout (pick as you go)')}</Button>
-    {!S.routines.length && <>
-      <div style={{ height: 10 }} />
-      <Button variant="primary" onClick={() => nav('/plan')}>{t('Build a plan first')}</Button>
-      <div style={{ height: 8 }} />
-      <Button variant="ghost" className="dim" icon="lightbulb" onClick={() => openTutorial(2)}>{t('How workouts work (Guide)')}</Button>
-    </>}
+    </div>
+
+    {/* Quick Action Navigation */}
+    <div className="row" style={{ gap: 8, margin: '10px 0 14px' }}>
+      <button
+        type="button"
+        className="chip"
+        style={{ flex: 1, padding: '9px 12px', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}
+        onClick={() => {
+          const r = { id: uid(), name: t('New routine'), emoji: DEFAULT_GLYPH, ex: [] }
+          update(s => { s.routines.push(r) })
+          nav('/plan/r/' + r.id)
+        }}
+      >
+        <Icon name="plus" style={{ marginRight: 5 }} />
+        {t('New routine')}
+      </button>
+      <button
+        type="button"
+        className="chip"
+        style={{ flex: 1, padding: '9px 12px', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}
+        onClick={() => nav('/plan')}
+      >
+        <Icon name="calendar" style={{ marginRight: 5 }} />
+        {t('Weekly plan')}
+      </button>
+    </div>
+
+    {/* Today's Scheduled Routine (if any) */}
+    {todayR && (
+      <div className="card routine-card-featured" style={{ borderColor: 'var(--acc)', marginBottom: 14 }}>
+        <div className="row between" style={{ marginBottom: 6 }}>
+          <span className="tag acc" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.03em' }}>
+            <Icon name="sparkles" style={{ marginRight: 4 }} />
+            {t("TODAY'S PLAN")}{todayOvr ? ' · ' + t('RESCHEDULED') : ''}
+          </span>
+          <button className="iconbtn" onClick={ev => handleRoutineMenu(todayR, ev)} aria-label={t('Routine options')}><Icon name="ellipsis" /></button>
+        </div>
+        <div className="row" style={{ gap: 10, alignItems: 'center', marginBottom: 8 }}>
+          <span className="lrow-i" style={{ width: 40, height: 40, borderRadius: 10, fontSize: 22 }}><Icon name={glyphOf(todayR.emoji)} /></span>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>{todayR.name}</div>
+            <div className="dim small">{exCount(todayR.ex.length)}</div>
+          </div>
+        </div>
+        <div className="dim small" style={{ marginBottom: 12, lineHeight: 1.4 }}>
+          {routinePreview(todayR)}
+        </div>
+        <Button variant="primary" icon="play" onClick={() => startFlow(todayR.id)}>{t('Start {0}', todayR.name)}</Button>
+      </div>
+    )}
+
+    {/* My Routines Cards */}
+    {others.length > 0 && (
+      <div style={{ marginBottom: 14 }}>
+        <div className="row between" style={{ margin: '0 2px 8px', alignItems: 'center' }}>
+          <h4 className="sec" style={{ margin: 0 }}>{t('My routines ({0})', others.length)}</h4>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {others.map(r => (
+            <div key={r.id} className="card routine-item-card">
+              <div className="row between" style={{ alignItems: 'center', marginBottom: 6 }}>
+                <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+                  <span className="lrow-i" style={{ width: 34, height: 34, borderRadius: 8, fontSize: 19 }}><Icon name={glyphOf(r.emoji)} /></span>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 700 }}>{r.name}</div>
+                    <div className="dim small">{exCount(r.ex.length)}</div>
+                  </div>
+                </div>
+                <button className="iconbtn" onClick={ev => handleRoutineMenu(r, ev)} aria-label={t('Routine options')}><Icon name="ellipsis" /></button>
+              </div>
+              <div className="dim small" style={{ marginBottom: 10, lineHeight: 1.35, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {routinePreview(r)}
+              </div>
+              <Button size="sm" variant="accent" icon="play" onClick={() => startFlow(r.id)}>{t('Start routine')}</Button>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+    {!S.routines.length && (
+      <div className="card empty" style={{ padding: 20 }}>
+        <div className="ico"><Icon name="calendar" /></div>
+        <div style={{ fontWeight: 600, marginTop: 6 }}>{t('No routines yet')}</div>
+        <div className="dim small" style={{ marginTop: 2, marginBottom: 12 }}>{t('Create reusable workout templates or build a weekly split.')}</div>
+        <Button variant="primary" onClick={() => nav('/plan')}>{t('Build a plan first')}</Button>
+        <div style={{ height: 8 }} />
+        <Button variant="ghost" className="dim" icon="lightbulb" onClick={() => openTutorial(2)}>{t('How workouts work (Guide)')}</Button>
+      </div>
+    )}
   </div>
 }
 
@@ -901,19 +1027,49 @@ function ActiveWorkout() {
     }
   }, [])
 
+  const openAddExercise = () => exercisePicker((ex, quick) => {
+    const routine = S.routines.find(r => r.id === A.routineId)
+    const freestyle = !A.routineId
+    // Freestyle has no routine prescription to apply: show the last target in the config
+    // sheet and carry its completed rows forward. A planned session uses its configured
+    // target when progression is off, while progression-enabled sessions keep their path.
+    const seed = freestyle ? freestyleConfig(S, { id: ex.id, ...defaultConfig(ex.id) }) : null
+    const commit = cfg => update(s => {
+      const full = { ...cfg, id: ex.id }
+      const plan = freestyle ? null : nextPrescription(s, full, s.routines.find(r => r.id === s.active.routineId))
+      const sets = buildSets(s, full, {
+        step: modeOf(full) === 'reps' ? weightIncrement(full, s.unit) : defaultIncrement(ex.id, s.unit),
+        ...(freestyle ? { preferLast: true } : {}),
+        ...(plan?.kind === 'off' ? { useTarget: true } : {})
+      })
+      const progressed = freestyle ? sets : applyPrescription(sets, plan, modeOf(full) === 'reps' ? weightIncrement(full, s.unit) : defaultIncrement(ex.id, s.unit))
+      const insertAt = insertionIndexAfterCurrentUnit(supersetUnits(s.active.entries), s.active.cur, s.active.entries.length)
+      s.active.entries.splice(insertAt, 0, { id: ex.id, target: { ...cfg }, plan, sets: applyIntensifierPlan(progressed, full) })
+      s.active.cur = insertAt
+      useUI.getState().shiftRestOwner(insertAt, 1)
+    })
+    // The "+" on a picker row reads as "add this now" — routed through the same detail
+    // sheet before, so it added nothing until you'd scrolled past it and found the real
+    // button. Quick-add commits with the same default (or, freestyle, last-session) config
+    // the sheet would have opened with; tapping the row still opens that sheet for anyone
+    // who wants to set sets/reps first.
+    if (quick) { commit(seed || defaultConfig(ex.id)); useUI.getState().toast(t('“{0}” added to {1}', exerciseNameFor(ex), routine ? routine.name : t('Freestyle'))) }
+    else exConfigSheet(ex, null, commit, null, routine, seed)
+  })
+
   return <div className="narrow">
     {/* In list mode the whole session scrolls under the header, so the header (name, clock,
         set counter, discard/finish, progress) stays pinned — the one thing you want in view
         while you are somewhere in the middle of a long stack. Cards mode never scrolls far. */}
     <div className={'whdr' + (listMode ? ' stick' : '')}>
-    <div className="hdr hevy-top-bar">
+    <div className="hdr workout-top-bar">
       <button className="iconbtn" aria-label={t('Discard')} onClick={() => confirmSheet({ title: t('Discard workout?'), message: t('The sets you logged in this session will be lost.'), confirmText: t('Discard'), danger: true, onConfirm: () => { update(s => { s.active = null }); stopRest(); stopWork(); nav('/home') } })}><Icon name="xmark" /></button>
-      <div className="hevy-title-center">
-        <div className="hevy-workout-name">
+      <div className="workout-title-center">
+        <div className="workout-workout-name">
           {!A.backfill && <span className="live-workout-pulse" />}
           <span>{A.name}</span>
         </div>
-        <div className="sub hevy-stats-chips">
+        <div className="sub workout-stats-chips">
           <span className="h-stat"><Icon name="clock" style={{ fontSize: 11 }} /> {A.backfill ? fmtDate(A.d, true) : <Elapsed start={A.start} />}</span>
           <span className="h-stat-sep">·</span>
           <span className="h-stat"><Icon name="dumbbell" style={{ fontSize: 11 }} /> {fmtNum(liveVolume)} {S.unit}</span>
@@ -921,7 +1077,7 @@ function ActiveWorkout() {
           <span className="h-stat"><Icon name="check" style={{ fontSize: 11 }} /> {done}/{total}</span>
         </div>
       </div>
-      <button className="btn primary sm hevy-finish-btn" aria-label={t('Finish')} onClick={finishWorkout}>
+      <button className="btn primary sm workout-finish-btn" aria-label={t('Finish')} onClick={finishWorkout}>
         <Icon name="check" />
         <span>{t('Finish')}</span>
       </button>
@@ -994,7 +1150,27 @@ function ActiveWorkout() {
         <ExerciseBlock entryIdx={cur} onPairPrev={onPairPrev} onPairNext={onPairNext} {...blockProps(cur)} />
       )}
       </div>
-    </>) : <div className="empty"><div className="ico"><Icon name="shuffle" /></div>{t('Freestyle workout — add your first exercise.')}</div>}
+    </>) : (
+      <div className="card workout-empty-card" style={{ textAlign: 'center', padding: '36px 20px', margin: '14px 0' }}>
+        <div className="workout-empty-icon-badge" style={{
+          width: 56, height: 56, borderRadius: '50%',
+          background: 'color-mix(in srgb, var(--acc) 15%, transparent)',
+          color: 'var(--acc)', display: 'inline-flex', alignItems: 'center',
+          justifyContent: 'center', fontSize: 24, margin: '0 auto 12px'
+        }}>
+          <Icon name="dumbbell" />
+        </div>
+        <h3 style={{ margin: '0 0 6px', fontSize: 18 }}>{t('Get started')}</h3>
+        <p className="dim small" style={{ margin: '0 0 20px' }}>{t('Add an exercise to start logging your workout')}</p>
+        <Button variant="primary" icon="plus" style={{ maxWidth: 280, margin: '0 auto' }} onClick={openAddExercise}>
+          {t('Add exercise')}
+        </Button>
+        <div className="row" style={{ justifyContent: 'center', gap: 10, marginTop: 16 }}>
+          <Button size="sm" variant="ghost" icon="pencil" onClick={sessionNoteSheet}>{t('Session note')}</Button>
+          <Button size="sm" variant="ghost" style={{ color: 'var(--red)' }} onClick={() => confirmSheet({ title: t('Discard workout?'), message: t('The sets you logged in this session will be lost.'), confirmText: t('Discard'), danger: true, onConfirm: () => { update(s => { s.active = null }); stopRest(); stopWork(); nav('/home') } })}>{t('Discard')}</Button>
+        </div>
+      </div>
+    )}
 
     <div style={{ height: 12 }} />
     {!listMode && <div className="row">
@@ -1003,35 +1179,7 @@ function ActiveWorkout() {
     </div>}
     {!listMode && <div style={{ height: 10 }} />}
     {wc.exerciseButtons && listMode && A.entries.length > 0 && <div className="muted small" style={{ marginBottom: 6 }}>{t('Move, swap and remove below act on the exercise marked {0}.', t('Current'))}</div>}
-    <Button onClick={() => exercisePicker((ex, quick) => {
-      const routine = S.routines.find(r => r.id === A.routineId)
-      const freestyle = !A.routineId
-      // Freestyle has no routine prescription to apply: show the last target in the config
-      // sheet and carry its completed rows forward. A planned session uses its configured
-      // target when progression is off, while progression-enabled sessions keep their path.
-      const seed = freestyle ? freestyleConfig(S, { id: ex.id, ...defaultConfig(ex.id) }) : null
-      const commit = cfg => update(s => {
-        const full = { ...cfg, id: ex.id }
-        const plan = freestyle ? null : nextPrescription(s, full, s.routines.find(r => r.id === s.active.routineId))
-        const sets = buildSets(s, full, {
-          step: modeOf(full) === 'reps' ? weightIncrement(full, s.unit) : defaultIncrement(ex.id, s.unit),
-          ...(freestyle ? { preferLast: true } : {}),
-          ...(plan?.kind === 'off' ? { useTarget: true } : {})
-        })
-        const progressed = freestyle ? sets : applyPrescription(sets, plan, modeOf(full) === 'reps' ? weightIncrement(full, s.unit) : defaultIncrement(ex.id, s.unit))
-        const insertAt = insertionIndexAfterCurrentUnit(supersetUnits(s.active.entries), s.active.cur, s.active.entries.length)
-        s.active.entries.splice(insertAt, 0, { id: ex.id, target: { ...cfg }, plan, sets: applyIntensifierPlan(progressed, full) })
-        s.active.cur = insertAt
-        useUI.getState().shiftRestOwner(insertAt, 1)
-      })
-      // The "+" on a picker row reads as "add this now" — routed through the same detail
-      // sheet before, so it added nothing until you'd scrolled past it and found the real
-      // button. Quick-add commits with the same default (or, freestyle, last-session) config
-      // the sheet would have opened with; tapping the row still opens that sheet for anyone
-      // who wants to set sets/reps first.
-      if (quick) { commit(seed || defaultConfig(ex.id)); useUI.getState().toast(t('“{0}” added to {1}', exerciseNameFor(ex), routine ? routine.name : t('Freestyle'))) }
-      else exConfigSheet(ex, null, commit, null, routine, seed)
-    })} icon="plus" className="hevy-add-exercise">{t('Add exercise')}</Button>
+    <Button onClick={openAddExercise} icon="plus" className="workout-add-exercise">{t('Add exercise')}</Button>
     {wc.exerciseButtons && A.entries.length > 0 && <>
       <div style={{ height: 6 }} />
       <div className="row">
@@ -1061,7 +1209,7 @@ function ActiveWorkout() {
     {(() => {
       const exDone = A.entries.filter(e => e.sets.length && e.sets.every(s => s.done)).length
       const allDone = A.entries.length > 0 && exDone === A.entries.length
-      return <button className={allDone ? 'btn primary hevy-finish-full' : 'btn ghost dim hevy-finish-full'} onClick={finishWorkout}>
+      return <button className={allDone ? 'btn primary workout-finish-full' : 'btn ghost dim workout-finish-full'} onClick={finishWorkout}>
         {allDone ? t('Finish workout') : t('Finish workout early · {0} exercises', exDone + '/' + A.entries.length)}
       </button>
     })()}

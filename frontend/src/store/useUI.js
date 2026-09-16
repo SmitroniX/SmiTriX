@@ -26,6 +26,13 @@ if (typeof document !== 'undefined') {
 }
 
 const requestRestNotificationPermission = async () => {
+  if (typeof window !== 'undefined' && import.meta.env?.VITE_MOBILE === '1') {
+    try {
+      const { requestNotificationPermission } = await import('../lib/mobile.js')
+      const res = await requestNotificationPermission()
+      return res === 'granted'
+    } catch { return false }
+  }
   if (!notificationsSupported()) return false
   if (Notification.permission === 'granted') return true
   if (Notification.permission === 'denied') return false

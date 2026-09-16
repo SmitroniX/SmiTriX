@@ -200,8 +200,8 @@ function extraAliasesFor(e) {
   const tg = (e?.tg || '').toLowerCase()
 
   // Machine & equipment aliases
-  if (eq.includes('machine') || eq === 'assisted' || eq === 'sled machine') {
-    aliases.push('machine', 'machines', 'gym machine', 'lever', 'selectorized', 'pin loaded', 'plate loaded')
+  if (eq.includes('machine') || eq === 'assisted' || eq === 'sled machine' || eq === 'leverage machine') {
+    aliases.push('machine', 'machines', 'gym machine', 'lever', 'selectorized', 'pin loaded')
   }
   if (eq.includes('cable')) {
     aliases.push('cable', 'cables', 'pulley', 'machine')
@@ -213,7 +213,7 @@ function extraAliasesFor(e) {
     aliases.push('bb', 'barbell', 'bar', 'barbells')
   }
   if (eq.includes('smith')) {
-    aliases.push('smith', 'smith machine')
+    aliases.push('smith', 'smith machine', 'machine')
   }
   if (eq.includes('body weight')) {
     aliases.push('bw', 'bodyweight', 'calisthenics')
@@ -221,7 +221,16 @@ function extraAliasesFor(e) {
 
   // Common movement & gym machine names
   if (n.includes('seated fly') || n.includes('chest fly') || n.includes('butterfly') || n.includes('pec fly')) {
-    aliases.push('pec deck', 'pec dec', 'pec fly', 'butterfly', 'chest fly machine', 'peck deck')
+    aliases.push('pec deck', 'pec dec', 'pec fly', 'butterfly', 'chest fly machine', 'peck deck', 'chest machine')
+  }
+  if (n.includes('chest press') || n.includes('lever chest press')) {
+    aliases.push('chest press', 'machine chest press', 'chest press machine', 'chest machine')
+  }
+  if (n.includes('incline chest press') || n.includes('lever incline chest')) {
+    aliases.push('incline chest press', 'incline press machine', 'incline machine', 'chest machine')
+  }
+  if (n.includes('shoulder press') || n.includes('lever shoulder press') || (eq.includes('machine') && n.includes('overhead'))) {
+    aliases.push('shoulder press machine', 'machine shoulder press', 'overhead press machine', 'shoulder machine')
   }
   if (n.includes('romanian deadlift') || n.includes('stiff leg')) {
     aliases.push('rdl')
@@ -230,28 +239,31 @@ function extraAliasesFor(e) {
     aliases.push('ohp')
   }
   if (n.includes('lateral pulldown') || n.includes('lat pulldown') || n.includes('pulldown')) {
-    aliases.push('lat pulldown', 'lat pull', 'pulldowns')
+    aliases.push('lat pulldown', 'lat pull', 'pulldowns', 'lat machine', 'back machine')
   }
   if (n.includes('biceps curl') || n.includes('bicep curl') || n.includes('arm curl')) {
     aliases.push('bicep', 'biceps', 'bicep curl', 'biceps curl', 'curls')
+    if (eq.includes('machine') || eq.includes('lever') || eq.includes('cable')) aliases.push('bicep machine', 'arm machine')
   }
   if (n.includes('triceps pushdown') || n.includes('pushdown') || n.includes('tricep extension')) {
     aliases.push('tricep', 'triceps', 'tricep pushdown', 'pushdown', 'rope pushdown')
+    if (eq.includes('machine') || eq.includes('lever') || eq.includes('cable')) aliases.push('tricep machine', 'arm machine')
   }
-  if (n.includes('leg press')) {
-    aliases.push('leg press', 'leg press machine', '45 leg press', 'horizontal leg press')
+  if (n.includes('leg press') || n.includes('sled 45')) {
+    aliases.push('leg press', 'leg press machine', '45 leg press', 'horizontal leg press', 'leg machine')
   }
   if (n.includes('leg extension')) {
-    aliases.push('leg extension', 'quad extension', 'leg extension machine')
+    aliases.push('leg extension', 'quad extension', 'leg extension machine', 'leg machine')
   }
   if (n.includes('leg curl') || n.includes('hamstring curl')) {
-    aliases.push('leg curl', 'hamstring curl', 'lying leg curl', 'seated leg curl')
+    aliases.push('leg curl', 'hamstring curl', 'lying leg curl', 'seated leg curl', 'leg machine')
   }
   if (n.includes('lateral raise') || n.includes('side lateral')) {
     aliases.push('lateral raise', 'side raise', 'side lateral raise', 'lateral raises')
+    if (eq.includes('machine') || eq.includes('lever')) aliases.push('lateral raise machine', 'shoulder machine')
   }
   if (n.includes('calf raise') || n.includes('calf press')) {
-    aliases.push('calf raise', 'calves', 'calf machine', 'standing calf raise', 'seated calf raise')
+    aliases.push('calf raise', 'calves', 'calf machine', 'standing calf raise', 'seated calf raise', 'leg machine')
   }
   if (n.includes('bench press')) {
     aliases.push('bench press', 'chest press', 'flat bench')
@@ -260,31 +272,31 @@ function extraAliasesFor(e) {
     aliases.push('incline press', 'incline bench', 'upper chest')
   }
   if (n.includes('preacher curl')) {
-    aliases.push('preacher curl', 'bicep preacher')
+    aliases.push('preacher curl', 'bicep preacher', 'preacher curl machine', 'bicep machine')
   }
   if (n.includes('hack squat')) {
-    aliases.push('hack squat', 'hack squat machine')
+    aliases.push('hack squat', 'hack squat machine', 'leg machine')
   }
   if (n.includes('seated row') || n.includes('cable row') || n.includes('cable seated row') || n.includes('bent over row')) {
-    aliases.push('cable row', 'seated row', 'back row', 'rows')
+    aliases.push('cable row', 'seated row', 'back row', 'rows', 'back machine')
   }
   if (n.includes('face pull')) {
     aliases.push('face pull', 'rear delt face pull')
   }
   if (n.includes('hip thrust') || n.includes('glute bridge')) {
-    aliases.push('hip thrust', 'glute bridge', 'glute drive', 'hip thrust machine')
+    aliases.push('hip thrust', 'glute bridge', 'glute drive', 'hip thrust machine', 'leg machine')
   }
   if (n.includes('t-bar row') || n.includes('t bar')) {
     aliases.push('t bar row', 't-bar row', 'chest supported row')
   }
   if (n.includes('assisted') && (n.includes('pull') || n.includes('chin'))) {
-    aliases.push('assisted pull up', 'assisted chin up', 'assisted pullup', 'pull up machine')
+    aliases.push('assisted pull up', 'assisted chin up', 'assisted pullup', 'pull up machine', 'lat machine', 'back machine')
   }
   if (n.includes('assisted') && n.includes('dip')) {
-    aliases.push('assisted dip', 'assisted dips', 'dip machine')
+    aliases.push('assisted dip', 'assisted dips', 'dip machine', 'chest machine')
   }
   if (n.includes('cable crossover') || (n.includes('cable') && n.includes('fly'))) {
-    aliases.push('cable fly', 'cable crossover', 'high to low fly', 'low to high fly')
+    aliases.push('cable fly', 'cable crossover', 'high to low fly', 'low to high fly', 'chest machine')
   }
   if (n.includes('crunch') || n.includes('ab coaster')) {
     aliases.push('cable crunch', 'ab machine', 'ab crunch')
@@ -352,6 +364,9 @@ export function scoreExercise(e, query = '', usage = {}, isFav = false) {
 
   if (!q) return score
 
+  // Stretches should never beat compound or machine lifting movements unless query asks for stretch
+  if (name.includes('stretch') && !q.includes('stretch')) score -= 300
+
   const tokens = q.split(/\s+/).filter(Boolean)
   if (!tokens.length) return score
 
@@ -359,11 +374,28 @@ export function scoreExercise(e, query = '', usage = {}, isFav = false) {
   else if (name.startsWith(q)) score += 600
   else if (name.includes(q)) score += 400
 
+  const eq = (e?.eq || '').toLowerCase()
+  const bp = (e?.bp || '').toLowerCase()
+  const tg = (e?.tg || '').toLowerCase()
+
+  // Equipment domain boosts
+  if (q.includes('machine') && (eq.includes('machine') || eq === 'assisted' || eq === 'sled machine')) score += 200
+  if (q.includes('cable') && eq.includes('cable')) score += 200
+
+  // Muscle domain boosts
+  if (q.includes('chest') && (bp === 'chest' || tg === 'pectorals' || name.includes('chest'))) score += 180
+  if (q.includes('leg') && (bp === 'upper legs' || bp === 'lower legs' || tg === 'quads' || tg === 'hamstrings' || tg === 'calves' || name.includes('leg'))) score += 180
+  if (q.includes('back') && (bp === 'back' || tg === 'lats' || name.includes('back'))) score += 180
+  if (q.includes('lat') && (tg === 'lats' || name.includes('lat') || name.includes('pulldown'))) score += 180
+  if (q.includes('shoulder') && (bp === 'shoulders' || tg === 'delts' || name.includes('shoulder'))) score += 180
+  if ((q.includes('bicep') || q.includes('biceps')) && (tg === 'biceps' || name.includes('bicep') || name.includes('curl'))) score += 180
+  if ((q.includes('tricep') || q.includes('triceps')) && (tg === 'triceps' || name.includes('tricep') || name.includes('pushdown'))) score += 180
+
   tokens.forEach(tok => {
     if (name.includes(tok)) score += 150
-    if ((e?.tg || '').toLowerCase().includes(tok)) score += 80
-    if ((e?.bp || '').toLowerCase().includes(tok)) score += 60
-    if ((e?.eq || '').toLowerCase().includes(tok)) score += 70
+    if (tg.includes(tok)) score += 80
+    if (bp.includes(tok)) score += 60
+    if (eq.includes(tok)) score += 70
   })
 
   // Short clean names rank slightly higher than verbose ones
@@ -408,17 +440,19 @@ export function matchExercise(e, query) {
   if (!tokens.length) return true
   if (!e || typeof e !== 'object') return false
   const corpus = corpusOf(e)
-  return tokens.every(tok => {
-    if (corpus.includes(tok)) return true
-    const fixed = TYPO_MAP[tok]
-    if (fixed && corpus.includes(fixed)) return true
-    return false
+  const words = corpus.split(/\s+/)
+  return tokens.every(rawTok => {
+    const tok = TYPO_MAP[rawTok] || rawTok
+    if (tok.length <= 3) {
+      return words.some(w => w === tok || w.startsWith(tok))
+    }
+    return words.some(w => w.startsWith(tok)) || corpus.includes(tok)
   })
 }
 
 export const QUICK_EQ_PRESETS = [
   { id: '', label: 'All Gear' },
-  { id: 'machine', label: 'Machine', icon: 'gear', match: eq => (eq || '').includes('machine') || eq === 'assisted' },
+  { id: 'machine', label: 'Machine', icon: 'gear', match: eq => (eq || '').includes('machine') || eq === 'assisted' || eq === 'sled machine' || eq === 'stationary bike' },
   { id: 'cable', label: 'Cable', icon: 'link', match: eq => eq === 'cable' },
   { id: 'dumbbell', label: 'Dumbbell', icon: 'dumbbell', match: eq => eq === 'dumbbell' },
   { id: 'barbell', label: 'Barbell', icon: 'dumbbell', match: eq => (eq || '').includes('barbell') || (eq || '').includes('trap bar') },

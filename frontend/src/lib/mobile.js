@@ -229,6 +229,7 @@ export async function syncReminder(S, interactive = false) {
 }
 
 const REST_TIMER_NOTIFICATION_ID = 9999
+const REST_TIMER_ACTIVE_ID = 9998
 
 export async function showRestTimerNotification(sec) {
   if (!MOBILE || !(sec > 0)) return
@@ -240,15 +241,32 @@ export async function showRestTimerNotification(sec) {
     }
     if (perm.display !== 'granted') return
     await setupNotificationChannels()
-    await LocalNotifications.cancel({ notifications: [{ id: REST_TIMER_NOTIFICATION_ID }] }).catch(() => {})
+    await LocalNotifications.cancel({
+      notifications: [
+        { id: REST_TIMER_NOTIFICATION_ID },
+        { id: REST_TIMER_ACTIVE_ID },
+      ],
+    }).catch(() => {})
+
     await LocalNotifications.schedule({
-      notifications: [{
-        id: REST_TIMER_NOTIFICATION_ID,
-        title: 'Rest over — next set!',
-        body: 'Time to crush your next set! 💪',
-        channelId: 'rest-timer',
-        schedule: { at: new Date(Date.now() + sec * 1000), allowWhileIdle: true },
-      }],
+      notifications: [
+        {
+          id: REST_TIMER_ACTIVE_ID,
+          title: `Rest: ${sec}s`,
+          body: 'Resting between sets · Tap to return to workout',
+          channelId: 'rest-timer',
+          ongoing: true,
+          autoCancel: false,
+          schedule: { at: new Date(Date.now() + 200), allowWhileIdle: true },
+        },
+        {
+          id: REST_TIMER_NOTIFICATION_ID,
+          title: 'Rest over — next set!',
+          body: 'Time to crush your next set! 💪',
+          channelId: 'rest-timer',
+          schedule: { at: new Date(Date.now() + sec * 1000), allowWhileIdle: true },
+        },
+      ],
     })
   } catch (e) { /* non-critical */ }
 }
@@ -257,7 +275,12 @@ export async function cancelRestTimerNotification() {
   if (!MOBILE) return
   try {
     const { LocalNotifications } = await import('@capacitor/local-notifications')
-    await LocalNotifications.cancel({ notifications: [{ id: REST_TIMER_NOTIFICATION_ID }] }).catch(() => {})
+    await LocalNotifications.cancel({
+      notifications: [
+        { id: REST_TIMER_NOTIFICATION_ID },
+        { id: REST_TIMER_ACTIVE_ID },
+      ],
+    }).catch(() => {})
   } catch (e) { /* non-critical */ }
 }
 

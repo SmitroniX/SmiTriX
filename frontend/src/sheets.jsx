@@ -859,6 +859,7 @@ function ExercisePicker({ onPick, close }) {
   const [showAll, setShowAll] = useState(false)
   const [shown, setShown] = useState(50)
   const [byMuscle, setByMuscle] = useState(false)
+  const [panel, setPanel] = useState(null) // null | 'eq' | 'muscle'
   const searchRef = useRef(null)
   const bpStrip = useRef(null), eqStrip = useRef(null)
   const onSearchFocus = useSheetKeyboard(searchRef)
@@ -905,6 +906,15 @@ function ExercisePicker({ onPick, close }) {
     <MuscleExplorer onPick={onPick} />
   </>
 
+  const activeEqLabel = eqQuick
+    ? (QUICK_EQ_PRESETS.find(p => p.id === eqQuick)?.label || t('Equipment'))
+    : eq ? t(eq) : t('All Equipment')
+
+  const activeMuscleLabel = bp === '☆' ? t('Favourites')
+    : bp === '★' ? t('Recent')
+    : bp ? (QUICK_MUSCLE_GROUPS.find(m => m.id === bp)?.label || t(bp))
+    : t('All Muscles')
+
   return <>
     <div className="row between" style={{ marginBottom: 10 }}><h3>{t('Add exercise')}</h3>
       <Button size="sm" variant="tinted" icon="target" onClick={() => setByMuscle(true)}>{t('By muscle')}</Button>
@@ -935,6 +945,132 @@ function ExercisePicker({ onPick, close }) {
       </div>
     </div>
 
+    {/* Primary 1-tap Equipment & Muscle Selectors */}
+    <div className="picker-filter-row">
+      <button
+        type="button"
+        className={'picker-pill' + (eqQuick || eq ? ' active' : '')}
+        onClick={() => setPanel(p => p === 'eq' ? null : 'eq')}
+      >
+        <span className="picker-pill-icon">
+          {eqQuick === 'machine' ? <Icon name="gear" /> : eqQuick === 'cable' ? <Icon name="link" /> : <Icon name="dumbbell" />}
+        </span>
+        <span className="picker-pill-text">{activeEqLabel}</span>
+        {eqQuick || eq ? (
+          <span className="picker-pill-clear" onClick={e => { e.stopPropagation(); setEqQuick(''); setEq(''); setShown(50) }}>
+            <Icon name="xmark" />
+          </span>
+        ) : (
+          <Icon name="chevronDown" className="picker-pill-arrow" />
+        )}
+      </button>
+
+      <button
+        type="button"
+        className={'picker-pill' + (bp ? ' active' : '')}
+        onClick={() => setPanel(p => p === 'muscle' ? null : 'muscle')}
+      >
+        <span className="picker-pill-icon"><Icon name="target" /></span>
+        <span className="picker-pill-text">{activeMuscleLabel}</span>
+        {bp ? (
+          <span className="picker-pill-clear" onClick={e => { e.stopPropagation(); setBp(''); setShown(50) }}>
+            <Icon name="xmark" />
+          </span>
+        ) : (
+          <Icon name="chevronDown" className="picker-pill-arrow" />
+        )}
+      </button>
+    </div>
+
+    {/* Inline Equipment Panel */}
+    {panel === 'eq' && (
+      <div className="picker-panel card">
+        <div className="picker-panel-header">
+          <span>{t('Equipment')}</span>
+          <button className="iconbtn" onClick={() => setPanel(null)}><Icon name="xmark" /></button>
+        </div>
+        <div className="picker-panel-grid">
+          {QUICK_EQ_PRESETS.map(p => (
+            <button
+              key={p.id}
+              type="button"
+              className={'picker-panel-chip' + ((eqQuick === p.id && !eq) ? ' on' : '')}
+              onClick={() => { setEqQuick(p.id); setEq(''); setPanel(null); setShown(50) }}
+            >
+              {p.icon && <Icon name={p.icon} />}
+              <span>{t(p.label)}</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            className={'picker-panel-chip' + (eq === 'smith machine' ? ' on' : '')}
+            onClick={() => { setEq('smith machine'); setEqQuick(''); setPanel(null); setShown(50) }}
+          >
+            <Icon name="gear" />
+            <span>{t('Smith Machine')}</span>
+          </button>
+          <button
+            type="button"
+            className={'picker-panel-chip' + (eq === 'kettlebell' ? ' on' : '')}
+            onClick={() => { setEq('kettlebell'); setEqQuick(''); setPanel(null); setShown(50) }}
+          >
+            <Icon name="dumbbell" />
+            <span>{t('Kettlebell')}</span>
+          </button>
+          <button
+            type="button"
+            className={'picker-panel-chip' + (eq === 'band' ? ' on' : '')}
+            onClick={() => { setEq('band'); setEqQuick(''); setPanel(null); setShown(50) }}
+          >
+            <Icon name="link" />
+            <span>{t('Bands')}</span>
+          </button>
+        </div>
+      </div>
+    )}
+
+    {/* Inline Muscle Panel */}
+    {panel === 'muscle' && (
+      <div className="picker-panel card">
+        <div className="picker-panel-header">
+          <span>{t('Muscle Group')}</span>
+          <button className="iconbtn" onClick={() => setPanel(null)}><Icon name="xmark" /></button>
+        </div>
+        <div className="picker-panel-grid">
+          {QUICK_MUSCLE_GROUPS.map(m => (
+            <button
+              key={m.id}
+              type="button"
+              className={'picker-panel-chip' + (bp === m.id ? ' on' : '')}
+              onClick={() => { setBp(m.id); setPanel(null); setShown(50) }}
+            >
+              <span>{t(m.label)}</span>
+            </button>
+          ))}
+          {favCount > 0 && (
+            <button
+              type="button"
+              className={'picker-panel-chip' + (bp === '☆' ? ' on' : '')}
+              onClick={() => { setBp('☆'); setPanel(null); setShown(50) }}
+            >
+              <Icon name="starFill" className="fav-star" />
+              <span>{t('Favourites')} ({favCount})</span>
+            </button>
+          )}
+          {chosenCount > 0 && (
+            <button
+              type="button"
+              className={'picker-panel-chip' + (bp === '★' ? ' on' : '')}
+              onClick={() => { setBp('★'); setPanel(null); setShown(50) }}
+            >
+              <Icon name="starFill" />
+              <span>{t('Chosen')} ({chosenCount})</span>
+            </button>
+          )}
+        </div>
+      </div>
+    )}
+
     {profile && <div className="small dim row" style={{ margin: '6px 0 2px', gap: 6, alignItems: 'center' }}>
       <Icon name="dumbbell" style={{ fontSize: 13 }} />
       {showAll ? t('Showing all equipment') : t('Showing what you have in "{0}"', profile.name)}
@@ -943,46 +1079,28 @@ function ExercisePicker({ onPick, close }) {
       </button>
     </div>}
 
-    {/* Primary Equipment & Machine Row */}
-    <div className="chips" style={{ margin: '8px 0 4px', display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      {QUICK_EQ_PRESETS.map(p => (
-        <button
-          key={p.id}
-          type="button"
-          className={'chip nocap' + (eqQuick === p.id ? ' on' : '')}
-          onClick={() => { setEqQuick(p.id); setEq(''); setShown(50) }}
-        >
-          {p.id === 'machine' && <Icon name="gear" style={{ fontSize: 11, marginRight: 4 }} />}
-          {p.id === 'cable' && <Icon name="link" style={{ fontSize: 11, marginRight: 4 }} />}
-          {p.id === 'dumbbell' && <Icon name="dumbbell" style={{ fontSize: 11, marginRight: 4 }} />}
-          {t(p.label)}
-        </button>
-      ))}
-    </div>
-
-    {/* Muscle & Target Bodypart Row */}
-    <div className="chips" ref={bpStrip} style={{ margin: '4px 0 8px', display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      {favCount > 0 && <button type="button" className={'chip' + (bp === '☆' ? ' on' : '')} onClick={() => { setBp('☆'); setShown(50) }}><Icon name="starFill" className="fav-star" />{t('Favourites')} ({favCount})</button>}
-      {chosenCount > 0 && <button type="button" className={'chip' + (bp === '★' ? ' on' : '')} onClick={() => { setBp('★'); setShown(50) }}><Icon name="starFill" style={{ fontSize: 12, display: 'inline-block', marginRight: 4, verticalAlign: '-1px' }} />{t('Chosen')} ({chosenCount})</button>}
-      <button type="button" className={'chip nocap' + (!bp ? ' on' : '')} onClick={() => { setBp(''); setShown(50) }}>{t('All')}</button>
-      <button type="button" className={'chip' + (bp === 'chest' ? ' on' : '')} onClick={() => { setBp(b => b === 'chest' ? '' : 'chest'); setShown(50) }}>{t('Chest')}</button>
-      <button type="button" className={'chip' + (bp === 'back' ? ' on' : '')} onClick={() => { setBp(b => b === 'back' ? '' : 'back'); setShown(50) }}>{t('Back')}</button>
-      <button type="button" className={'chip' + (bp === 'legs' ? ' on' : '')} onClick={() => { setBp(b => b === 'legs' ? '' : 'legs'); setShown(50) }}>{t('Legs')}</button>
-      <button type="button" className={'chip' + (bp === 'shoulders' ? ' on' : '')} onClick={() => { setBp(b => b === 'shoulders' ? '' : 'shoulders'); setShown(50) }}>{t('Shoulders')}</button>
-      <button type="button" className={'chip' + (bp === 'arms' ? ' on' : '')} onClick={() => { setBp(b => b === 'arms' ? '' : 'arms'); setShown(50) }}>{t('Arms')}</button>
-      <button type="button" className={'chip' + (bp === 'core' ? ' on' : '')} onClick={() => { setBp(b => b === 'core' ? '' : 'core'); setShown(50) }}>{t('Core')}</button>
-      {BODYPARTS.filter(b => !['chest', 'back', 'upper legs', 'lower legs', 'shoulders', 'upper arms', 'lower arms', 'waist'].includes(b)).map(b => (
-        <button key={b} type="button" className={'chip' + (bp === b ? ' on' : '')} onClick={() => { setBp(b); setShown(50) }}>{t(b)}</button>
-      ))}
-    </div>
-
-    {/* Specific Equipment sub-strip if narrowing further */}
-    {eqOpts.length > 1 && !eqQuick && (
-      <div className="chips" ref={eqStrip} style={{ marginBottom: 10 }}>
-        <button type="button" className={'chip nocap' + (!eqOn ? ' on' : '')} onClick={() => { setEq(''); setShown(50) }}>{t('Any gear')}</button>
-        {eqOpts.map(x => <button key={x} type="button" className={'chip' + (eqOn === x ? ' on' : '')} onClick={() => { setEq(x); setShown(50) }}>{t(x)}</button>)}
+    {/* Quick Horizontal Presets (Muscle & Favourites) */}
+    {!panel && (
+      <div className="chips" ref={bpStrip} style={{ margin: '4px 0 8px', display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        {favCount > 0 && <button type="button" className={'chip' + (bp === '☆' ? ' on' : '')} onClick={() => { setBp('☆'); setShown(50) }}><Icon name="starFill" className="fav-star" />{t('Favourites')} ({favCount})</button>}
+        {chosenCount > 0 && <button type="button" className={'chip' + (bp === '★' ? ' on' : '')} onClick={() => { setBp('★'); setShown(50) }}><Icon name="starFill" style={{ fontSize: 12, display: 'inline-block', marginRight: 4, verticalAlign: '-1px' }} />{t('Chosen')} ({chosenCount})</button>}
+        <button type="button" className={'chip nocap' + (!bp ? ' on' : '')} onClick={() => { setBp(''); setShown(50) }}>{t('All')}</button>
+        <button type="button" className={'chip' + (bp === 'chest' ? ' on' : '')} onClick={() => { setBp(b => b === 'chest' ? '' : 'chest'); setShown(50) }}>{t('Chest')}</button>
+        <button type="button" className={'chip' + (bp === 'back' ? ' on' : '')} onClick={() => { setBp(b => b === 'back' ? '' : 'back'); setShown(50) }}>{t('Back')}</button>
+        <button type="button" className={'chip' + (bp === 'legs' ? ' on' : '')} onClick={() => { setBp(b => b === 'legs' ? '' : 'legs'); setShown(50) }}>{t('Legs')}</button>
+        <button type="button" className={'chip' + (bp === 'shoulders' ? ' on' : '')} onClick={() => { setBp(b => b === 'shoulders' ? '' : 'shoulders'); setShown(50) }}>{t('Shoulders')}</button>
+        <button type="button" className={'chip' + (bp === 'arms' ? ' on' : '')} onClick={() => { setBp(b => b === 'arms' ? '' : 'arms'); setShown(50) }}>{t('Arms')}</button>
+        <button type="button" className={'chip' + (bp === 'core' ? ' on' : '')} onClick={() => { setBp(b => b === 'core' ? '' : 'core'); setShown(50) }}>{t('Core')}</button>
       </div>
     )}
+
+    {/* Section Header */}
+    <div className="picker-section-title">
+      {q ? t('Search results ({0})', f.length)
+        : (bp || eqQuick || eq)
+          ? `${activeMuscleLabel !== t('All Muscles') ? activeMuscleLabel : ''}${activeMuscleLabel !== t('All Muscles') && activeEqLabel !== t('All Equipment') ? ' · ' : ''}${activeEqLabel !== t('All Equipment') ? activeEqLabel : ''} (${f.length})`
+          : t('Recent & Popular Exercises')}
+    </div>
 
     <div className="list">
       {!special && !q && !bp && !eqQuick && (
@@ -995,7 +1113,7 @@ function ExercisePicker({ onPick, close }) {
         const isMachine = (e.eq || '').includes('machine') || e.eq === 'assisted'
         const isCable = e.eq === 'cable'
         return (
-          <div key={e.id} className="item" {...tappable(() => onPick(e))}>
+          <div key={e.id} className="item picker-item" {...tappable(() => onPick(e))}>
             <Thumb ex={e} />
             <div className="grow">
               <div className="tt capitalize">{isFav(st, e.id) && <Icon name="starFill" className="fav-star" />}{exerciseNameFor(e)}</div>
@@ -1011,8 +1129,16 @@ function ExercisePicker({ onPick, close }) {
               </div>
             </div>
             {usage[e.id] && <span className="tag acc"><Icon name="starFill" /></span>}
-            <button className="iconbtn chev" aria-label={t('Add “{0}”', exerciseNameFor(e))} style={{ padding: 8, margin: -8 }}
-              onClick={ev => { ev.stopPropagation(); onPick(e, true) }}><Icon name="plus" /></button>
+            <button className="iconbtn picker-history-btn" aria-label={t('History for “{0}”', exerciseNameFor(e))}
+              title={t('Exercise history')}
+              onClick={ev => { ev.stopPropagation(); exerciseHistorySheet(e.id) }}>
+              <Icon name="chartLine" />
+            </button>
+            <button className="iconbtn picker-quick-add-btn" aria-label={t('Add “{0}”', exerciseNameFor(e))}
+              title={t('Add exercise')}
+              onClick={ev => { ev.stopPropagation(); onPick(e, true) }}>
+              <Icon name="plus" />
+            </button>
           </div>
         )
       })}
@@ -1023,7 +1149,7 @@ function ExercisePicker({ onPick, close }) {
           <div className="dim small" style={{ marginTop: 2 }}>{t('Try searching by muscle (e.g. "chest") or machine name')}</div>
           {(q || bp || eqQuick || eq) && (
             <div style={{ marginTop: 12 }}>
-              <Button size="sm" onClick={() => { setQ(''); setBp(''); setEqQuick(''); setEq('') }}>{t('Reset filters')}</Button>
+              <Button size="sm" onClick={() => { setQ(''); setBp(''); setEqQuick(''); setEq(''); setPanel(null) }}>{t('Reset filters')}</Button>
             </div>
           )}
         </div>
@@ -1982,6 +2108,9 @@ export function beginWorkout(routineId, bw) {
     }
   })
   useUI.getState().stopRest()
+  if (MOBILE) {
+    import('./lib/mobile.js').then(m => m.requestNotificationPermission?.()).catch(() => {})
+  }
   nav('/workout')
 }
 
