@@ -1669,3 +1669,474 @@ h4.sec{
 .plate-item-count{color:var(--label-2);font-weight:600}
 .plate-item-weight{color:var(--label)}
 
+/* ==========================================================================
+   HEVY-STYLE WORKOUT UI & POLISH
+   ========================================================================== */
+
+/* StartChooser Top Bar */
+.hevy-start-page {
+  padding-bottom: 72px;
+}
+.hevy-workout-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-top: 4px;
+}
+.hevy-workout-title-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.hevy-workout-title-group h1 {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.hevy-workout-title-chevron {
+  font-size: 16px;
+  color: var(--label-2);
+  margin-top: 2px;
+}
+
+/* Quick Start Section */
+.hevy-section-label {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--label-2);
+  margin: 16px 0 10px;
+}
+.hevy-quick-start-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--fg);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+  text-align: left;
+}
+.hevy-quick-start-card:active {
+  background: var(--surface-2);
+  transform: scale(0.985);
+}
+.hevy-quick-start-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--blue, #0a84ff) 18%, transparent);
+  color: var(--blue, #0a84ff);
+  font-size: 18px;
+  flex: none;
+}
+.hevy-quick-start-text {
+  flex: 1;
+}
+
+/* Routines Section */
+.hevy-routines-section {
+  margin-top: 24px;
+}
+.hevy-routines-heading {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--fg);
+}
+.hevy-action-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.hevy-action-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.hevy-action-card:active {
+  background: var(--surface-2);
+}
+.hevy-action-card-icon {
+  font-size: 16px;
+  color: var(--blue, #0a84ff);
+}
+.hevy-routines-toggle-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 0 10px;
+  color: var(--label-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Routine Cards */
+.hevy-routine-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.hevy-routine-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.hevy-routine-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+}
+.hevy-routine-preview {
+  color: var(--label-2);
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 8px 0 14px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.hevy-start-routine-btn {
+  width: 100%;
+  height: 42px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 10px;
+  background: var(--blue, #0a84ff) !important;
+  color: #ffffff !important;
+}
+
+/* Floating Active Workout Capsule */
+.hevy-floating-bar-wrapper {
+  position: fixed;
+  bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 8px);
+  left: 0;
+  right: 0;
+  padding: 0 12px;
+  z-index: 95;
+  pointer-events: none;
+}
+.hevy-floating-bar {
+  pointer-events: auto;
+  max-width: 540px;
+  margin: 0 auto;
+  background: color-mix(in srgb, var(--surface) 92%, black);
+  border: 1px solid color-mix(in srgb, var(--line) 80%, var(--blue, #0a84ff));
+  border-radius: 16px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.hevy-floating-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+.hevy-floating-up {
+  font-size: 12px;
+  color: var(--label-2);
+}
+.hevy-floating-info {
+  min-width: 0;
+  flex: 1;
+}
+.hevy-floating-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.hevy-floating-dot {
+  color: var(--label-3);
+}
+.hevy-floating-time {
+  font-weight: 500;
+  color: var(--label);
+}
+.hevy-floating-sub {
+  font-size: 12px;
+  color: var(--label-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.hevy-floating-trash {
+  color: var(--red, #ff453a) !important;
+  padding: 8px;
+  margin-left: 6px;
+  flex: none;
+}
+
+/* Active Workout Header */
+.hevy-active-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.hevy-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  min-width: 0;
+  flex: 1;
+}
+.hevy-collapse-chevron {
+  padding: 4px;
+  margin-left: -4px;
+}
+.hevy-header-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hevy-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.hevy-header-finish-btn {
+  background: var(--blue, #0a84ff) !important;
+  color: #ffffff !important;
+  border-radius: 99px !important;
+  padding: 6px 16px !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+}
+
+/* 4-Column Live Stats Strip */
+.hevy-stats-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 10px 4px;
+  margin: 10px 0 14px;
+  text-align: center;
+  align-items: center;
+}
+.hevy-stat-box {
+  padding: 0 4px;
+  border-right: 1px solid var(--line);
+}
+.hevy-stat-box:last-child {
+  border-right: none;
+}
+.hevy-stat-lbl {
+  font-size: 11px;
+  color: var(--label-3);
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin-bottom: 3px;
+}
+.hevy-stat-val {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--fg);
+}
+.hevy-stat-box-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hevy-stat-bodymap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 34px;
+  max-width: 58px;
+  margin: 0 auto;
+}
+.hevy-stat-bodymap .bm-v {
+  height: 34px;
+  max-height: 34px;
+  width: auto;
+  flex: none;
+}
+.hevy-stat-bodymap .bm-v path {
+  stroke-width: 1;
+}
+
+/* Empty Workout State */
+.hevy-empty-workout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 44px 16px 36px;
+}
+.hevy-empty-dumbbell {
+  color: var(--label-3);
+  opacity: 0.6;
+  margin-bottom: 8px;
+}
+.hevy-empty-title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+  margin-bottom: 4px;
+}
+.hevy-empty-subtitle {
+  font-size: 14px;
+  color: var(--label-2);
+  margin-bottom: 24px;
+}
+.hevy-empty-add-btn {
+  width: 100%;
+  height: 48px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 12px;
+  background: var(--blue, #0a84ff) !important;
+  color: #ffffff !important;
+  margin-bottom: 12px;
+}
+.hevy-empty-actions-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+}
+.hevy-empty-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.hevy-empty-discard-btn {
+  color: var(--red, #ff453a) !important;
+}
+
+/* Exercise Picker Modal */
+.hevy-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0 12px;
+}
+.hevy-modal-nav-btn {
+  background: none;
+  border: none;
+  color: var(--blue, #0a84ff);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.hevy-modal-title {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--fg);
+}
+.hevy-picker-filters-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 10px 0;
+}
+.hevy-filter-dropdown-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.hevy-filter-dropdown-btn.active {
+  border-color: var(--blue, #0a84ff);
+  background: color-mix(in srgb, var(--blue, #0a84ff) 10%, var(--surface));
+  color: var(--blue, #0a84ff);
+}
+.hevy-picker-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--label-2);
+  margin: 14px 0 8px;
+}
+.hevy-picker-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.hevy-picker-avatar .thumb {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.hevy-history-btn {
+  color: var(--blue, #0a84ff) !important;
+  padding: 8px;
+}
+

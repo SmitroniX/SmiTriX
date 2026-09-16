@@ -898,6 +898,46 @@ function ExercisePicker({ onPick, close }) {
   useRevealActiveChip(bpStrip, bp)
   useRevealActiveChip(eqStrip, eqOn)
 
+  const eqLabel = eqQuick
+    ? t(QUICK_EQ_PRESETS.find(p => p.id === eqQuick)?.label || eqQuick)
+    : eq
+      ? t(eq)
+      : t('All Equipment')
+
+  const openEquipmentMenu = () => {
+    menuSheet([
+      { label: t('All Equipment'), icon: 'dumbbell', action: () => { setEqQuick(''); setEq(''); setShown(50) } },
+      { label: t('Machine'), icon: 'gear', action: () => { setEqQuick('machine'); setEq(''); setShown(50) } },
+      { label: t('Cable'), icon: 'link', action: () => { setEqQuick('cable'); setEq(''); setShown(50) } },
+      { label: t('Dumbbell'), icon: 'dumbbell', action: () => { setEqQuick('dumbbell'); setEq(''); setShown(50) } },
+      { label: t('Barbell'), icon: 'barbell', action: () => { setEqQuick('barbell'); setEq(''); setShown(50) } },
+      { label: t('Bodyweight'), icon: 'person', action: () => { setEqQuick('bodyweight'); setEq(''); setShown(50) } },
+    ])
+  }
+
+  const muscleLabel = bp === '☆'
+    ? t('Favourites')
+    : bp === '★'
+      ? t('Chosen')
+      : bp
+        ? t(bp)
+        : t('All Muscles')
+
+  const openMuscleMenu = () => {
+    const items = [
+      { label: t('All Muscles'), icon: 'target', action: () => { setBp(''); setShown(50) } },
+      ...(favCount > 0 ? [{ label: t('Favourites') + ` (${favCount})`, icon: 'starFill', action: () => { setBp('☆'); setShown(50) } }] : []),
+      ...(chosenCount > 0 ? [{ label: t('Chosen') + ` (${chosenCount})`, icon: 'starFill', action: () => { setBp('★'); setShown(50) } }] : []),
+      { label: t('Chest'), icon: 'target', action: () => { setBp('chest'); setShown(50) } },
+      { label: t('Back'), icon: 'target', action: () => { setBp('back'); setShown(50) } },
+      { label: t('Legs'), icon: 'target', action: () => { setBp('legs'); setShown(50) } },
+      { label: t('Shoulders'), icon: 'target', action: () => { setBp('shoulders'); setShown(50) } },
+      { label: t('Arms'), icon: 'target', action: () => { setBp('arms'); setShown(50) } },
+      { label: t('Core'), icon: 'target', action: () => { setBp('core'); setShown(50) } },
+    ]
+    menuSheet(items)
+  }
+
   if (byMuscle) return <>
     <div className="row between" style={{ marginBottom: 10 }}><h3>{t('Add exercise')}</h3>
       <Button size="sm" variant="ghost" onClick={() => setByMuscle(false)}>{t('All')}</Button>
@@ -906,9 +946,17 @@ function ExercisePicker({ onPick, close }) {
   </>
 
   return <>
-    <div className="row between" style={{ marginBottom: 10 }}><h3>{t('Add exercise')}</h3>
-      <Button size="sm" variant="tinted" icon="target" onClick={() => setByMuscle(true)}>{t('By muscle')}</Button>
+    {/* Hevy Modal Header: Cancel | Add Exercise | Create */}
+    <div className="hevy-picker-header">
+      <button type="button" className="hevy-modal-nav-btn" onClick={close}>
+        {t('Cancel')}
+      </button>
+      <h3 className="hevy-modal-title">{t('Add Exercise')}</h3>
+      <button type="button" className="hevy-modal-nav-btn" onClick={() => customExSheet(null, ex => onPick(ex), q.trim())}>
+        {t('Create')}
+      </button>
     </div>
+
     {/* Search bar with instant one-tap clear button */}
     <div className="picker-search">
       <div className="search" style={{ position: 'relative' }}>
@@ -916,7 +964,7 @@ function ExercisePicker({ onPick, close }) {
         <input
           ref={searchRef}
           className="input"
-          placeholder={t('Search machine, exercise, muscle…')}
+          placeholder={t('Search exercise')}
           value={q}
           onFocus={onSearchFocus}
           onChange={e => { setQ(e.target.value); setShown(50) }}
@@ -935,6 +983,26 @@ function ExercisePicker({ onPick, close }) {
       </div>
     </div>
 
+    {/* Dual Filter Dropdown Pills */}
+    <div className="hevy-picker-filters-row">
+      <button
+        type="button"
+        className={'hevy-filter-dropdown-btn' + (eqQuick || eq ? ' active' : '')}
+        onClick={openEquipmentMenu}
+      >
+        <span>{eqLabel}</span>
+        <Icon name="chevronDown" style={{ fontSize: 12, opacity: 0.7 }} />
+      </button>
+      <button
+        type="button"
+        className={'hevy-filter-dropdown-btn' + (bp ? ' active' : '')}
+        onClick={openMuscleMenu}
+      >
+        <span>{muscleLabel}</span>
+        <Icon name="chevronDown" style={{ fontSize: 12, opacity: 0.7 }} />
+      </button>
+    </div>
+
     {profile && <div className="small dim row" style={{ margin: '6px 0 2px', gap: 6, alignItems: 'center' }}>
       <Icon name="dumbbell" style={{ fontSize: 13 }} />
       {showAll ? t('Showing all equipment') : t('Showing what you have in "{0}"', profile.name)}
@@ -944,7 +1012,7 @@ function ExercisePicker({ onPick, close }) {
     </div>}
 
     {/* Primary Equipment & Machine Row */}
-    <div className="chips" style={{ margin: '8px 0 4px', display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+    <div className="chips" style={{ margin: '6px 0 4px', display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
       {QUICK_EQ_PRESETS.map(p => (
         <button
           key={p.id}
@@ -984,6 +1052,11 @@ function ExercisePicker({ onPick, close }) {
       </div>
     )}
 
+    {/* Section title */}
+    <div className="hevy-picker-section-title">
+      {q ? t('Search Results') : bp === '☆' ? t('Favourites') : t('Recent Exercises')}
+    </div>
+
     <div className="list">
       {!special && !q && !bp && !eqQuick && (
         <div className="item" {...tappable(() => customExSheet(null, ex => onPick(ex), q.trim()))}>
@@ -992,27 +1065,40 @@ function ExercisePicker({ onPick, close }) {
         </div>
       )}
       {f.slice(0, shown).map(e => {
-        const isMachine = (e.eq || '').includes('machine') || e.eq === 'assisted'
-        const isCable = e.eq === 'cable'
         return (
-          <div key={e.id} className="item" {...tappable(() => onPick(e))}>
-            <Thumb ex={e} />
+          <div key={e.id} className="item hevy-picker-item" {...tappable(() => onPick(e))}>
+            <div className="hevy-picker-avatar">
+              <Thumb ex={e} />
+            </div>
             <div className="grow">
               <div className="tt capitalize">{isFav(st, e.id) && <Icon name="starFill" className="fav-star" />}{exerciseNameFor(e)}</div>
-              <div className="ss capitalize row" style={{ gap: 5, alignItems: 'center', marginTop: 2 }}>
-                <span>{t(e.tg || e.bp)}</span>
-                <span style={{ opacity: 0.35 }}>•</span>
-                <span style={{
-                  fontWeight: isMachine || isCable ? 600 : 400,
-                  color: isMachine ? 'var(--teal)' : isCable ? 'var(--blue)' : 'inherit'
-                }}>
-                  {isMachine && '⚙️ '}{isCable && '🔗 '}{t(e.eq)}
-                </span>
-              </div>
+              <div className="ss capitalize">{t(e.tg || e.bp)}</div>
             </div>
-            {usage[e.id] && <span className="tag acc"><Icon name="starFill" /></span>}
-            <button className="iconbtn chev" aria-label={t('Add “{0}”', exerciseNameFor(e))} style={{ padding: 8, margin: -8 }}
-              onClick={ev => { ev.stopPropagation(); onPick(e, true) }}><Icon name="plus" /></button>
+            {usage[e.id] && <span className="tag acc" style={{ fontSize: 10, padding: '2px 5px' }}><Icon name="starFill" /></span>}
+            <button
+              type="button"
+              className="iconbtn hevy-history-btn"
+              aria-label={t('History')}
+              title={t('Exercise History')}
+              onClick={ev => {
+                ev.stopPropagation()
+                exerciseHistorySheet(e.id)
+              }}
+            >
+              <Icon name="chartLine" />
+            </button>
+            <button
+              type="button"
+              className="iconbtn chev hevy-add-icon-btn"
+              aria-label={t('Add “{0}”', exerciseNameFor(e))}
+              style={{ padding: 8, margin: -4 }}
+              onClick={ev => {
+                ev.stopPropagation()
+                onPick(e, true)
+              }}
+            >
+              <Icon name="plus" />
+            </button>
           </div>
         )
       })}
