@@ -23,10 +23,10 @@
     "@capacitor/local-notifications": "^7.0.7",
     "@capacitor/share": "^7.0.4",
     "jsqr": "^1.4.0",
-    "lean-qr": "^2.7.3",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "react-router-dom": "^7.18.3",
+    "lean-qr": "^2.7.4",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router-dom": "^7.18.4",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
@@ -36,9 +36,9 @@
     "@capacitor/ios": "^7.6.9",
     "@vitejs/plugin-react": "^6.1.1",
     "@vitest/coverage-v8": "^4.1.11",
-    "happy-dom": "^20.13.2",
+    "happy-dom": "^20.14.5",
     "linkedom": "^0.18.13",
-    "vite": "^8.2.2",
+    "vite": "^8.3.1",
     "vitest": "^4.1.10"
   }
 }
