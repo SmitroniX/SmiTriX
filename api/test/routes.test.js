@@ -156,7 +156,7 @@ test('the disclosure names the provider and the same five categories the payload
 test('a debrief is enqueued as its own kind, and the cohort routes gate on the admin switch and the opt-in', async () => {
   fresh({ community: false });
   const jobs = await import('../coach/jobs.js');
-  const { writeState, sampleState } = await import('./helpers.mjs');
+  const { writeState, sampleState, SAMPLE_DATE } = await import('./helpers.mjs');
   const { forcePrivilegeVerdict } = await import('../coach/adapters/spawn.js');
   forcePrivilegeVerdict({ ok: true, dropped: false, why: 'pinned by the test suite' });
   writeState(process.env.DATA_DIR, 'admin-1', sampleState());
@@ -188,7 +188,7 @@ test('a debrief is enqueued as its own kind, and the cohort routes gate on the a
   while (jobs.status('admin-1').job && Date.now() < until) await new Promise(res => setTimeout(res, 25));
   const s = jobs.status('admin-1');
   assert.equal(s.pending.kind, 'debrief');
-  assert.deepEqual(s.pending.workout, { id: 'w1', d: '2026-07-20', name: 'Full body A', minutes: 45, vol: 600, sets: 3, prs: 0 });
+  assert.deepEqual(s.pending.workout, { id: 'w1', d: SAMPLE_DATE, name: 'Full body A', minutes: 45, vol: 600, sets: 3, prs: 0 });
   assert.equal(s.pending.score, 8);
   assert.ok(s.pending.summary.includes('3 sets'));
   assert.ok(Array.isArray(s.pending.nextTime) && s.pending.nextTime.length);
