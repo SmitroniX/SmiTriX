@@ -1239,48 +1239,50 @@ function ActiveWorkout() {
       </div>
     )}
 
-    <div style={{ height: 12 }} />
-    {!listMode && <div className="row">
-      <Button icon="chevronLeft" disabled={unitIdx <= 0} onClick={() => navigateUnit(-1)}>{t('Prev')}</Button>
-      <Button trailingIcon="chevronRight" disabled={unitIdx < 0 || unitIdx >= units.length - 1} onClick={() => navigateUnit(1)}>{t('Next')}</Button>
-    </div>}
-    {!listMode && <div style={{ height: 10 }} />}
-    {wc.exerciseButtons && listMode && A.entries.length > 0 && <div className="muted small" style={{ marginBottom: 6 }}>{t('Move, swap and remove below act on the exercise marked {0}.', t('Current'))}</div>}
-    <Button onClick={openAddExercise} icon="plus" className="workout-add-exercise">{t('Add exercise')}</Button>
-    {wc.exerciseButtons && A.entries.length > 0 && <>
-      <div style={{ height: 6 }} />
-      <div className="row">
-        <Button size="sm" icon="chevronUp" aria-label={t('Move up')}
-          disabled={!!work || !canMoveActiveWorkoutUnit(A, cur, -1)} onClick={() => moveCurrentUnit(-1)}>{t('Move up')}</Button>
-        <Button size="sm" trailingIcon="chevronDown" aria-label={t('Move down')}
-          disabled={!!work || !canMoveActiveWorkoutUnit(A, cur, 1)} onClick={() => moveCurrentUnit(1)}>{t('Move down')}</Button>
+    {A.entries.length > 0 && <>
+      <div style={{ height: 12 }} />
+      {!listMode && <div className="row">
+        <Button icon="chevronLeft" disabled={unitIdx <= 0} onClick={() => navigateUnit(-1)}>{t('Prev')}</Button>
+        <Button trailingIcon="chevronRight" disabled={unitIdx < 0 || unitIdx >= units.length - 1} onClick={() => navigateUnit(1)}>{t('Next')}</Button>
+      </div>}
+      {!listMode && <div style={{ height: 10 }} />}
+      {wc.exerciseButtons && listMode && <div className="muted small" style={{ marginBottom: 6 }}>{t('Move, swap and remove below act on the exercise marked {0}.', t('Current'))}</div>}
+      <Button onClick={openAddExercise} icon="plus" className="workout-add-exercise">{t('Add exercise')}</Button>
+      {wc.exerciseButtons && <>
+        <div style={{ height: 6 }} />
+        <div className="row">
+          <Button size="sm" icon="chevronUp" aria-label={t('Move up')}
+            disabled={!!work || !canMoveActiveWorkoutUnit(A, cur, -1)} onClick={() => moveCurrentUnit(-1)}>{t('Move up')}</Button>
+          <Button size="sm" trailingIcon="chevronDown" aria-label={t('Move down')}
+            disabled={!!work || !canMoveActiveWorkoutUnit(A, cur, 1)} onClick={() => moveCurrentUnit(1)}>{t('Move down')}</Button>
+        </div>
+        <div style={{ height: 6 }} />
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <Button size="sm" icon="shuffle" aria-label={t('Swap exercise')} disabled={!!work}
+            onClick={() => swapActiveWorkoutExercise(cur)}>{t('Swap exercise')}</Button>
+        </div>
+        <div style={{ height: 6 }} />
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <Button size="sm" icon="minus" style={{ color: 'var(--red)' }} disabled={!!work} onClick={removeExerciseSheet}>{t('Remove exercise')}</Button>
+        </div>
+      </>}
+      <div style={{ height: 10 }} />
+      {/* Wrapping up is when you know how the session went, so the note sits with the finish
+          button rather than somewhere in the header. */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+        <Button size="sm" icon="pencil" variant={A.note ? 'tinted' : undefined} onClick={sessionNoteSheet}>
+          {A.note ? t('Edit session note') : t('Add session note')}
+        </Button>
       </div>
-      <div style={{ height: 6 }} />
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <Button size="sm" icon="shuffle" aria-label={t('Swap exercise')} disabled={!!work}
-          onClick={() => swapActiveWorkoutExercise(cur)}>{t('Swap exercise')}</Button>
-      </div>
-      <div style={{ height: 6 }} />
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <Button size="sm" icon="minus" style={{ color: 'var(--red)' }} disabled={!!work} onClick={removeExerciseSheet}>{t('Remove exercise')}</Button>
-      </div>
+      {(() => {
+        const exDone = A.entries.filter(e => e.sets.length && e.sets.every(s => s.done)).length
+        const allDone = A.entries.length > 0 && exDone === A.entries.length
+        return <button className={allDone ? 'btn primary workout-finish-full' : 'btn ghost dim workout-finish-full'} onClick={finishWorkout}>
+          {allDone ? t('Finish workout') : t('Finish workout early · {0} exercises', exDone + '/' + A.entries.length)}
+        </button>
+      })()}
+      <div style={{ height: 40 }} />
     </>}
-    <div style={{ height: 10 }} />
-    {/* Wrapping up is when you know how the session went, so the note sits with the finish
-        button rather than somewhere in the header. */}
-    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
-      <Button size="sm" icon="pencil" variant={A.note ? 'tinted' : undefined} onClick={sessionNoteSheet}>
-        {A.note ? t('Edit session note') : t('Add session note')}
-      </Button>
-    </div>
-    {(() => {
-      const exDone = A.entries.filter(e => e.sets.length && e.sets.every(s => s.done)).length
-      const allDone = A.entries.length > 0 && exDone === A.entries.length
-      return <button className={allDone ? 'btn primary workout-finish-full' : 'btn ghost dim workout-finish-full'} onClick={finishWorkout}>
-        {allDone ? t('Finish workout') : t('Finish workout early · {0} exercises', exDone + '/' + A.entries.length)}
-      </button>
-    })()}
-    <div style={{ height: 40 }} />
   </div>
 }
 

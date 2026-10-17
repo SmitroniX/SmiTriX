@@ -59,6 +59,13 @@
 
   --sab:env(safe-area-inset-bottom,0px);
   --sat:env(safe-area-inset-top,0px);
+
+  /* generic aliases & geometry */
+  --border:    var(--sep-op);
+  --line:      var(--sep-op);
+  --fg:        var(--label);
+  --dim:       var(--label-3);
+  --r-md:      10px;
 }
 
 :root[data-theme="light"] {
@@ -183,6 +190,7 @@ body.resting #app{padding-bottom:calc(250px + var(--sab))}
 
 /* large title, the way a nav bar does it */
 .hdr{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:8px 0 18px}
+.hdr:has(> .iconbtn:first-child){align-items:center}
 .hdr h1{font-size:34px;line-height:1.06;font-weight:700;letter-spacing:-.028em}
 .hdr .sub{color:var(--label-2);font-size:15px;letter-spacing:-.006em;margin-top:4px}
 
@@ -224,6 +232,7 @@ h4.sec{
   box-shadow:0 4px 16px -4px rgba(0,0,0,.25);
   transition:border-color var(--fast),box-shadow var(--fast);
 }
+.card.tappable:active{background:var(--surface-2);transform:scale(.99)}
 .card .big{font-size:30px;font-weight:600;letter-spacing:-.026em;line-height:1.1}
 
 /* ------------------------------------------------------ inset group list -- */
@@ -358,6 +367,12 @@ h4.sec{
 #tabbar button.start .cir{color:var(--on-acc)}
 #tabbar button.start.rec .cir{background:var(--orange);color:#000;box-shadow:0 6px 18px -4px color-mix(in srgb,var(--orange) 55%,transparent)}
 #tabbar button.start.rec span{color:var(--orange)}
+#tabbar button.start.on .cir{
+  box-shadow:0 0 0 2.5px var(--bg-el), 0 0 0 4.5px var(--acc), 0 8px 24px -4px color-mix(in srgb,var(--acc) 65%,transparent);
+}
+#tabbar button.start.rec.on .cir{
+  box-shadow:0 0 0 2.5px var(--bg-el), 0 0 0 4.5px var(--orange), 0 8px 24px -4px color-mix(in srgb,var(--orange) 65%,transparent);
+}
 #tabbar button.start.rec .cir::after{
   content:'';position:absolute;inset:0;border-radius:50%;
   border:2px solid var(--orange);animation:ping 1.9s var(--ease) infinite;
@@ -429,8 +444,9 @@ h4.sec{
   background:var(--surface-2);color:var(--label-2);
 }
 .item .tt{font-size:16px;font-weight:400;line-height:1.25;letter-spacing:-.009em}
-.item .ss{color:var(--label-2);font-size:13px;margin-top:2px}
-.item .grow{flex:1;min-width:0}
+.ss, .item .ss{color:var(--label-2);font-size:13px;margin-top:2px;line-height:1.3}
+.today-row .ss{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grow, .item .grow{flex:1;min-width:0}
 .chev{color:var(--label);flex:none;font-size:15px;--icon-stroke:2.4}
 .tag{
   display:inline-flex;align-items:center;gap:3px;background:var(--surface-2);
@@ -459,6 +475,7 @@ h4.sec{
 .chips,.hm-wrap{overscroll-behavior-x:contain;scroll-padding-inline:16px}
 .chips{touch-action:pan-x}
 .chip{
+  display:inline-flex;align-items:center;justify-content:center;gap:4px;
   flex:none;padding:6px 13px;border-radius:99px;background:var(--surface);
   font-size:14px;font-weight:400;color:var(--label);text-transform:capitalize;
   letter-spacing:-.006em;transition:background var(--fast),color var(--fast);
@@ -555,6 +572,17 @@ h4.sec{
 .seg-range{margin-bottom:10px}
 .seg-inline button{padding:5px 10px;font-size:13px;min-height:28px}
 .seg-inline button .icn{font-size:14px}
+@media (max-width: 440px){
+  .lrow:has(.seg-inline){flex-wrap:wrap;row-gap:8px}
+  .lrow:has(.seg-inline) .lrow-m{flex:1 1 100px}
+  .lrow:has(.seg-inline) .seg-inline{max-width:100%}
+  .lrow:has(.seg-inline) .seg[style*="--n: 4"]{width:100%}
+}
+@media (max-width: 420px){
+  .seg-inline{min-width:0}
+  .seg-inline button{padding:4px 6px;font-size:12px;gap:3px}
+  .seg-inline button .icn{font-size:13px}
+}
 
 /* native time input, restyled to sit in a row like a value label */
 .timef{
@@ -862,8 +890,10 @@ h4.sec{
   transform:scale(1.08);
 }
 /* --- SmiTriX Workout Screen & Top Bar --- */
-.workout-top-bar, .hevy-top-bar{display:grid;grid-template-columns:38px 1fr auto;align-items:center;gap:6px}
-.workout-title-center, .hevy-title-center{text-align:center;min-width:0}
+.workout-top-bar, .hevy-top-bar{display:grid;grid-template-columns:minmax(36px, 1fr) auto minmax(auto, 1fr);align-items:center;gap:6px}
+.workout-top-bar > :first-child, .hevy-top-bar > :first-child{justify-self:start}
+.workout-top-bar > :last-child, .hevy-top-bar > :last-child{justify-self:end}
+.workout-title-center, .hevy-title-center{text-align:center;min-width:0;justify-self:center}
 .workout-workout-name, .workout-name-title, .hevy-workout-name{
   font-size:15px;font-weight:700;letter-spacing:-.015em;
   display:inline-flex;align-items:center;justify-content:center;gap:6px;
@@ -872,6 +902,7 @@ h4.sec{
 .workout-stats-chips, .hevy-stats-chips{
   display:flex;align-items:center;justify-content:center;gap:5px;
   font-size:11.5px;color:var(--label-2);margin-top:2px;font-variant-numeric:tabular-nums;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
 }
 .workout-stats-chips .h-stat, .hevy-stats-chips .h-stat{display:inline-flex;align-items:center;gap:3px}
 .workout-stats-chips .h-stat-sep, .hevy-stats-chips .h-stat-sep{color:var(--label-4)}
@@ -885,6 +916,11 @@ h4.sec{
   transition:transform var(--fast),background var(--fast);
 }
 .workout-finish-btn:active, .hevy-finish-btn:active{transform:scale(.93)}
+@media (max-width: 380px){
+  .workout-top-bar, .hevy-top-bar{gap:4px}
+  .workout-finish-btn, .hevy-finish-btn{padding:6px 10px;font-size:12px;gap:4px}
+  .workout-stats-chips, .hevy-stats-chips{font-size:10.5px;gap:3px}
+}
 .workout-add-set, .hevy-add-set{
   font-weight:600;letter-spacing:-.01em;border-radius:8px;
 }
@@ -1234,8 +1270,10 @@ h4.sec{
   width:100%;max-width:540px;max-height:88vh;overflow-y:auto;
   background:var(--bg-el,#141820);
   border-radius:var(--r-xl) var(--r-xl) 0 0;
-  padding:20px;box-shadow:0 -12px 40px rgba(0,0,0,.7);
-  border:1px solid rgba(255,255,255,.12);border-bottom:0;
+  padding:20px 20px calc(20px + var(--sab));
+  scroll-padding-bottom:calc(20px + var(--sab));
+  box-shadow:0 -12px 40px rgba(0,0,0,.7);
+  border:1px solid var(--border);border-bottom:0;
   animation:sheetup .32s var(--ease);
   display:flex;flex-direction:column;
 }
@@ -1252,7 +1290,7 @@ h4.sec{
   position:relative;border-radius:var(--r-lg);overflow:hidden;
   background:radial-gradient(circle at center, #ffffff 45%, #f1f5f9 100%);
   box-shadow:0 8px 30px rgba(0,0,0,.45);margin-bottom:14px;
-  border:1px solid rgba(255,255,255,.12);
+  border:1px solid var(--border);
 }
 .motion-player-media{
   width:100%;height:250px;object-fit:contain;display:block;
@@ -1566,6 +1604,7 @@ h4.sec{
   max-width:88vw;text-align:center;
 }
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+body.resting #toast{bottom:calc(200px + var(--sab))}
 
 /* ---------------------------------------------------------------- misc --- */
 .empty{text-align:center;color:var(--label-2);padding:44px 20px;font-size:15px;line-height:1.45}
@@ -1665,7 +1704,7 @@ h4.sec{
   .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
   .cols>*{min-width:0}
   #app .list{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  #modal-root .list,.narrow .list{display:flex;flex-direction:column}
+  #modal-root .list,.narrow .list,.cols .list{display:flex;flex-direction:column}
   .narrow{max-width:640px;margin:0 auto}
   .tiles{grid-template-columns:repeat(4,1fr)}
   .cols .tiles{grid-template-columns:1fr 1fr}
@@ -1917,5 +1956,10 @@ h4.sec{
 }
 .quick-chip-close:active {
   color: var(--label);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: none; }
 }
 
