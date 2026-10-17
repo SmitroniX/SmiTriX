@@ -19,7 +19,7 @@
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="icon" type="image/png" sizes="180x180" href="icon-180.png">
 <link rel="apple-touch-icon" href="icon-180.png">
-<link rel="stylesheet" href="styles.css?v=20">
+<link rel="stylesheet" href="styles.css?v=21">
 <script>
 document.documentElement.className += ' js'
 try {
@@ -404,13 +404,18 @@ try {
         — progression and 1RM are unaffected.</li>
     <li><b>See the timer end, not just hear it:</b> an opt-in screen flash when a rest or
         work timer finishes — for loud gyms and headphones.</li>
+    <li><b>Lock screen rest timer &amp; notifications:</b> on Android, keep track of rest intervals
+        directly from your lock screen with interactive buttons to advance sets or add +30s.</li>
+    <li><b>Voice Coach audio cues:</b> spoken audio countdowns (10s, 5s, 3s, 2s, 1s) and set completion cues via speech synthesis, configurable in Settings.</li>
+    <li><b>Quick gear &amp; machine filters:</b> one-tap equipment filter chips (<code>All Gear</code>, <code>⚙️ Machine</code>, <code>🔗 Cable</code>, <code>🏋️ Dumbbell</code>, <code>Barbell</code>, <code>Bodyweight</code>) with typo tolerance and aliases.</li>
     <li><b>Rest-timer push notifications</b> even with the app closed (self-hosted; the
         mobile app uses native notifications).</li>
   </ul>
 
   <h3 id="f-stats">Statistics</h3>
   <ul>
-    <li><b>Activity heatmap:</b> a GitHub-style year view, shaded by time spent training.</li>
+    <li><b>Activity &amp; recovery heatmaps:</b> a GitHub-style 16-week and year view shaded by time spent training, plus a real-time muscle recovery readiness map on Home.</li>
+    <li><b>PR Wall of Fame:</b> showcasing your all-time personal bests across bodyweight strength tiers from Beginner to Elite.</li>
     <li><b>Estimated 1RM</b> per exercise, from your best eligible set (it names which one),
         with its own progress curve and a calculator for sets you haven't done. It won't
         guess above 12 reps, and warm-up sets don't count.</li>
@@ -433,8 +438,8 @@ try {
 
   <h3 id="f-looks">Looks, languages &amp; little things</h3>
   <ul>
-    <li><b>Light/dark themes and 8 accent colors</b>, saved to your profile, over a
-        hand-drawn icon set instead of emoji — it looks the same on every phone.</li>
+    <li><b>Light, Dark, and Pure OLED True-Black themes plus 8 accent colors</b>, saved to your profile, over a
+        hand-drawn icon set instead of emoji. Pure OLED mode provides maximum AMOLED battery savings.</li>
     <li><b>14 languages</b> — EN, DE, ES, FR, IT, PT (Portugal), PT (Brazil), PL, TR, RU,
         ZH, KO, HI, TH, HU. Exercise instructions are localized in 12 of them, and built-in
         exercise names show bilingually in PT-BR and HU. Translations load on demand, so the
@@ -687,11 +692,13 @@ ALLOW_GUEST=0              # remove "Continue without account"</code></pre>
   <p>A GPU machine elsewhere on your LAN works the same way: run Ollama or LM Studio there and
      point the Base URL at it, e.g. <code>http://192.168.1.50:11434</code>.</p>
 
-  <h3 id="coach-phone">On the phone</h3>
-  <p><b>Settings → AI Coach</b> offers two ways in: pair the phone with your self-hosted
-     instance and the Coach runs there under the rules above, or bring your own API key and the
-     phone calls the provider directly — same allowlist, same validator, key in the platform's
-     secure storage, ten runs a day.</p>
+  <h3 id="coach-phone">On Web, Desktop or Phone (BYOK)</h3>
+  <p><b>Settings → API Keys</b> and <b>Settings → AI Coach</b> support Bring-Your-Own-Key (BYOK)
+     across all platforms — Web, Desktop, and Mobile. Each provider has isolated credential storage
+     (<code>Anthropic</code>, <code>OpenAI</code>, <code>Gemini</code>, and <code>OpenAI-compatible / Ollama</code>)
+     with eye toggles to show/hide keys, key-optional reachability testing for local LAN endpoints, and safe
+     model assignment that prevents cross-provider leakage. You can also pair with your self-hosted instance to
+     run off the server's configured backend.</p>
 
   <h3 id="coach-privacy">Privacy and limits</h3>
   <p>Before anyone uses it, a consent screen lists exactly which categories of data leave the
@@ -745,10 +752,11 @@ ALLOW_GUEST=0              # remove "Continue without account"</code></pre>
   <h3 id="imp-hevy">Hevy, directly over the API</h3>
   <p>With <b>Hevy Pro</b>, skip the CSV: create an API key under
      <a href="https://hevy.com/settings?developer" rel="noopener">Hevy → Settings → Developer</a>,
-     then in SmiTriX use <b>Settings → Import from Hevy</b>, paste the key (used only for that
-     import — never saved), and choose any mix of <b>workouts</b>, <b>routines</b> and
-     <b>weigh-ins</b>. Workout days that already have data here are left alone; imported
-     routines are always added as new plans.</p>
+     then in SmiTriX use <b>Settings → API Keys → Hevy Pro</b> (or <b>Settings → Data → Import from Hevy</b>).
+     You can save and test your Hevy API key securely with instant status checks (auth, rate limits, network)
+     so you don't have to re-enter it on every sync, or paste it as a one-time key.
+     Choose any mix of <b>workouts</b>, <b>routines</b> and <b>weigh-ins</b> — existing workout days are kept safe,
+     and imported routines are added cleanly as new plans.</p>
   <h3 id="imp-csv">Rolling your own CSV</h3>
   <p>Anything with date, exercise-name and weight/reps columns imports. Minimal example:</p>
   <pre><code>workout name,exercise,date,weight kg,reps
@@ -958,6 +966,6 @@ Leg Day,Leg Press,2026-08-21,200,1</code></pre>
   </svg>
 </button>
 
-<script src="site.js?v=20" defer></script>
+<script src="site.js?v=21" defer></script>
 </body>
 </html>

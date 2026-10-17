@@ -480,7 +480,7 @@ const html = `<!DOCTYPE html>
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="icon" type="image/png" sizes="180x180" href="icon-180.png">
 <link rel="apple-touch-icon" href="icon-180.png">
-<link rel="stylesheet" href="styles.css?v=20">
+<link rel="stylesheet" href="styles.css?v=21">
 <script>
 document.documentElement.className += ' js'
 try {
@@ -636,7 +636,7 @@ ${schemaCards}
   </svg>
 </button>
 
-<script src="site.js?v=20" defer></script>
+<script src="site.js?v=21" defer></script>
 <script>${js}</script>
 </body>
 </html>

@@ -19,7 +19,7 @@
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="icon" type="image/png" sizes="180x180" href="icon-180.png">
 <link rel="apple-touch-icon" href="icon-180.png">
-<link rel="stylesheet" href="styles.css?v=20">
+<link rel="stylesheet" href="styles.css?v=21">
 <!-- Marks that JS is alive before first paint, so the scroll-reveal styles never
      hide content from a browser that will not run them. -->
 <script>
@@ -165,8 +165,8 @@ try {
   <div class="wrap">
     <a class="release-pill" href="#download">
       <span class="badge-dot"></span>
-      <span class="badge-tag">v1.3.8</span>
-      <span>New interactive guide, tutorial &amp; update system</span>
+      <span class="badge-tag">v1.4.0</span>
+      <span>Lock screen alerts, gym gear filters &amp; AI Coach BYOK</span>
       <svg class="badge-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
     </a>
     <p class="eyebrow">SmiTriX</p>
@@ -257,14 +257,14 @@ try {
           <span class="tile-tag accent">Private &amp; Local</span>
         </div>
         <h3>An AI coach, if you want one</h3>
-        <p>Optional, off by default, and it runs on whatever AI you bring — an Anthropic, OpenAI
-           or Gemini key, any OpenAI-compatible endpoint such as Ollama on your own network, or a
-           Claude Code / Codex runtime in the container. Nothing it proposes is applied on its
+        <p>Optional, off by default, and it runs on whatever AI you bring — on Web, Desktop or Mobile.
+           Bring Anthropic, OpenAI or Gemini keys with provider isolation, connect to local Ollama/LM Studio
+           endpoints on your LAN, or run a Claude Agent SDK runtime in Docker. Nothing it proposes is applied on its
            own; every change carries its reason and can be undone.</p>
         <div class="trio">
           <div><b>Plan</b>A week of routines from a few questions: goal, days, session length, equipment, limits.</div>
           <div><b>Review</b>Reads what you actually logged — stalls, effort, body weight — and proposes changes with the evidence.</div>
-          <div><b>Private</b>An allowlist under an opaque handle leaves your server. Keys stay encrypted; admins see counts, never questions.</div>
+          <div><b>Private</b>Isolated keys stay encrypted in local storage; opaque handles leave your device.</div>
         </div>
       </div>
 
@@ -313,7 +313,7 @@ try {
 
     <div class="more rv">
       <h3>And the rest of it</h3>
-      <p class="more-hint">Sixteen more things it does.</p>
+      <p class="more-hint">Twenty more things it does.</p>
     </div>
   </div>
 
@@ -405,6 +405,26 @@ try {
         <b class="fcard-t">Yours to keep</b>
         <span class="fcard-b">One-tap JSON export and import. Your training log is a file you own, not a row in someone’s database.</span>
         <a class="fcard-link" href="docs.html#backup">Backups →</a>
+      </article>
+      <article class="fcard">
+        <span class="fcard-ic"><svg aria-hidden="true"><use href="#i-timer"/></svg></span>
+        <b class="fcard-t">Lock screen timer</b>
+        <span class="fcard-b">Track rest intervals and advance workout sets directly from Android notification controls without unlocking your device.</span>
+      </article>
+      <article class="fcard">
+        <span class="fcard-ic"><svg aria-hidden="true"><use href="#i-library"/></svg></span>
+        <b class="fcard-t">Gym gear &amp; machine filters</b>
+        <span class="fcard-b">Instant filter chips for machines, cables, dumbbells, barbells, and bodyweight across all 1,324 exercises, with typo-tolerant search.</span>
+      </article>
+      <article class="fcard">
+        <span class="fcard-ic"><svg aria-hidden="true"><use href="#i-play"/></svg></span>
+        <b class="fcard-t">Voice Coach audio cues</b>
+        <span class="fcard-b">Spoken audio cues for rest countdowns (10s, 5s, 3s, 2s, 1s), set done, and workout finish so you never need to watch the screen.</span>
+      </article>
+      <article class="fcard">
+        <span class="fcard-ic"><svg aria-hidden="true"><use href="#i-palette"/></svg></span>
+        <b class="fcard-t">Pure OLED True-Black</b>
+        <span class="fcard-b">A pitch-black display mode with deep #000000 surfaces designed for high contrast and maximum battery efficiency on OLED screens.</span>
       </article>
     </div>
   </div>
@@ -514,9 +534,9 @@ try {
                 <span class="copy-text">Copy</span>
               </button>
             </div>
-            <code class="cs-hash" id="apkHashVal">c5dde4b6dcb189eaf947b2a2d802229f25c80d0981ab62a039b27eb2360c65f7</code>
+            <code class="cs-hash" id="apkHashVal">7fe66da2ef197b9a8f49dd4ad517b5c28387d219409e9bf038d4b20fae9c503b</code>
           </div>
-          <p class="meta">v1.3.8 · 27.7 MB · Android 6.0+ · signed APK. Your browser will ask
+          <p class="meta">v1.4.0 · 28.0 MB · Android 6.0+ · signed APK. Your browser will ask
              before installing; that is normal outside the Play Store.</p>
           <p class="meta">Every release is also built and signed by CI and attached to the
              <a href="https://github.com/SmitroniX/SmiTriX/releases" rel="noopener">GitHub
@@ -674,6 +694,6 @@ try {
 </button>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="site.js?v=20" defer></script>
+<script src="site.js?v=21" defer></script>
 </body>
 </html>
