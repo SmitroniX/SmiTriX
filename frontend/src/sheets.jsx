@@ -26,6 +26,7 @@ import { announceWorkoutComplete } from './lib/voice.js'
 import { exerciseMuscleSnapshot, loadOfWorkouts, MUSCLES, MUSCLE_NAME, normalizeMuscleGroups, hasExplicitMuscleMetadata } from './lib/muscles.js'
 import { parseImport, mergeImport } from './lib/import-csv.js'
 import { importHevyData, HevyApiError, HEVY_DEV_SETTINGS, mergeHevyRoutines } from './lib/import-hevy.js'
+import { getHevyApiKey, setHevyApiKey } from './lib/coach-secrets.js'
 import { buildPlanBundle, parsePlan, mergePlan, printPlan } from './lib/plan-share.js'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from './lib/onerm.js'
 import { exerciseHistory } from './lib/exercise-history.js'
@@ -357,6 +358,9 @@ function hevyProgressLabel(p) {
 function HevyImportSheet({ close }) {
   const st = useStore(s => s.S)
   const [apiKey, setApiKey] = useState('')
+  const [hasSavedKey, setHasSavedKey] = useState(false)
+  const [saveKeyForFuture, setSaveKeyForFuture] = useState(true)
+  const [showKey, setShowKey] = useState(false)
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState(null)
   const [payload, setPayload] = useState(null) // { workouts, routines, bodyweight }
@@ -365,8 +369,16 @@ function HevyImportSheet({ close }) {
   const [wantBody, setWantBody] = useState(true)
   const keyRef = useRef(null)
 
-  // Drop the key from memory when the sheet goes away (unmount or successful import).
-  useEffect(() => () => { setApiKey('') }, [])
+  useEffect(() => {
+    let active = true
+    getHevyApiKey().then(saved => {
+      if (active && saved) {
+        setApiKey(saved)
+        setHasSavedKey(true)
+      }
+    })
+    return () => { active = false }
+  }, [])
 
   const wipeKey = () => { setApiKey(''); if (keyRef.current) keyRef.current.value = '' }
 
@@ -378,7 +390,12 @@ function HevyImportSheet({ close }) {
     setPayload(null)
     try {
       const data = await importHevyData(key, { unit: st.unit, onProgress: setProgress })
-      wipeKey()
+      if (saveKeyForFuture) {
+        await setHevyApiKey(key)
+        setHasSavedKey(true)
+      } else {
+        wipeKey()
+      }
       const empty = !data.workouts.workouts.length && !data.routines.routines.length && !data.bodyweight.bodyweight.length
       if (empty) {
         toast(t('Nothing to import from Hevy'))
@@ -429,21 +446,47 @@ function HevyImportSheet({ close }) {
     return <>
       <h3>{t('Import from Hevy')}</h3>
       <div className="muted small" style={{ marginBottom: 14, lineHeight: 1.5 }}>
-        {t('Pull your history with a Hevy Pro API key. The key is only used for this import and is not saved.')}
+        {t('Pull your history with a Hevy Pro API key. Save it securely on this device to easily sync future workouts.')}
       </div>
-      <label className="small dim" style={{ display: 'block', marginBottom: 6 }}>{t('Hevy API key')}</label>
-      <TextField
-        ref={keyRef}
-        type="password"
-        autoComplete="off"
-        spellCheck={false}
-        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-        value={apiKey}
-        disabled={busy}
-        onChange={e => setApiKey(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter' && !busy) fetchAccount() }}
-      />
-      <div className="small" style={{ margin: '10px 0 16px', lineHeight: 1.45 }}>
+      <div className="row between" style={{ marginBottom: 6, alignItems: 'center' }}>
+        <label className="small dim">{t('Hevy API key')}</label>
+        {hasSavedKey && <span className="small bold ok" style={{ color: 'var(--c-accent, #6366f1)' }}>✓ {t('Saved key')}</span>}
+      </div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+        <TextField
+          ref={keyRef}
+          type={showKey ? 'text' : 'password'}
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+          value={apiKey}
+          disabled={busy}
+          onChange={e => {
+            setApiKey(e.target.value)
+            if (hasSavedKey && e.target.value !== apiKey) setHasSavedKey(false)
+          }}
+          onKeyDown={e => { if (e.key === 'Enter' && !busy) fetchAccount() }}
+          style={{ flex: 1 }}
+        />
+        <Button
+          variant="tinted"
+          icon={showKey ? 'eyeSlash' : 'eye'}
+          onClick={() => setShowKey(!showKey)}
+          aria-label={showKey ? t('Hide key') : t('Show key')}
+          disabled={busy}
+        />
+      </div>
+      <label className="row small" style={{ gap: 8, alignItems: 'center', marginBottom: 12, cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={saveKeyForFuture}
+          disabled={busy}
+          onChange={e => setSaveKeyForFuture(e.target.checked)}
+          style={{ accentColor: 'var(--c-accent, #6366f1)', width: 16, height: 16 }}
+        />
+        <span>{t('Save API key securely for 1-click future imports')}</span>
+      </label>
+      <div className="small" style={{ margin: '0 0 16px', lineHeight: 1.45 }}>
         <a href={HEVY_DEV_SETTINGS} target="_blank" rel="noopener noreferrer">{t('Get your API key')}</a>
         <span className="dim"> — {t('Hevy → Settings → Developer')}</span>
       </div>

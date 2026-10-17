@@ -29,7 +29,7 @@ const S = () => useStore.getState().S
 // validator only ever load on a phone that chose this). A paired phone takes the api() branch
 // like the web app does; nothing on the web or demo builds reaches this.
 let localMod = null
-const LOCAL = () => MOBILE && useStore.getState().coachLocal?.mode === 'byok'
+const LOCAL = () => useStore.getState().coachLocal?.mode === 'byok'
 const local = async () => {
   if (!localMod) {
     localMod = await import('./coach-local.js')

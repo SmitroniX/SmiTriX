@@ -26,6 +26,23 @@ class HevyApiError extends Error {
   }
 }
 
+export async function testHevyApiKey(apiKey) {
+  const key = String(apiKey || '').trim()
+  if (!key) return { ok: false, error: 'empty' }
+  try {
+    const url = new URL('/v1/exercise_templates', HEVY_API)
+    url.searchParams.set('page', '1')
+    url.searchParams.set('pageSize', '1')
+    const res = await fetch(url, { headers: { 'api-key': key } })
+    if (res.status === 401 || res.status === 403) return { ok: false, error: 'auth' }
+    if (res.status === 429) return { ok: false, error: 'rate-limit' }
+    if (!res.ok) return { ok: false, error: `http ${res.status}` }
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e.message || 'network' }
+  }
+}
+
 async function hevyGet(path, apiKey, params = {}) {
   const url = new URL(path, HEVY_API)
   for (const [k, v] of Object.entries(params)) {

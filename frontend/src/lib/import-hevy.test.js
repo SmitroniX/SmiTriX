@@ -2,6 +2,7 @@ import { describe, expect, it, vi, afterEach } from 'vitest'
 import {
   matchHevyTemplate, buildHevyExerciseMap, parseHevyWorkouts, parseHevyBodyweight,
   parseHevyRoutines, mergeHevyRoutines, localWhen, importHevyData, HevyApiError, HEVY_ID_MAP,
+  testHevyApiKey,
 } from './import-hevy.js'
 import { EXIDX } from './exercises.js'
 import { mergeImport } from './import-csv.js'
@@ -298,5 +299,47 @@ describe('buildHevyExerciseMap', () => {
     expect(map.get('4E5257DE')).toBe('2616')
     expect(map.get('DEADBEEF')).toBeNull()
     expect(map.size).toBe(TEMPLATES.length)
+  })
+})
+
+describe('testHevyApiKey', () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
+
+  it('rejects empty or whitespace-only keys', async () => {
+    expect(await testHevyApiKey('')).toEqual({ ok: false, error: 'empty' })
+    expect(await testHevyApiKey('   ')).toEqual({ ok: false, error: 'empty' })
+    expect(await testHevyApiKey(null)).toEqual({ ok: false, error: 'empty' })
+  })
+
+  it('returns ok: true on successful 200 response', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
+      expect(opts.headers['api-key']).toBe('valid-key')
+      return { ok: true, status: 200 }
+    }))
+    const res = await testHevyApiKey('valid-key')
+    expect(res).toEqual({ ok: true })
+  })
+
+  it('detects authentication failure on 401 and 403', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 401 })))
+    expect(await testHevyApiKey('bad-key')).toEqual({ ok: false, error: 'auth' })
+
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 403 })))
+    expect(await testHevyApiKey('forbidden-key')).toEqual({ ok: false, error: 'auth' })
+  })
+
+  it('detects rate-limit on 429', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 429 })))
+    expect(await testHevyApiKey('rate-limited-key')).toEqual({ ok: false, error: 'rate-limit' })
+  })
+
+  it('returns http error on 500', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500 })))
+    expect(await testHevyApiKey('err-key')).toEqual({ ok: false, error: 'http 500' })
+  })
+
+  it('catches network fetch errors', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('Failed to fetch') }))
+    expect(await testHevyApiKey('net-err-key')).toEqual({ ok: false, error: 'Failed to fetch' })
   })
 })

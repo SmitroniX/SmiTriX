@@ -115,7 +115,8 @@ export async function localDisclosure() {
 export async function localModels(settings, key) {
   const adapter = ADAPTERS[settings.provider]
   if (!adapter) return { ok: false, error: 'unknown provider', models: [] }
-  return adapter.models(cfgOf(settings), envOf(settings, key), { fetch: nativeFetch, timeoutMs: 20000 })
+  const k = key != null ? key : await getApiKey(settings?.provider)
+  return adapter.models(cfgOf(settings), envOf(settings, k), { fetch: nativeFetch, timeoutMs: 20000 })
 }
 
 const hostOf = url => { try { return new URL(url).host } catch { return url || '' } }
@@ -140,7 +141,7 @@ async function start(S, kind, opts) {
 }
 
 async function run(S, kind, opts, d, adapter) {
-  const key = await getApiKey()
+  const key = await getApiKey(d.provider)
   const payload = payloadLib.build(S, {
     handle: await handle(), kind, intake: opts.intake, note: opts.note, refine: opts.refine, previous: opts.previous, workoutId: opts.workoutId
   })

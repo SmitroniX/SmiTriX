@@ -16,10 +16,18 @@ export const COACH_MODES = ['off', 'server', 'byok']
 
 const DEFAULTS = { mode: 'off', provider: null, model: null, baseUrl: null, handle: null, daily: null, pending: null }
 
+const LOCAL_KEY = 'smitrix-coach-device'
+
 let cache = null
 export async function loadCoachDevice() {
   if (cache) return cache
   let saved = await readJsonFile(FILE)
+  if (!saved && typeof globalThis.localStorage !== 'undefined') {
+    try {
+      const raw = globalThis.localStorage.getItem(LOCAL_KEY)
+      if (raw) saved = JSON.parse(raw)
+    } catch { /* ignore */ }
+  }
   cache = { ...DEFAULTS, ...(saved && typeof saved === 'object' ? saved : {}) }
   if (!COACH_MODES.includes(cache.mode)) cache.mode = 'off'
   return cache
@@ -28,6 +36,11 @@ export async function saveCoachDevice(patch) {
   const next = { ...(await loadCoachDevice()), ...patch }
   cache = next
   await writeJsonFile(FILE, next)
+  if (typeof globalThis.localStorage !== 'undefined') {
+    try {
+      globalThis.localStorage.setItem(LOCAL_KEY, JSON.stringify(next))
+    } catch { /* ignore */ }
+  }
   return next
 }
 /** The part of it a UI may show: never the pending proposal, never the handle. */

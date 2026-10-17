@@ -265,10 +265,9 @@ export const useStore = create((set, get) => {
       // Mobile build: no backend by default — restore from the file mirror (the durable copy;
       // localStorage may have been evicted since the last run) and go straight in. Unless this
       // device was paired to a server ("connect to my server" mode, lib/remote.js), in which
-      // case it behaves exactly like the signed-in web flow below, straight from here.
+      set({ coachLocal: coachDeviceSettings(await loadCoachDevice()) })
       if (MOBILE) {
         const remote = await loadRemote()
-        set({ coachLocal: coachDeviceSettings(await loadCoachDevice()) })
         if (remote?.mode === 'remote') {
           setRemoteAuth(remote.base, remote.token)
           try {

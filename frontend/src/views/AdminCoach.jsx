@@ -374,6 +374,7 @@ const failureTitle = cls => ({
 function SetupTokenSheet({ close, onDone, label }) {
   const toast = useUI(s => s.toast)
   const [token, setToken] = useState('')
+  const [showToken, setShowToken] = useState(false)
   // Which account this token belongs to. Optional, and stored as a plain label — it is what the
   // admin card and the user's Coach screen both show when they name whose account is spent.
   const [account, setAccount] = useState('')
@@ -394,7 +395,25 @@ function SetupTokenSheet({ close, onDone, label }) {
     <div className="muted small" style={{ lineHeight: 1.5, marginBottom: 12 }}>
       On a trusted computer where you use Claude Code, run <code>claude setup-token</code>, complete its normal browser sign-in, then paste the token it prints here. This app never opens or handles Claude's authorization flow.
     </div>
-    <TextField value={token} autoFocus type="password" placeholder="paste setup token" onChange={e => setToken(e.target.value)} />
+    <div style={{ display: 'flex', gap: 6 }}>
+      <TextField
+        value={token}
+        autoFocus
+        type={showToken ? 'text' : 'password'}
+        placeholder="paste setup token"
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+        onChange={e => setToken(e.target.value)}
+        style={{ flex: 1 }}
+      />
+      <Button
+        variant="tinted"
+        icon={showToken ? 'eyeSlash' : 'eye'}
+        onClick={() => setShowToken(!showToken)}
+        aria-label={showToken ? 'Hide token' : 'Show token'}
+      />
+    </div>
     <div style={{ height: 8 }} />
     <TextField value={account} placeholder="whose account is this? (e.g. you@example.com)" onChange={e => setAccount(e.target.value)} />
     <div style={{ height: 12 }} />
@@ -406,6 +425,7 @@ function SetupTokenSheet({ close, onDone, label }) {
 function ApiKeySheet({ close, onDone, label, placeholder, optional }) {
   const toast = useUI(s => s.toast)
   const [key, setKey] = useState('')
+  const [showKey, setShowKey] = useState(false)
   const [busy, setBusy] = useState(false)
   const save = async () => {
     setBusy(true)
@@ -420,7 +440,25 @@ function ApiKeySheet({ close, onDone, label, placeholder, optional }) {
     <div className="muted small" style={{ lineHeight: 1.5, marginBottom: 12 }}>
       Stored encrypted on this server and sent to the provider only while a job runs. It is never shown again and never leaves the server{optional ? ' — and for an endpoint that takes no key, you can leave this empty and close the sheet.' : '.'}
     </div>
-    <TextField value={key} autoFocus type="password" placeholder={placeholder || 'sk-…'} autoCapitalize="none" autoCorrect="off" onChange={e => setKey(e.target.value)} />
+    <div style={{ display: 'flex', gap: 6 }}>
+      <TextField
+        value={key}
+        autoFocus
+        type={showKey ? 'text' : 'password'}
+        placeholder={placeholder || 'sk-…'}
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+        onChange={e => setKey(e.target.value)}
+        style={{ flex: 1 }}
+      />
+      <Button
+        variant="tinted"
+        icon={showKey ? 'eyeSlash' : 'eye'}
+        onClick={() => setShowKey(!showKey)}
+        aria-label={showKey ? 'Hide key' : 'Show key'}
+      />
+    </div>
     <div style={{ height: 12 }} />
     <Button variant="primary" disabled={busy || !key.trim()} onClick={save}>Save key</Button>
     <div style={{ height: 8 }} />
