@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { effectiveRoutine, effectiveRoutineId, nextTrainingDay, streakWeeks, lastBW, setsDoneActive } from '../lib/history.js'
-import { fmtNum, fmtDate, todayISO, isoOf, weekKey, weekStartOf, weekDayOffset, DAYS, DAYN } from '../lib/format.js'
+import { fmtNum, fmtDate, todayISO, isoOf, weekKey, weekStartOf, weekDayOffset, DAYS, DAYN, exCount } from '../lib/format.js'
+import { exOr } from '../lib/exercises.js'
+import { musclesOf, MUSCLE_NAME } from '../lib/muscles.js'
 import { t, dateLocale } from '../lib/i18n.js'
 import { bwSheet, goalSheet, dayOverrideSheet, calendarSheet, startFlow, starterPlanSheet, bwDeltaColor } from '../sheets.jsx'
 import LineChart from '../components/LineChart.jsx'
@@ -84,8 +86,48 @@ export default function Home() {
   const onToday = () => { if (S.active) nav('/workout'); else if (routine) startFlow(routine.id); else dayOverrideSheet(todayISO()) }
   const activeSetsDone = S.active ? setsDoneActive(S.active) : 0
 
+  const targetMuscles = (() => {
+    if (!routine?.ex?.length) return []
+    const counts = {}
+    for (const item of routine.ex) {
+      const ex = exOr(item?.id || item)
+      if (!ex) continue
+      const m = musclesOf(ex)
+      for (const [slug, weight] of Object.entries(m)) {
+        counts[slug] = (counts[slug] || 0) + weight
+      }
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([slug]) => MUSCLE_NAME[slug] || slug)
+  })()
+
+  const totalSets = (routine?.ex || []).reduce((sum, e) => {
+    return sum + (Array.isArray(e.sets) ? e.sets.length : (Number(e.sets) || 3))
+  }, 0)
+
+  const estMinutes = Math.max(15, Math.round(totalSets * 2.5))
+
+  const activeMuscles = (() => {
+    if (!S.active?.entries?.length) return []
+    const counts = {}
+    for (const item of S.active.entries) {
+      const ex = exOr(item.id)
+      if (!ex) continue
+      const m = musclesOf(ex)
+      for (const [slug, weight] of Object.entries(m)) {
+        counts[slug] = (counts[slug] || 0) + weight
+      }
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([slug]) => MUSCLE_NAME[slug] || slug)
+  })()
+
   return <div className="narrow">
-    <div className="hdr">
+    <div className="hdr home-sticky-header">
       <div><h1>{user ? t('Hi {0}', user.name) : 'SmiTriX'}</h1><div className="sub">{today.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' })}</div></div>
       <div className="row" style={{ gap: 6 }}>
         <button className="iconbtn" onClick={() => openTutorial(0)} aria-label={t('Tutorial & Guide')} title={t('Tutorial & Guide')}><Icon name="help" /></button>
@@ -117,6 +159,15 @@ export default function Home() {
         <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 700, color: 'var(--label)', letterSpacing: '-.02em' }}>
           {S.active.name || t('Freestyle')}
         </h2>
+        {activeMuscles.length > 0 && (
+          <div className="row hero-muscle-chips" style={{ gap: 6, flexWrap: 'wrap', margin: '4px 0 10px' }}>
+            {activeMuscles.map(m => (
+              <span key={m} className="hero-muscle-chip">
+                {t(m)}
+              </span>
+            ))}
+          </div>
+        )}
         <div className="muted small row hero-subtitle" style={{ gap: 6, alignItems: 'center', marginBottom: 14 }}>
           <span className="row" style={{ gap: 4, alignItems: 'center' }}>
             <Icon name="clock" style={{ fontSize: 13 }} />
@@ -132,6 +183,76 @@ export default function Home() {
           onClick={e => { e.stopPropagation(); nav('/workout') }}
         >
           {t('Resume Workout')}
+        </Button>
+      </div>
+    )}
+
+    {/* Redesigned Home Hero Workout Card: Scheduled Routine */}
+    {!S.active && routine && !doneToday && (
+      <div
+        className="card home-hero-workout-card tappable"
+        style={{
+          background: 'linear-gradient(145deg, var(--surface) 0%, color-mix(in srgb, var(--acc) 12%, var(--surface)) 100%)',
+          border: '1.5px solid color-mix(in srgb, var(--acc) 45%, var(--border))',
+          boxShadow: '0 6px 24px color-mix(in srgb, var(--acc) 14%, transparent)',
+          marginBottom: 16,
+          cursor: 'pointer',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+        {...tappable(() => startFlow(routine.id))}
+      >
+        <div className="row between" style={{ marginBottom: 8, alignItems: 'center' }}>
+          <div className="row" style={{ gap: 7, alignItems: 'center' }}>
+            <span className="lrow-i" style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--acc)', color: 'var(--on-acc)', fontSize: 14 }}>
+              <Icon name={glyphOf(routine.emoji)} />
+            </span>
+            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--acc)' }}>
+              {t("Today's Workout")}
+            </span>
+          </div>
+          {todayOvr && <span className="tag" style={{ fontSize: 11 }}>{t('rescheduled')}</span>}
+        </div>
+
+        <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800, color: 'var(--label)', letterSpacing: '-.02em' }}>
+          {routine.name}
+        </h2>
+
+        {/* Target Muscle Chips */}
+        {targetMuscles.length > 0 && (
+          <div className="row hero-muscle-chips" style={{ gap: 6, flexWrap: 'wrap', margin: '8px 0 12px' }}>
+            {targetMuscles.map(m => (
+              <span key={m} className="hero-muscle-chip">
+                {t(m)}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Estimated Duration and Routine Overview */}
+        <div className="muted small row hero-meta-row" style={{ gap: 10, alignItems: 'center', marginBottom: 16 }}>
+          <span className="row" style={{ gap: 4, alignItems: 'center' }}>
+            <Icon name="clock" style={{ fontSize: 13 }} />
+            <span>~{estMinutes} {t('min')}</span>
+          </span>
+          <span>·</span>
+          <span className="row" style={{ gap: 4, alignItems: 'center' }}>
+            <Icon name="dumbbell" style={{ fontSize: 13 }} />
+            <span>{exCount(routine.ex?.length || 0)}</span>
+          </span>
+          <span>·</span>
+          <span>{totalSets} {t('sets')}</span>
+        </div>
+
+        {/* Prominent Start CTA */}
+        <Button
+          variant="primary"
+          icon="play"
+          className="hero-start-cta"
+          style={{ width: '100%', minHeight: 48, fontSize: 17, fontWeight: 700 }}
+          onClick={e => { e.stopPropagation(); startFlow(routine.id) }}
+        >
+          {t('Start Workout')}
         </Button>
       </div>
     )}

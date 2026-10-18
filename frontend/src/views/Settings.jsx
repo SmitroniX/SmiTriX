@@ -19,6 +19,7 @@ import { openTutorial } from '../components/TutorialDialog.jsx'
 import { startAppUpdate } from '../components/UpdateDialog.jsx'
 import Icon from '../components/Icon.jsx'
 import { Section, Row, SelectRow, Switch, Segmented, Button, TextField } from '../components/ui.jsx'
+import { playRestChime } from '../lib/sound.js'
 import { getApiKey, setApiKey, clearApiKey, hasApiKey, getHevyApiKey, setHevyApiKey, clearHevyApiKey } from '../lib/coach-secrets.js'
 import { HTTP_PROVIDERS, HTTP_PROVIDER_IDS, validateBaseUrl } from '../../../api/coach/core/providers.js'
 import { testHevyApiKey } from '../lib/import-hevy.js'
@@ -278,6 +279,12 @@ export default function Settings() {
           value={S.workoutView === 'list' ? 'list' : 'cards'}
           onChange={v => update(s => { s.workoutView = v })} />
       </Row>
+      <Row icon="table" iconTint="var(--cyan, #06b6d4)" title={t('Workout density')}>
+        <Segmented className="seg-inline"
+          options={[{ value: 'spacious', label: t('Spacious') }, { value: 'compact', label: t('Compact') }]}
+          value={S.workoutDensity === 'compact' ? 'compact' : 'spacious'}
+          onChange={v => update(s => { s.workoutDensity = v })} />
+      </Row>
       {/* The lean workout screen keeps the sets and one "more" button per exercise; each switch
           brings one of the old always-visible button groups back for people who liked them. */}
       <Row icon="wrench" iconTint="var(--purple)" title={t('Workout controls')} accessory="chevron"
@@ -310,6 +317,21 @@ export default function Settings() {
       </Row>
       <Row icon="bell" iconTint="var(--pink)" title={t('Sounds')}>
         <Switch checked={!!S.sound} onChange={v => update(s => { s.sound = v })} />
+      </Row>
+      <SelectRow icon="bell" iconTint="var(--pink)" title={t('Rest timer chime')}
+        value={S.restChime || 'bell'}
+        onChange={v => {
+          update(s => { s.restChime = v })
+          playRestChime(v, true)
+        }}
+        options={[
+          { value: 'bell', label: t('Bell chime') },
+          { value: 'beeps', label: t('3-2-1 countdown beeps') },
+          { value: 'gong', label: t('Gentle gong') },
+          { value: 'digital', label: t('Digital chime') },
+        ]} />
+      <Row icon="volume" iconTint="var(--pink)" title={t('Preview chime')} subtitle={t('Test the selected rest timer chime')}>
+        <Button size="sm" icon="play" onClick={() => playRestChime(S.restChime || 'bell', true)}>{t('Test chime')}</Button>
       </Row>
       <Row icon="mic" iconTint="var(--teal)" title={t('Voice coach')}
         subtitle={t('Spoken rest countdown and set announcements')}>

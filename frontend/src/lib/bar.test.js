@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { BAR_EQ, DEFAULT_BAR_KG, DEFAULT_BAR_LB, usesBar, defaultBarWeight, barWeightFor, hasBarOverride, plateSplit, calculatePlates } from './bar.js'
+import { BAR_EQ, DEFAULT_BAR_KG, DEFAULT_BAR_LB, usesBar, defaultBarWeight, barWeightFor, hasBarOverride, plateSplit, calculatePlates, plateDiscsFor } from './bar.js'
 import { EXDB } from './exercises-data.js'
 
 const idOf = eq => EXDB.find(e => e.eq === eq).id
@@ -119,6 +119,24 @@ describe('calculatePlates', () => {
       { weight: 25, color: '#43a047', label: '25', count: 1 },
       { weight: 5, color: '#eceff1', label: '5', count: 1 },
       { weight: 2.5, color: '#90a4ae', label: '2.5', count: 1 }
+    ])
+  })
+})
+
+describe('plateDiscsFor', () => {
+  test('returns empty array when totalWeight <= barWeight or invalid', () => {
+    expect(plateDiscsFor(20, 20, 'kg')).toEqual([])
+    expect(plateDiscsFor(15, 20, 'kg')).toEqual([])
+    expect(plateDiscsFor(null, 20, 'kg')).toEqual([])
+  })
+
+  test('returns calculated plates for valid barbell load', () => {
+    expect(plateDiscsFor(100, 20, 'kg')).toEqual([
+      { weight: 25, color: '#e53935', label: '25', count: 1 },
+      { weight: 15, color: '#fbc02d', label: '15', count: 1 }
+    ])
+    expect(plateDiscsFor(135, 45, 'lb')).toEqual([
+      { weight: 45, color: '#1e88e5', label: '45', count: 1 }
     ])
   })
 })

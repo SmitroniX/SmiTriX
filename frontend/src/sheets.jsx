@@ -23,7 +23,7 @@ import BodyMap from './components/BodyMap.jsx'
 import Confetti from './components/Confetti.jsx'
 import MuscleExplorer from './components/MuscleExplorer.jsx'
 import { announceWorkoutComplete } from './lib/voice.js'
-import { exerciseMuscleSnapshot, loadOfWorkouts, MUSCLES, MUSCLE_NAME, normalizeMuscleGroups, hasExplicitMuscleMetadata } from './lib/muscles.js'
+import { exerciseMuscleSnapshot, loadOfWorkouts, MUSCLES, MUSCLE_NAME, normalizeMuscleGroups, hasExplicitMuscleMetadata, musclesOf } from './lib/muscles.js'
 import { parseImport, mergeImport } from './lib/import-csv.js'
 import { importHevyData, HevyApiError, HEVY_DEV_SETTINGS, mergeHevyRoutines } from './lib/import-hevy.js'
 import { getHevyApiKey, setHevyApiKey } from './lib/coach-secrets.js'
@@ -2407,15 +2407,32 @@ function FinishSummary({ w, prs, e1prs = [], close }) {
     try {
       const { generateShareCard } = await import('./lib/share-card.js')
       const prDetails = [
-        ...prs.map(id => EXIDX[id] ? exerciseNameFor(EXIDX[id]) : id),
-        ...e1prs.map(p => `${EXIDX[p.id] ? exerciseNameFor(EXIDX[p.id]) : p.id} (1RM: ${fmtNum(p.est)} ${st.unit})`)
+        ...prs.map(id => exerciseNameFor(exOr(id))),
+        ...e1prs.map(p => `${exerciseNameFor(exOr(p.id))} (1RM: ${fmtNum(p.est)} ${st.unit})`)
       ]
+      const workoutMuscles = (() => {
+        if (!w.entries?.length) return []
+        const counts = {}
+        for (const item of w.entries) {
+          const ex = exOr(item.id)
+          if (!ex) continue
+          const m = musclesOf(ex)
+          for (const [slug, weight] of Object.entries(m)) {
+            counts[slug] = (counts[slug] || 0) + weight
+          }
+        }
+        return Object.entries(counts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([slug]) => MUSCLE_NAME[slug] || slug)
+      })()
       const blob = await generateShareCard({
         duration: fmtDur(w.end - w.start),
         volume: w.vol,
         sets: setsDone(w),
         workSets: workSetsDone(w),
         prs: prDetails,
+        muscles: workoutMuscles,
         unit: st.unit,
         name: w.name || 'Workout',
         date: fmtDate(w.d, true),

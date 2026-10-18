@@ -668,17 +668,17 @@ h4.sec{
 /* Workout header. In list mode it is pinned: pulled up over #app's top padding so it sits flush
    with the screen edge from the first pixel, and given the page's own ground plus a light blur so
    the rows scrolling underneath read as underneath. */
-.whdr.stick{
+.whdr, .whdr.stick{
   position:sticky;top:0;z-index:20;
   margin:calc(-1 * (var(--sat) + 8px)) calc(-1 * var(--pad)) 6px;
   padding:calc(var(--sat) + 8px) var(--pad) 0;
   background:color-mix(in srgb,var(--bg) 94%,transparent);
-  -webkit-backdrop-filter:saturate(180%) blur(10px);backdrop-filter:saturate(180%) blur(10px);
+  -webkit-backdrop-filter:saturate(180%) blur(12px);backdrop-filter:saturate(180%) blur(12px);
 }
-.whdr.stick .hdr{margin-bottom:12px}
-.whdr.stick .wprog{margin-bottom:10px}
+.whdr .hdr, .whdr.stick .hdr{margin-bottom:12px}
+.whdr .wprog, .whdr.stick .wprog{margin-bottom:10px}
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-  .whdr.stick{background:var(--bg)}
+  .whdr, .whdr.stick{background:var(--bg)}
 }
 .wprog{height:5px;background:var(--surface-2);border-radius:99px;overflow:hidden;margin-bottom:16px;box-shadow:inset 0 1px 2px rgba(0,0,0,.3)}
 .wprog i{display:block;height:100%;background:linear-gradient(90deg, color-mix(in srgb, var(--acc) 75%, #00d2ff), var(--acc));border-radius:99px;box-shadow:0 0 8px var(--acc);transition:width var(--med) var(--ease)}
@@ -1961,5 +1961,233 @@ body.resting #toast{bottom:calc(200px + var(--sab))}
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(2px); }
   to { opacity: 1; transform: none; }
+}
+
+/* --- check spring animation --- */
+.chk.on, .ck.on {
+  animation: check-spring-bounce .32s cubic-bezier(.34, 1.56, .64, 1);
+}
+@keyframes check-spring-bounce {
+  0% { transform: scale(.88); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+.chk.on .icn, .ck.on svg {
+  animation: check-icon-pop .3s cubic-bezier(.34, 1.56, .64, 1);
+}
+@keyframes check-icon-pop {
+  0% { transform: scale(.6) rotate(-8deg); opacity: 0; }
+  60% { transform: scale(1.2) rotate(3deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+/* --- workout density (compact vs spacious) --- */
+.workout-compact .setrow {
+  padding: 4px 6px;
+  gap: 5px;
+  min-height: 38px;
+}
+.workout-compact .setrow .num {
+  height: 32px;
+  font-size: 14px;
+  padding: 0 4px;
+}
+.workout-compact .setrow .chk {
+  width: 28px;
+  height: 28px;
+}
+.workout-compact .setrow .n {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+}
+.workout-compact .sethead {
+  padding: 2px 6px 4px;
+  font-size: 11px;
+}
+.workout-compact .card.set-table-card {
+  padding: 6px;
+}
+.workout-compact .exmedia {
+  margin-bottom: 6px;
+}
+.workout-compact .plate-trigger-btn {
+  padding: 5px 8px;
+  margin-bottom: 6px;
+}
+.workout-compact .set-row-plate-discs {
+  padding: 1px 6px 3px 36px;
+}
+
+/* --- Olympic Plate Badges --- */
+.inline-plate-discs {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: wrap;
+  vertical-align: middle;
+}
+.plate-disc-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  min-width: 18px;
+  height: 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  letter-spacing: -0.02em;
+  box-sizing: border-box;
+}
+.inline-plate-discs.plate-md .plate-disc-badge {
+  font-size: 12px;
+  padding: 3px 8px;
+  min-width: 24px;
+  height: 22px;
+  border-radius: 5px;
+}
+.set-row-plate-discs {
+  padding: 2px 8px 4px 44px;
+  display: flex;
+  align-items: center;
+}
+
+/* --- Home Hero Workout Card & Frosted Headers --- */
+.home-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  margin: calc(-1 * (var(--sat) + 8px)) calc(-1 * var(--pad)) 14px;
+  padding: calc(var(--sat) + 12px) var(--pad) 10px;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: blur(16px) saturate(180%);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+}
+.home-hero-workout-card {
+  position: relative;
+  padding: 18px;
+  border-radius: var(--r-lg);
+  transition: transform var(--fast), box-shadow var(--fast);
+}
+.home-hero-workout-card:active {
+  transform: scale(.99);
+}
+.hero-card-glow {
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--acc) 25%, transparent), transparent 70%);
+  pointer-events: none;
+}
+.hero-muscle-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.hero-muscle-chip {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--acc) 12%, var(--surface-2));
+  color: var(--acc);
+  border: 1px solid color-mix(in srgb, var(--acc) 25%, transparent);
+}
+.hero-meta-row {
+  color: var(--label-2);
+  font-size: 13px;
+  font-weight: 500;
+}
+.hero-start-cta {
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--acc) 30%, transparent);
+}
+
+/* --- Golden PR Banner Celebration --- */
+.golden-pr-banner {
+  position: relative;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  background: linear-gradient(135deg, rgba(255, 214, 10, 0.16) 0%, rgba(255, 179, 0, 0.08) 100%), var(--surface);
+  border: 1.5px solid rgba(255, 214, 10, 0.6);
+  box-shadow: 0 6px 20px rgba(255, 214, 10, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+  z-index: 10;
+}
+.golden-pr-glow {
+  position: absolute;
+  top: -40px;
+  left: -40px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 214, 10, 0.35), transparent 70%);
+  pointer-events: none;
+}
+.golden-pr-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.golden-pr-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ffd60a, #ff9500);
+  color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(255, 214, 10, 0.4);
+}
+.golden-pr-text {
+  flex: 1;
+  min-width: 0;
+}
+.golden-pr-title {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #ffd60a;
+  margin-bottom: 2px;
+}
+.golden-pr-sub {
+  font-size: 14px;
+  color: var(--label);
+  font-weight: 500;
+  line-height: 1.25;
+}
+.golden-pr-detail {
+  font-size: 12px;
+  color: var(--label-2);
+  margin-top: 2px;
+}
+.golden-pr-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--label);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.golden-pr-close:active {
+  background: rgba(255, 255, 255, 0.2);
 }
 

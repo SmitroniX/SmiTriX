@@ -12,7 +12,7 @@ import { WC_DEFAULT } from '../lib/workout-controls.js'
 
 const KEY = 'gym_state_v1'
 export const DEF = {
-  unit: 'kg', restSec: 90, restPauseSec: 15, sound: true, voiceCoach: false, timerFlash: false, keepAwake: true, lang: 'en',
+  unit: 'kg', restSec: 90, restPauseSec: 15, sound: true, restChime: 'bell', voiceCoach: false, timerFlash: false, keepAwake: true, lang: 'en',
   theme: 'dark', accent: 'lime', body: 'male', targetW: null,
   bodyweight: [], routines: [], week: {}, dayPlan: {},
   exWeights: {}, workouts: [], active: null, customEx: [], gifSize: 'full',
@@ -20,6 +20,8 @@ export const DEF = {
   // or 'list' (every exercise stacked and scrollable). Purely presentational: profiles
   // written before this setting existed overlay onto DEF and keep the 'cards' behaviour.
   workoutView: 'cards',
+  // Active workout spacing density: 'spacious' (generous touch targets) or 'compact' (dense display)
+  workoutDensity: 'spacious',
   // Which controls the workout screen shows besides the sets themselves. The default is the
   // lean layout: one "more" button per exercise and a menu on each set number. Every switch
   // brings one of the old always-visible button groups back (Settings → During a workout).

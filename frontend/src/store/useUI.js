@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { uid } from '../lib/format.js'
-import { beep, vibrate } from '../lib/sound.js'
+import { beep, vibrate, playRestChime } from '../lib/sound.js'
 import { api } from '../lib/api.js'
 import { t } from '../lib/i18n.js'
 import { useStore } from './useStore.js'
@@ -121,7 +121,8 @@ export const useUI = create((set, get) => ({
       const snd = useStore.getState().S.sound
       if (left <= 0) {
         if (seenLive) {
-          beep(snd, 880, 0.15); beep(snd, 880, 0.15, 0.25); beep(snd, 1320, 0.4, 0.5)
+          const chime = useStore.getState().S.restChime || 'bell'
+          playRestChime(chime, snd)
           vibrate([200, 100, 200]); get().flashTimer()
         }
         announceRestDone(useStore.getState().S.voiceCoach)

@@ -4,7 +4,8 @@ import { useStore } from '../store/useStore.js'
 import { workoutControls } from '../lib/workout-controls.js'
 import { useUI } from '../store/useUI.js'
 import { exOr, mediaUrlsFor } from '../lib/exercises.js'
-import { usesBar, barWeightFor, plateSplit } from '../lib/bar.js'
+import { usesBar, barWeightFor, plateSplit, calculatePlates } from '../lib/bar.js'
+import OlympicPlateBadges from '../components/OlympicPlateBadges.jsx'
 import { effectiveRoutine, lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, freestyleConfig, defaultConfig, setsDoneActive, supersetUnits, unitOf, setLabel, modeOf, isBw, isPerSide, sideReps, repStep, EFFORT, effortOf, stepEffort, capEffort, cascadeWeight, insertWarmupRow, removeRowAt, pairAdjacent, unpairSuperset, cleanupSg, applyIntensifierPlan, pinnedNoteFor, exNoteFor, generateWarmupPyramid } from '../lib/history.js'
 import { fmtNum, fmtDate, todayISO, exCount, DAYN, uid } from '../lib/format.js'
 import { beep, vibrate } from '../lib/sound.js'
@@ -322,7 +323,8 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
     const nextW = entry.sets.find(s => !s.done)?.w
     const refW = nextW > 0 ? nextW : Math.max(0, ...entry.sets.map(s => s.w || 0))
     const split = plateSplit(refW, bar)
-    return { bar, refW, text: t('Bar {0}', fmtNum(bar) + ' ' + S.unit) + (split != null ? ' · ' + t('{0} per side', fmtNum(split) + ' ' + S.unit) : '') }
+    const plates = split > 0 ? calculatePlates(split, S.unit) : []
+    return { bar, refW, plates, text: t('Bar {0}', fmtNum(bar) + ' ' + S.unit) + (split != null ? ' · ' + t('{0} per side', fmtNum(split) + ' ' + S.unit) : '') }
   })() : null
   const openMore = () => menuSheet({
     title: exerciseNameFor(ex),
@@ -440,6 +442,9 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
       <span className="plate-trigger-left">
         <Icon name="dumbbell" style={{ fontSize: 13 }} />
         <span>{barInfo.text}</span>
+        {barInfo.plates?.length > 0 && (
+          <OlympicPlateBadges plates={barInfo.plates} unit={S.unit} size="sm" />
+        )}
       </span>
       <span className="plate-trigger-badge"><Icon name="plate" style={{ fontSize: 11, marginRight: 4 }} />{t('Plates')}</span>
     </button>}
@@ -578,6 +583,11 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
               )}
             </div>
           )}
+          {barInfo && s.w > barInfo.bar && (
+            <div className="set-row-plate-discs">
+              <OlympicPlateBadges totalWeight={s.w} barWeight={barInfo.bar} unit={S.unit} size="sm" />
+            </div>
+          )}
           {/* Drop-sets and rest-pause bursts extend this same row — no long rest, no new set.
               A planned exercise arrives with these already filled in (applyIntensifierPlan);
               every value here is just as editable as the main row's own weight/reps. */}
@@ -674,6 +684,12 @@ function ActiveWorkout() {
   // Unknown/absent values read as cards, keeping every pre-existing profile as it was.
   const listMode = S.workoutView === 'list'
   const wc = workoutControls(S)
+  const [prCelebration, setPrCelebration] = useState(null)
+  useEffect(() => {
+    if (!prCelebration) return
+    const tm = setTimeout(() => setPrCelebration(null), 4500)
+    return () => clearTimeout(tm)
+  }, [prCelebration])
   // Superset flow: center the actionable row when completing a set moves to the partner or
   // back to the first exercise of the next round. Entry-bound maps keep repeated exercise IDs
   // distinct, while each rendered set index identifies the existing row within that entry.
@@ -697,7 +713,14 @@ function ActiveWorkout() {
     }
   }
   const swipe = useRef(null)
+  const autoScrollTimer = useRef(null)
   const progressHighWater = useRef(A.entries.map(e => e.sets.filter(s => s.done).length))
+
+  useEffect(() => {
+    return () => {
+      if (autoScrollTimer.current) clearTimeout(autoScrollTimer.current)
+    }
+  }, [])
   // The marks are index-keyed, and removing an exercise shifts every index above it down
   // (removeActiveExercise splices). Re-baseline whenever the list length changes, otherwise a
   // shifted exercise inherits its predecessor's mark and its real progress reads as a re-check.
@@ -980,24 +1003,131 @@ function ActiveWorkout() {
       e.sets[i].done = !e.sets[i].done
       checked = e.sets[i].done
       if (e.sets[i].done) {
-        beep(S.sound, 1040, 0.12); vibrate(30)
-        const nextIdx = e.sets.findIndex((s, sIdx) => sIdx > i && !s.done)
-        if (nextIdx === -1 && e.sets.every(s => s.done)) {
-          // If all sets in this exercise are done, check the next exercise.
-          const nextEx = s.active?.entries?.[idx + 1]
-          if (nextEx) nextEx.sets.findIndex(s => !s.done)
+        beep(S.sound, 1040, 0.12); vibrate([25, 40, 30])
+        const setRow = e.sets[i]
+        const warm = isWarmupRow(setRow)
+        const curCfg = { ...(e.target || {}), id: e.id }
+        const curMode = modeOf(curCfg)
+        const bwExercise = isBw(curCfg)
+        const hasWeight = (setRow.w || 0) > 0
+        const hasReps = (setRow.r || 0) > 0
+
+        if (!warm && curMode === 'reps' && hasReps && (hasWeight || bwExercise)) {
+          const est1RM = hasWeight ? estimate1RM(setRow.w, setRow.r) : 0
+          let prior1RM = hasWeight ? (best1RM(S, e.id)?.est || 0) : 0
+          let priorBestWeight = hasWeight ? Math.max(bestWeightFor(S, e.id), (S.exWeights[e.id] || {}).w || 0) : 0
+
+          let maxPriorReps = 0
+          let maxPriorVolume = 0
+          for (const w of (S.workouts || [])) {
+            for (const we of (w.entries || [])) {
+              if (we.id === e.id) {
+                for (const ws of (we.sets || [])) {
+                  if (!isWarmupRow(ws)) {
+                    if ((ws.r || 0) > maxPriorReps) maxPriorReps = ws.r
+                    const v = (ws.w || 0) * (ws.r || 0)
+                    if (v > maxPriorVolume) maxPriorVolume = v
+                  }
+                }
+              }
+            }
+          }
+
+          // Factor in already-completed non-warmup sets of this exercise in the CURRENT active workout
+          const activeEntries = s.active?.entries || []
+          activeEntries.forEach((ae, aeIdx) => {
+            if (ae.id === e.id) {
+              (ae.sets || []).forEach((ws, wsIdx) => {
+                if (aeIdx === idx && wsIdx === i) return // exclude current set
+                if (ws.done && !isWarmupRow(ws)) {
+                  const w = ws.w || 0
+                  const r = ws.r || 0
+                  if (w > 0 && r > 0) {
+                    const est = estimate1RM(w, r)
+                    if (est > prior1RM) prior1RM = est
+                    if (w > priorBestWeight) priorBestWeight = w
+                    const v = w * r
+                    if (v > maxPriorVolume) maxPriorVolume = v
+                  }
+                  if (r > maxPriorReps) maxPriorReps = r
+                }
+              })
+            }
+          })
+
+          let prType = null
+          let prDetail = ''
+          if (prior1RM > 0 && est1RM > prior1RM) {
+            prType = '1RM'
+            prDetail = t('Est. 1RM: {0} {1} (+{2})', fmtNum(est1RM), S.unit, fmtNum(est1RM - prior1RM))
+          } else if (priorBestWeight > 0 && setRow.w > priorBestWeight) {
+            prType = 'Weight'
+            prDetail = t('Weight: {0} {1} (+{2})', fmtNum(setRow.w), S.unit, fmtNum(setRow.w - priorBestWeight))
+          } else if (maxPriorReps > 0 && setRow.r > maxPriorReps) {
+            prType = 'Reps'
+            prDetail = t('{0} reps (+{1})', setRow.r, setRow.r - maxPriorReps)
+          } else if (maxPriorVolume > 0 && hasWeight && (setRow.w * setRow.r) > maxPriorVolume) {
+            prType = 'Volume'
+            prDetail = t('Set Volume: {0} {1}', fmtNum(setRow.w * setRow.r), S.unit)
+          }
+
+          if (prType) {
+            const exName = exerciseNameFor(exOr(e.id))
+            setPrCelebration({
+              type: prType,
+              exName,
+              weight: setRow.w || 0,
+              reps: setRow.r,
+              est1RM,
+              detail: prDetail,
+            })
+            vibrate([40, 60, 40, 60, 80])
+            useUI.getState().toast(t('🏆 New {0} PR: {1} ({2})!', prType, exName, prDetail))
+          }
         }
-        if (nextIdx !== -1) {
-          setTimeout(() => {
-            const curEntry = useStore.getState().S.active?.entries?.[idx] || e
-            const rowEl = (setRefs.current.get(curEntry)?.get(nextIdx))
-              || (setRefs.current.get(e)?.get(nextIdx))
-              || (setRefs.current.get(A.entries[idx])?.get(nextIdx))
-              || document.querySelectorAll(`[data-exidx="${idx}"] .setrow`)[nextIdx]
-              || document.querySelector(`[data-exidx="${idx}"] .setrow:nth-of-type(${nextIdx + 1})`)
-            const input = rowEl?.querySelector?.('input.num')
-              || document.querySelector(`[data-exidx="${idx}"] .setrow:nth-of-type(${nextIdx + 1}) input.num`)
-            input?.focus?.()
+
+        let targetRowEl = null
+        let pendingSetIdx = e.sets.findIndex((s, sIdx) => sIdx > i && !s.done)
+        let targetEntryIdx = idx
+        let targetEntry = useStore.getState().S.active?.entries?.[idx] || e
+
+        if (pendingSetIdx === -1) {
+          // Check if any earlier sets in the current exercise are still pending
+          pendingSetIdx = e.sets.findIndex(s => !s.done)
+        }
+
+        if (pendingSetIdx === -1) {
+          // If all sets in this exercise are done, check subsequent exercises
+          const activeEntries = useStore.getState().S.active?.entries || A.entries
+          for (let nextE = idx + 1; nextE < activeEntries.length; nextE++) {
+            const nextEntry = activeEntries[nextE]
+            const pIdx = nextEntry.sets?.findIndex(s => !s.done) ?? -1
+            if (pIdx !== -1) {
+              targetEntryIdx = nextE
+              targetEntry = nextEntry
+              pendingSetIdx = pIdx
+              break
+            }
+          }
+        }
+
+        if (pendingSetIdx !== -1) {
+          targetRowEl = (setRefs.current.get(targetEntry)?.get(pendingSetIdx))
+            || (targetEntry === e ? setRefs.current.get(e)?.get(pendingSetIdx) : null)
+            || (targetEntryIdx === idx ? setRefs.current.get(A.entries[idx])?.get(pendingSetIdx) : null)
+            || document.querySelectorAll(`[data-exidx="${targetEntryIdx}"] .setrow`)[pendingSetIdx]
+            || document.querySelector(`[data-exidx="${targetEntryIdx}"] .setrow:nth-of-type(${pendingSetIdx + 1})`)
+        }
+
+        if (targetRowEl) {
+          if (autoScrollTimer.current) clearTimeout(autoScrollTimer.current)
+          autoScrollTimer.current = setTimeout(() => {
+            if (typeof document !== 'undefined' && targetRowEl && document.contains?.(targetRowEl)) {
+              targetRowEl.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' })
+              const input = targetRowEl.querySelector?.('input.num')
+                || targetRowEl.querySelector?.('input')
+              input?.focus?.()
+            }
           }, 120)
         }
         // The unit that owns the ticked set — not the marked one. Since !92 the marker no longer
@@ -1122,11 +1252,11 @@ function ActiveWorkout() {
     else exConfigSheet(ex, null, commit, null, routine, seed)
   })
 
-  return <div className="narrow">
+  return <div className={'narrow' + (S.workoutDensity === 'compact' ? ' workout-compact' : '')}>
     {/* In list mode the whole session scrolls under the header, so the header (name, clock,
         set counter, discard/finish, progress) stays pinned — the one thing you want in view
         while you are somewhere in the middle of a long stack. Cards mode never scrolls far. */}
-    <div className={'whdr' + (listMode ? ' stick' : '')}>
+    <div className="whdr stick">
     <div className="hdr workout-top-bar">
       <button className="iconbtn" aria-label={t('Discard')} onClick={() => confirmSheet({ title: t('Discard workout?'), message: t('The sets you logged in this session will be lost.'), confirmText: t('Discard'), danger: true, onConfirm: () => { update(s => { s.active = null }); stopRest(); stopWork(); nav('/home') } })}><Icon name="xmark" /></button>
       <div className="workout-title-center">
@@ -1149,6 +1279,35 @@ function ActiveWorkout() {
     </div>
     <div className="wprog"><i style={{ width: (total ? done / total * 100 : 0) + '%' }} /></div>
     </div>
+    {prCelebration && (
+      <div className="golden-pr-banner animate-pop" role="alert" aria-live="polite">
+        <div className="golden-pr-glow" />
+        <div className="golden-pr-content">
+          <div className="golden-pr-icon">
+            <Icon name="trophy" />
+          </div>
+          <div className="golden-pr-text">
+            <div className="golden-pr-title">
+              🏆 {t('NEW {0} RECORD!', (prCelebration.type || '').toUpperCase())}
+            </div>
+            <div className="golden-pr-sub">
+              <strong>{prCelebration.exName}</strong> · {prCelebration.weight > 0 ? `${prCelebration.weight} ${S.unit} × ` : ''}{prCelebration.reps} {prCelebration.reps === 1 ? t('rep') : t('reps')}
+            </div>
+            {prCelebration.detail && (
+              <div className="golden-pr-detail">{prCelebration.detail}</div>
+            )}
+          </div>
+          <button
+            type="button"
+            className="golden-pr-close"
+            onClick={() => setPrCelebration(null)}
+            aria-label={t('Dismiss')}
+          >
+            <Icon name="xmark" />
+          </button>
+        </div>
+      </div>
+    )}
     {A.backfill && <div className="muted small" style={{ marginBottom: 8 }}>{t('Logging a past workout — no rest timers.')}</div>}
 
     {A.entries.length ? (listMode ? (

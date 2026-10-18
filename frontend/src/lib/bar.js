@@ -95,3 +95,11 @@ export function calculatePlates(perSide, unit = 'kg') {
   return result
 }
 
+/**
+ * Returns plate discs needed per side for a given total and bar weight.
+ */
+export function plateDiscsFor(totalWeight, barWeight, unit = 'kg') {
+  const perSide = plateSplit(totalWeight, barWeight)
+  if (!(perSide > 0)) return []
+  return calculatePlates(perSide, unit)
+}
