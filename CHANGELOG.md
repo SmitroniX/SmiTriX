@@ -1,5 +1,36 @@
 # Changelog
 
+## v1.5.0 — 2026-10-18
+
+Wearable BLE heart rate sensors, Compound Lift Form Check Video Vault, offline PWA Background Sync, 30-Day Muscle Recovery Readiness Index, Olympic plate badges, and full Japanese localization.
+
+- ⌚ **Wearable Companion App & BLE Sensors**:
+  - Direct Bluetooth Low Energy (Web Bluetooth API) heart rate monitor pairing (`0x180D` Heart Rate Service, `0x2A37` Measurement Characteristic).
+  - Real-time 5-zone HR tracking (Warm Up through Maximum), live BPM pulsing monitor badge, and workout summary average/max BPM metrics.
+  - Automatic reconnection handling, clean device disconnection, and graceful fallbacks for unsupported browsers or offline environments.
+- 📹 **Compound Lift Form Check Video Vault**:
+  - 100% private, on-device video recording and clip vault stored directly in IndexedDB (`smitrix-videos`) with zero external uploads or telemetry.
+  - In-app video recording with countdown timer, front/back camera switching, and local clip management.
+  - Video Vault player with frame-by-frame scrubbing, slow-motion playback (0.25x, 0.5x, 1x), video trimming, and exact exercise/set attribution.
+  - Direct integration into set action menus allowing one-tap form review and recording attached to PR sets.
+- 🔄 **PWA Offline Background Sync**:
+  - Resilient offline mutation queue stored in IndexedDB (`smitrix-offline-queue`) with automatic request deduplication and timestamp tracking.
+  - Service Worker background sync via `smitrix-sync` event fired whenever network connectivity is re-established.
+  - Live `SyncStatusBadge` displaying online, queued, syncing, and error states with manual "Sync Now" triggers.
+- 🧠 **30-Day Muscle Recovery Readiness Index**:
+  - Algorithmic muscle recovery readiness scoring (`readiness.js`) based on exponential volume decay, workout intensity, and rest intervals.
+  - Interactive visual recovery meters on Home with targeted muscle group training recommendations.
+- 🎨 **Active Workout UI/UX Polish & Olympic Plate Badges**:
+  - Olympic color-coded plate breakdown badges (55 lb / 25 kg red, 45 lb / 20 kg blue, 35 lb / 15 kg yellow, 25 lb / 10 green, 10 lb / 5 kg white, and fractional change plates).
+  - Active workout density toggle (Comfortable vs Compact) for fast, distraction-free gym logging.
+  - Web Audio API synthesized chimes for rest timer countdown and completion alerts.
+  - Canvas confetti bursts with micro-haptics for celebrating personal records.
+- 🤖 **AI Coach & API Keys Redesign**:
+  - Client-side Bring-Your-Own-Key (BYOK) credential management for OpenAI, Anthropic, Gemini, DeepSeek, and Groq with local encryption.
+  - Revamped training intake questionnaire, customized program generation, and post-workout debriefing.
+- 🌐 **Extended i18n Localization**:
+  - Added Japanese (`ja.js`) translation with complete 1,348-key parity across all 15 supported languages.
+
 ## v1.4.0 — 2026-09-14
 
 Android notification permissions & lock screen alerts, instant gym machine/muscle discovery, Voice Coach cues, Pure OLED Mode, and workout activity heatmaps.

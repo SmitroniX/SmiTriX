@@ -26,6 +26,16 @@ self.addEventListener('notificationclick', e => {
   }))
 })
 
+self.addEventListener('sync', e => {
+  if (e.tag === 'smitrix-sync') {
+    e.waitUntil(
+      self.clients.matchAll({ type: 'window' }).then(clients => {
+        clients.forEach(c => c.postMessage({ type: 'BACKGROUND_SYNC_TRIGGER' }))
+      })
+    )
+  }
+})
+
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url)
   if (e.request.method !== 'GET' || url.origin !== location.origin) return

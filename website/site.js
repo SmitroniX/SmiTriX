@@ -394,7 +394,7 @@ function panel({ opener, panelEl, flag, closeBtn }) {
                 rel.assets?.find(a => /\.apk$/i.test(a.name) && !/unsigned/i.test(a.name))
     const meta = btn.closest('.push')?.querySelector('p.meta') || document.querySelector('#download p.meta')
     if (meta) {
-      const ver = rel.tag_name || 'v1.4.0'
+      const ver = rel.tag_name || 'v1.5.0'
       const sizeMb = apk && apk.size ? (apk.size / (1024 * 1024)).toFixed(1) : '28.0'
       meta.textContent = `${ver} · ${sizeMb} MB · Android 6.0+ · signed APK. Your browser will ask before installing; that is normal outside the Play Store.`
     }
