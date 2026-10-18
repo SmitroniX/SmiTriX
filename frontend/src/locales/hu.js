@@ -1225,6 +1225,7 @@ export default {
   'Watch Form Check Video': 'Technika videó megtekintése',
   'Watch form check': 'Technika megtekintése',
   'Remove form check video': 'Technika videó eltávolítása',
+  'Attach form check video': 'Gyakorlatvideó csatolása',
   'Video not found in local vault.': 'A videó nem található a helyi tárban.',
   'Video trim saved!': 'Videóvágás mentve!',
   'Failed to save trim': 'A vágás mentése nem sikerült',

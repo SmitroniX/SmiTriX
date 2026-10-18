@@ -1222,6 +1222,7 @@ export default {
   'Watch Form Check Video': 'Смотреть видео техники',
   'Watch form check': 'Посмотреть технику',
   'Remove form check video': 'Удалить видео техники',
+  'Attach form check video': 'Прикрепить видео техники',
   'Video not found in local vault.': 'Видео не найдено в локальном хранилище.',
   'Video trim saved!': 'Обрезка видео сохранена!',
   'Failed to save trim': 'Не удалось сохранить обрезку',

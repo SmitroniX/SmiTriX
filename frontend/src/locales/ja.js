@@ -1280,6 +1280,7 @@ export default {
   'Watch Form Check Video': 'フォームチェック動画を見る',
   'Watch form check': 'フォームチェックを見る',
   'Remove form check video': 'フォームチェック動画を削除',
+  'Attach form check video': 'フォームチェック動画を添付',
   'Video not found in local vault.': 'ローカル保管庫に動画が見つかりません。',
   'Video trim saved!': '動画のトリミングを保存しました！',
   'Failed to save trim': 'トリミングの保存に失敗しました',

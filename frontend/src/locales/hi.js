@@ -1222,6 +1222,7 @@ export default {
   'Watch Form Check Video': 'फॉर्म चेक वीडियो देखें',
   'Watch form check': 'फॉर्म चेक देखें',
   'Remove form check video': 'फॉर्म चेक वीडियो हटाएं',
+  'Attach form check video': 'फॉर्म चेक वीडियो जोड़ें',
   'Video not found in local vault.': 'स्थानीय वॉल्ट में वीडियो नहीं मिला।',
   'Video trim saved!': 'वीडियो ट्रिम सहेजा गया!',
   'Failed to save trim': 'ट्रिम सहेजने में विफल',

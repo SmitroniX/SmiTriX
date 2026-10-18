@@ -1222,6 +1222,7 @@ export default {
   'Watch Form Check Video': '观看姿态视频',
   'Watch form check': '查看姿态视频',
   'Remove form check video': '移除姿态视频',
+  'Attach form check video': '附加动作检查视频',
   'Video not found in local vault.': '在本地保管库中未找到视频。',
   'Video trim saved!': '视频裁剪已保存！',
   'Failed to save trim': '保存裁剪失败',

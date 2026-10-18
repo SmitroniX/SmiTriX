@@ -78,6 +78,41 @@ describe('sync-queue module', () => {
     expect(getQueue()[0].retryCount).toBe(1)
   })
 
+  it('does not duplicate queue items when multiple items fail without network abort', async () => {
+    // Manually add 3 items to queue
+    _resetSyncQueueForTesting({ online: true, pending: 3 })
+    expect(getQueue()).toHaveLength(3)
+
+    const serverError = new Error('500 Internal Server Error')
+    serverError.status = 500
+    const mockApi = vi.fn().mockRejectedValue(serverError)
+
+    const res = await flushSyncQueue({ apiClient: mockApi })
+    expect(res.flushed).toBe(0)
+    expect(res.errors).toBe(3)
+    // Must still have exactly 3 items, NO duplications!
+    expect(getQueue()).toHaveLength(3)
+  })
+
+  it('preserves unprocessed remaining items when network error halts queue flush', async () => {
+    _resetSyncQueueForTesting({ online: true, pending: 3 })
+    expect(getQueue()).toHaveLength(3)
+
+    let callCount = 0
+    const mockApi = vi.fn().mockImplementation(async () => {
+      callCount++
+      if (callCount === 1) return { ok: true }
+      const netErr = new TypeError('Failed to fetch')
+      throw netErr
+    })
+
+    const res = await flushSyncQueue({ apiClient: mockApi })
+    expect(res.flushed).toBe(1)
+    expect(res.errors).toBe(1)
+    // First item succeeded and removed; second failed; third untouched. Total left: 2!
+    expect(getQueue()).toHaveLength(2)
+  })
+
   it('notifies subscribers of status updates', () => {
     const listener = vi.fn()
     const unsub = subscribeSyncStatus(listener)

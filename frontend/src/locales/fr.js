@@ -1222,6 +1222,7 @@ export default {
   'Watch Form Check Video': 'Regarder la vidéo de forme',
   'Watch form check': 'Voir la vidéo de forme',
   'Remove form check video': 'Supprimer la vidéo de forme',
+  'Attach form check video': 'Joindre une vidéo de technique',
   'Video not found in local vault.': 'Vidéo introuvable dans le coffre local.',
   'Video trim saved!': 'Découpe vidéo enregistrée !',
   'Failed to save trim': 'Échec de l’enregistrement de la découpe',

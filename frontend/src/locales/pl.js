@@ -1222,6 +1222,7 @@ export default {
   'Watch Form Check Video': 'Obejrzyj wideo kontroli techniki',
   'Watch form check': 'Obejrzyj wideo techniki',
   'Remove form check video': 'Usuń wideo kontroli techniki',
+  'Attach form check video': 'Załącz wideo z analizą techniki',
   'Video not found in local vault.': 'Nie znaleziono wideo w lokalnym sejfie.',
   'Video trim saved!': 'Zapisano przycięcie wideo!',
   'Failed to save trim': 'Nie udało się zapisać przycięcia',

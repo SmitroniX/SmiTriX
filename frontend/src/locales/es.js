@@ -1222,6 +1222,7 @@ export default {
   'Watch Form Check Video': 'Ver vídeo de técnica',
   'Watch form check': 'Ver vídeo de técnica',
   'Remove form check video': 'Eliminar vídeo de técnica',
+  'Attach form check video': 'Adjuntar vídeo de técnica',
   'Video not found in local vault.': 'Vídeo no encontrado en el almacenamiento local.',
   'Video trim saved!': '¡Recorte de vídeo guardado!',
   'Failed to save trim': 'Error al guardar el recorte',

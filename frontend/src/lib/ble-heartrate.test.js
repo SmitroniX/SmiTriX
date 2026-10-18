@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   parseHeartRateMeasurement,
   getHeartRateZone,
+  calculateHeartRateZone,
   BleHeartRateController,
   HR_ZONES,
 } from './ble-heartrate.js'
@@ -132,6 +133,10 @@ describe('ble-heartrate module', () => {
       expect(z.name).toBe('Max/Peak')
       expect(z.pct).toBe(95)
     })
+
+    it('exports calculateHeartRateZone alias identical to getHeartRateZone', () => {
+      expect(calculateHeartRateZone(150, maxHr)).toEqual(getHeartRateZone(150, maxHr))
+    })
   })
 
   describe('BleHeartRateController', () => {
@@ -164,6 +169,7 @@ describe('ble-heartrate module', () => {
       controller.setMaxHr(200)
       expect(controller.getState().maxHr).toBe(200)
       expect(controller.getState().zone.pct).toBe(80) // 160 / 200
+      expect(controller.calculateHeartRateZone(140).name).toBe('Aerobic')
     })
 
     it('notifies subscribers on state changes', () => {

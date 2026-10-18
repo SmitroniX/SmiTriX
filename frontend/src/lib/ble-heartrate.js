@@ -273,6 +273,12 @@ export class BleHeartRateController {
     }
     this._notify()
   }
+
+  calculateHeartRateZone(bpm, maxHr = this.maxHr) {
+    return getHeartRateZone(bpm, maxHr)
+  }
 }
+
+export const calculateHeartRateZone = getHeartRateZone
 
 export const bleHeartRate = new BleHeartRateController()

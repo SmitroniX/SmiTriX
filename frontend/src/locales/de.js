@@ -1241,6 +1241,7 @@ export default {
   'Watch Form Check Video': 'Form-Check-Video ansehen',
   'Watch form check': 'Form-Check ansehen',
   'Remove form check video': 'Form-Check-Video entfernen',
+  'Attach form check video': 'Form-Check-Video anhängen',
   'Video not found in local vault.': 'Video im lokalen Vault nicht gefunden.',
   'Video trim saved!': 'Video-Trim gespeichert!',
   'Failed to save trim': 'Fehler beim Speichern des Trims',

@@ -1222,6 +1222,7 @@ export default {
   'Watch Form Check Video': 'Form Kontrol Videosunu İzle',
   'Watch form check': 'Form kontrolünü izle',
   'Remove form check video': 'Form kontrol videosunu kaldır',
+  'Attach form check video': 'Form kontrol videosu ekle',
   'Video not found in local vault.': 'Video yerel kasada bulunamadı.',
   'Video trim saved!': 'Video kırpması kaydedildi!',
   'Failed to save trim': 'Kırpma kaydedilemedi',

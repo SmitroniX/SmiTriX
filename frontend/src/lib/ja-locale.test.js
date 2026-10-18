@@ -15,7 +15,7 @@ describe('Japanese locale (ja)', () => {
     const jaKeys = Object.keys(ja).sort()
     const ptKeys = Object.keys(pt).sort()
     expect(jaKeys).toEqual(ptKeys)
-    expect(jaKeys.length).toBe(1347)
+    expect(jaKeys.length).toBe(1348)
   })
 
   test('preserves all interpolation placeholders', () => {
@@ -27,6 +27,7 @@ describe('Japanese locale (ja)', () => {
   test('contains core fitness and feature terms', () => {
     expect(ja['Heart Rate Monitor']).toBe('心拍数モニター')
     expect(ja['Form Check Video']).toBe('フォームチェック動画')
+    expect(ja['Attach form check video']).toBe('フォームチェック動画を添付')
     expect(ja['Sync Now']).toBe('今すぐ同期')
     expect(ja['Readiness Index']).toBe('回復レディネス指数')
     expect(ja['reps']).toBe('レップ')

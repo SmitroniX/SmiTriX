@@ -1222,6 +1222,7 @@ export default {
   'Watch Form Check Video': 'Ver vídeo de postura',
   'Watch form check': 'Ver verificação de postura',
   'Remove form check video': 'Remover vídeo de postura',
+  'Attach form check video': 'Anexar vídeo de técnica',
   'Video not found in local vault.': 'Vídeo não encontrado no cofre local.',
   'Video trim saved!': 'Recorte do vídeo guardado!',
   'Failed to save trim': 'Falha ao guardar recorte',

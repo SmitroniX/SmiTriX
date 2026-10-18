@@ -1222,6 +1222,7 @@ export default {
   'Watch Form Check Video': '자세 체크 비디오 보기',
   'Watch form check': '자세 체크 보기',
   'Remove form check video': '자세 체크 비디오 제거',
+  'Attach form check video': '자세 확인 영상 첨부',
   'Video not found in local vault.': '로컬 보관함에서 비디오를 찾을 수 없습니다.',
   'Video trim saved!': '비디오 다듬기가 저장되었습니다!',
   'Failed to save trim': '다듬기 저장 실패',

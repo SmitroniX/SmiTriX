@@ -380,6 +380,20 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
           danger: true,
           onClick: () => onField(i, 'formCheckVideoId', null)
         },
+        !hasVideo && {
+          icon: 'video',
+          label: t('Attach form check video'),
+          onClick: () => openFormCheckRecorder({
+            exerciseId: entry.id,
+            exerciseName: exerciseNameFor(ex),
+            setIndex: i,
+            isPR: isSetPR,
+            workoutId: S.active?.routineId || 'freestyle',
+            weight: s.w,
+            reps: s.r,
+            onAttached: videoId => onField(i, 'formCheckVideoId', videoId)
+          })
+        },
         !warm && mode === 'reps' && !isRestPauseSet(s) && { icon: 'arrowDown', label: t('Drop set'), sub: t('+ Drop'), onClick: () => addDropRow(i) },
         !warm && mode === 'reps' && !isDropSet(s) && { icon: 'bolt', label: t('Rest-pause burst'), sub: t('+ Burst'), onClick: () => addBurstRow(i) },
         { icon: 'trash', label: t('Remove this set'), danger: true, disabled: entry.sets.length <= 1, onClick: () => onRemoveSetAt(i) },
@@ -1114,6 +1128,9 @@ function ActiveWorkout() {
               reps: setRow.r,
               est1RM,
               detail: prDetail,
+              entryIdx: idx,
+              setIdx: i,
+              exerciseId: e.id,
             })
             vibrate([40, 60, 40, 60, 80])
             useUI.getState().toast(t('🏆 New {0} PR: {1} ({2})!', prType, exName, prDetail))
@@ -1350,19 +1367,23 @@ function ActiveWorkout() {
                   cursor: 'pointer'
                 }}
                 onClick={() => {
-                  const curEntry = A.entries[A.cur]
-                  const curSetIdx = curEntry?.sets?.findIndex(st => st.done) ?? 0
+                  const targetEntryIdx = prCelebration.entryIdx ?? A.cur
+                  const curEntry = A.entries[targetEntryIdx]
+                  const targetSetIdx = prCelebration.setIdx !== undefined
+                    ? prCelebration.setIdx
+                    : (curEntry?.sets?.findLastIndex ? curEntry.sets.findLastIndex(st => st.done) : 0)
+                  const resolvedSetIdx = targetSetIdx >= 0 ? targetSetIdx : 0
                   openFormCheckRecorder({
-                    exerciseId: curEntry?.id,
+                    exerciseId: prCelebration.exerciseId || curEntry?.id,
                     exerciseName: prCelebration.exName,
-                    setIndex: curSetIdx >= 0 ? curSetIdx : 0,
+                    setIndex: resolvedSetIdx,
                     isPR: true,
                     workoutId: A.routineId || 'freestyle',
                     weight: prCelebration.weight,
                     reps: prCelebration.reps,
                     onAttached: videoId => {
                       if (curEntry) {
-                        setField(A.cur, curSetIdx >= 0 ? curSetIdx : 0, 'formCheckVideoId', videoId)
+                        setField(targetEntryIdx, resolvedSetIdx, 'formCheckVideoId', videoId)
                       }
                     }
                   })

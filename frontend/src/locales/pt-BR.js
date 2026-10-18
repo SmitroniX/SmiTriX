@@ -694,6 +694,7 @@ export const PT_BR_OVERRIDES = {
   'Watch Form Check Video': 'Assistir vídeo de execução',
   'Watch form check': 'Ver execução',
   'Remove form check video': 'Remover vídeo de execução',
+  'Attach form check video': 'Anexar vídeo de técnica',
   'Video not found in local vault.': 'Vídeo não encontrado no cofre local.',
   'Video trim saved!': 'Recorte do vídeo salvo!',
   'Failed to save trim': 'Falha ao salvar recorte',

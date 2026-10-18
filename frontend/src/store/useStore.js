@@ -7,7 +7,7 @@ import { guestAllowed } from '../lib/guest.js'
 import { MOBILE, initReminderSync, nativeLoad, nativeSave, syncReminder, writeAutoBackup } from '../lib/mobile.js'
 import { loadRemote, chooseLocal, forgetRemote, connect } from '../lib/remote.js'
 import { loadCoachDevice, saveCoachDevice, coachDeviceSettings } from '../lib/coach-device.js'
-import { enqueuePushState, clearQueue } from '../lib/sync-queue.js'
+import { enqueuePushState, clearQueue, flushSyncQueue } from '../lib/sync-queue.js'
 
 import { WC_DEFAULT } from '../lib/workout-controls.js'
 
@@ -216,6 +216,7 @@ export const useStore = create((set, get) => {
         if (restored) {
           persist(restored, false)
         } else if (hasData(S)) { await get().pushState() }
+        flushSyncQueue().catch(() => {})
       } catch (e) { /* offline — keep local */ }
     },
 

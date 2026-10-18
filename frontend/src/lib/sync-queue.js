@@ -136,10 +136,10 @@ export async function flushSyncQueue({ apiClient = api } = {}) {
 
   let flushed = 0
   let errors = 0
+  const nextQueue = []
 
-  const remaining = []
-
-  for (const item of queue) {
+  for (let i = 0; i < queue.length; i++) {
+    const item = queue[i]
     try {
       if (item.type === 'push_state') {
         await apiClient('/api/data', {
@@ -154,17 +154,16 @@ export async function flushSyncQueue({ apiClient = api } = {}) {
     } catch (err) {
       errors++
       item.retryCount = (item.retryCount || 0) + 1
-      remaining.push(item)
-      // If we encounter a network error, stop flushing the rest of the queue
+      nextQueue.push(item)
+      // If we encounter a network error or offline, stop flushing and keep remaining items
       if (err.name === 'TypeError' || err.status === 0 || !isOnlineState) {
+        nextQueue.push(...queue.slice(i + 1))
         break
       }
     }
   }
 
-  // Any items that were not processed stay in the queue
-  const processedCount = flushed + (errors > 0 ? 1 : 0)
-  queue = [...remaining, ...queue.slice(processedCount)]
+  queue = nextQueue
   persistQueue()
 
   if (flushed > 0) {
@@ -195,6 +194,13 @@ if (typeof window !== 'undefined') {
         flushSyncQueue().catch(() => {})
       }
     })
+  }
+
+  // If already online and queue has items on initialization, auto-flush
+  if (isOnlineState && queue.length > 0) {
+    setTimeout(() => {
+      flushSyncQueue().catch(() => {})
+    }, 500)
   }
 }
 

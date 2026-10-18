@@ -1233,6 +1233,7 @@ export default {
   'Watch Form Check Video': 'ดูวิดีโอตรวจฟอร์ม',
   'Watch form check': 'ดูการตรวจฟอร์ม',
   'Remove form check video': 'ลบวิดีโอตรวจฟอร์ม',
+  'Attach form check video': 'แนบวิดีโอตรวจสอบฟอร์ม',
   'Video not found in local vault.': 'ไม่พบวิดีโอในคลังจัดเก็บในเครื่อง',
   'Video trim saved!': 'บันทึกการตัดต่อวิดีโอแล้ว!',
   'Failed to save trim': 'บันทึกการตัดต่อไม่สำเร็จ',

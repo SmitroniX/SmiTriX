@@ -1222,6 +1222,7 @@ export default {
   'Watch Form Check Video': 'Guarda video analisi forma',
   'Watch form check': 'Vedi analisi forma',
   'Remove form check video': 'Rimuovi video analisi forma',
+  'Attach form check video': 'Allega video di esecuzione',
   'Video not found in local vault.': 'Video non trovato nella cassaforte locale.',
   'Video trim saved!': 'Taglio video salvato!',
   'Failed to save trim': 'Impossibile salvare il taglio',
