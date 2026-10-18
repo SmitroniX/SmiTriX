@@ -21,3 +21,5 @@ node_modules
 junit.xml
 coverage/
 frontend/bundle-size.json
+brag-output/
+

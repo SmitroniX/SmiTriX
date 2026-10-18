@@ -64,7 +64,7 @@ function emptyMuscleMap(value) {
 // Current catalogue metadata stays authoritative. Finished entries retain a nested muscle
 // snapshot specifically so deleted custom exercises can still contribute to recovery maps.
 function exerciseFor(entry) {
-  return EXIDX[entry?.id] || entry
+  return EXIDX[entry?.id] || entry?.exercise || entry?.ex || entry
 }
 
 // Epley one-rep-max estimate, matching onerm.js (REP_CAP included so high-rep sets do not

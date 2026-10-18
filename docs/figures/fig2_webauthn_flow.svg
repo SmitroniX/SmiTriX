@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 480" width="100%" height="100%">
+  <defs>
+    <filter id="shadow2" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="1" dy="2" stdDeviation="3" flood-opacity="0.1"/>
+    </filter>
+    <marker id="seq-arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#1e3a8a" />
+    </marker>
+    <marker id="seq-arrow-ret" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#059669" />
+    </marker>
+  </defs>
+
+  <rect width="850" height="480" fill="#f8fafc" rx="10" stroke="#cbd5e1" stroke-width="1.2"/>
+  <text x="425" y="32" font-family="system-ui, sans-serif" font-size="16" font-weight="700" fill="#0f172a" text-anchor="middle">SmiTriX FIDO2 / WebAuthn Passwordless Cryptographic Flow</text>
+  <text x="425" y="50" font-family="system-ui, sans-serif" font-size="11" fill="#64748b" text-anchor="middle">Zero-Password Authentication, Hardware Keystore &amp; Signed Session Cookie Architecture</text>
+
+  <!-- Lifeline Columns -->
+  <!-- 1: User / Authenticator -->
+  <rect x="50" y="70" width="140" height="35" rx="6" fill="#1e3a8a" filter="url(#shadow2)"/>
+  <text x="120" y="93" font-family="system-ui, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">User / Biometric Key</text>
+  <line x1="120" y1="105" x2="120" y2="450" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,4"/>
+
+  <!-- 2: Client Web Browser PWA -->
+  <rect x="260" y="70" width="140" height="35" rx="6" fill="#0284c7" filter="url(#shadow2)"/>
+  <text x="330" y="93" font-family="system-ui, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">Client PWA (React)</text>
+  <line x1="330" y1="105" x2="330" y2="450" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,4"/>
+
+  <!-- 3: SmiTriX API Server -->
+  <rect x="470" y="70" width="140" height="35" rx="6" fill="#059669" filter="url(#shadow2)"/>
+  <text x="540" y="93" font-family="system-ui, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">SmiTriX Backend API</text>
+  <line x1="540" y1="105" x2="540" y2="450" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,4"/>
+
+  <!-- 4: Host Flat Storage -->
+  <rect x="680" y="70" width="130" height="35" rx="6" fill="#d97706" filter="url(#shadow2)"/>
+  <text x="745" y="93" font-family="system-ui, sans-serif" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">Host Data (`db.json`)</text>
+  <line x1="745" y1="105" x2="745" y2="450" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,4"/>
+
+  <!-- Step 1: Request Challenge -->
+  <line x1="330" y1="130" x2="540" y2="130" stroke="#1e3a8a" stroke-width="1.8" marker-end="url(#seq-arrow)"/>
+  <text x="435" y="122" font-family="system-ui, sans-serif" font-size="10" font-weight="600" fill="#1e3a8a" text-anchor="middle">1. POST /api/auth/register-options (or login-options)</text>
+
+  <!-- Step 2: Generate Cryptographic Challenge -->
+  <rect x="520" y="145" width="40" height="30" fill="#d1fae5" stroke="#10b981" rx="4"/>
+  <text x="595" y="162" font-family="system-ui, sans-serif" font-size="9" fill="#065f46">Generate 32-byte Cryptographic Challenge</text>
+  <line x1="540" y1="185" x2="330" y2="185" stroke="#059669" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#seq-arrow-ret)"/>
+  <text x="435" y="178" font-family="system-ui, sans-serif" font-size="9.5" fill="#059669" text-anchor="middle">2. Returns PublicKeyCredentialCreationOptions (challenge, RP_ID)</text>
+
+  <!-- Step 3: Invoke WebAuthn API on Device -->
+  <line x1="330" y1="210" x2="120" y2="210" stroke="#1e3a8a" stroke-width="1.8" marker-end="url(#seq-arrow)"/>
+  <text x="225" y="202" font-family="system-ui, sans-serif" font-size="9.5" font-weight="600" fill="#1e3a8a" text-anchor="middle">3. navigator.credentials.create() / get()</text>
+
+  <!-- Step 4: User Touch / FaceID Biometric verification -->
+  <rect x="90" y="225" width="60" height="35" rx="4" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="120" y="242" font-family="system-ui, sans-serif" font-size="8.5" font-weight="bold" fill="#1e3a8a" text-anchor="middle">Biometric Auth</text>
+  <text x="120" y="253" font-family="system-ui, sans-serif" font-size="7.5" fill="#1e40af" text-anchor="middle">(TPM/Secure Enclave)</text>
+
+  <line x1="120" y1="275" x2="330" y2="275" stroke="#059669" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#seq-arrow-ret)"/>
+  <text x="225" y="268" font-family="system-ui, sans-serif" font-size="9.5" fill="#059669" text-anchor="middle">4. Signed ClientDataJSON + Attestation / Signature</text>
+
+  <!-- Step 5: Send signed response to backend -->
+  <line x1="330" y1="305" x2="540" y2="305" stroke="#1e3a8a" stroke-width="1.8" marker-end="url(#seq-arrow)"/>
+  <text x="435" y="298" font-family="system-ui, sans-serif" font-size="10" font-weight="600" fill="#1e3a8a" text-anchor="middle">5. POST /api/auth/register-verify (raw credential payload)</text>
+
+  <!-- Step 6: Verify and Store -->
+  <rect x="520" y="320" width="40" height="40" fill="#d1fae5" stroke="#10b981" rx="4"/>
+  <text x="600" y="335" font-family="system-ui, sans-serif" font-size="9" fill="#065f46">verifyRegistrationResponse()</text>
+  <text x="600" y="348" font-family="system-ui, sans-serif" font-size="8.5" fill="#64748b">Check RP_ID, Origin, Challenge</text>
+
+  <line x1="540" y1="365" x2="745" y2="365" stroke="#d97706" stroke-width="1.8" marker-end="url(#seq-arrow)"/>
+  <text x="642" y="358" font-family="system-ui, sans-serif" font-size="9.5" fill="#d97706" text-anchor="middle">6. `atomicWrite(db.json)`</text>
+  <text x="642" y="378" font-family="system-ui, sans-serif" font-size="8.5" fill="#78350f" text-anchor="middle">Save credentialID, pubKey, counter</text>
+
+  <!-- Step 7: Issue HMAC Session Cookie -->
+  <line x1="540" y1="410" x2="330" y2="410" stroke="#059669" stroke-width="2" marker-end="url(#seq-arrow-ret)"/>
+  <text x="435" y="402" font-family="system-ui, sans-serif" font-size="10" font-weight="bold" fill="#059669" text-anchor="middle">7. Set-Cookie: smitrix_session=&lt;signed_payload&gt;; HttpOnly; SameSite=Lax</text>
+  <text x="435" y="426" font-family="system-ui, sans-serif" font-size="8.5" fill="#475569" text-anchor="middle">Payload: uid.expiry.HMAC-SHA256(uid.expiry, SECRET)</text>
+</svg>
