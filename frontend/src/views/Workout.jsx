@@ -24,6 +24,9 @@ import { glyphOf, DEFAULT_GLYPH } from '../lib/glyphs.js'
 import { isWarmupRow, isDropSet, isRestPauseSet, dropsOf, clustersOf, addDrop, addCluster, removeDropAt, removeClusterAt, setDropAt, setClusterAt, nextDropWeight, nextBurstReps } from '../lib/workout-model.js'
 import { canMoveActiveWorkoutUnit, moveActiveWorkoutUnit } from '../lib/active-workout-order.js'
 import { openTutorial } from '../components/TutorialDialog.jsx'
+import { HeartRateBadge } from '../components/HeartRateMonitor.jsx'
+import { SyncStatusBadge } from '../components/SyncStatusBadge.jsx'
+import { FormCheckBadge, openFormCheckPlayer, openFormCheckRecorder } from '../components/FormCheckVaultModal.jsx'
 
 const SWIPE_MIN_DISTANCE = 48
 const SWIPE_AXIS_RATIO = 1.25
@@ -352,10 +355,31 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
   // sit as chips and an X on every single row.
   const openSetMenu = (s, i) => {
     const warm = isWarmupRow(s)
+    const hasVideo = !!(s.formCheckVideoId || s.videoKey)
+    const isWeightPR = !warm && mode === 'reps' && s.done && s.w > 0 && best > 0 && s.w > best
+    const est1RM = (!warm && mode === 'reps' && s.w > 0 && s.r > 0) ? estimate1RM(s.w, s.r) : 0
+    const is1RMPR = !warm && mode === 'reps' && s.done && est1RM > 0 && priorBest1RM > 0 && est1RM > priorBest1RM
+    const isSetPR = isWeightPR || is1RMPR
+
     menuSheet({
       title: (warm ? t('Warm-up') : t('Set {0}', entry.sets.slice(0, i + 1).filter(x => isWarmupRow(x) === warm).length)),
       subtitle: setLabel(entry.id, s, entry.target),
       items: [
+        hasVideo && {
+          icon: 'video',
+          label: t('Watch form check'),
+          onClick: () => openFormCheckPlayer({
+            videoId: s.formCheckVideoId || s.videoKey,
+            setInfo: { exerciseName: exerciseNameFor(ex), isPR: isSetPR, weight: s.w, reps: s.r, unit: S.unit },
+            onDetach: () => onField(i, 'formCheckVideoId', null)
+          })
+        },
+        hasVideo && {
+          icon: 'trash',
+          label: t('Remove form check video'),
+          danger: true,
+          onClick: () => onField(i, 'formCheckVideoId', null)
+        },
         !warm && mode === 'reps' && !isRestPauseSet(s) && { icon: 'arrowDown', label: t('Drop set'), sub: t('+ Drop'), onClick: () => addDropRow(i) },
         !warm && mode === 'reps' && !isDropSet(s) && { icon: 'bolt', label: t('Rest-pause burst'), sub: t('+ Burst'), onClick: () => addBurstRow(i) },
         { icon: 'trash', label: t('Remove this set'), danger: true, disabled: entry.sets.length <= 1, onClick: () => onRemoveSetAt(i) },
@@ -562,9 +586,9 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
               </button>
             </div>
           )}
-          {s.done && (isPR || (prevSet && (wDelta > 0 || rDelta > 0))) && (
+          {((s.formCheckVideoId || s.videoKey) || (s.done && (isPR || (prevSet && (wDelta > 0 || rDelta > 0))))) && (
             <div className="set-meta-row">
-              {isPR ? (
+              {s.done && (isPR ? (
                 <span className="set-pr-tag animate-pop">
                   <Icon name="trophy" style={{ fontSize: 11 }} />
                   <b>{isWeightPR ? t('Weight PR!') : t('1RM PR!')}</b>
@@ -575,11 +599,21 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
                   <Icon name="arrowUp" style={{ fontSize: 10 }} />
                   <span>+{fmtNum(wDelta)} {S.unit} {t('vs last')}</span>
                 </span>
-              ) : (
+              ) : rDelta > 0 ? (
                 <span className="set-overload-tag pos">
                   <Icon name="arrowUp" style={{ fontSize: 10 }} />
                   <span>+{rDelta} {rDelta === 1 ? t('rep') : t('reps')} {t('vs last')}</span>
                 </span>
+              ) : null)}
+              {(s.formCheckVideoId || s.videoKey) && (
+                <FormCheckBadge
+                  videoId={s.formCheckVideoId || s.videoKey}
+                  onClick={() => openFormCheckPlayer({
+                    videoId: s.formCheckVideoId || s.videoKey,
+                    setInfo: { exerciseName: exerciseNameFor(ex), isPR, weight: s.w, reps: s.r, unit: S.unit },
+                    onDetach: () => onField(i, 'formCheckVideoId', null)
+                  })}
+                />
               )}
             </div>
           )}
@@ -1270,6 +1304,9 @@ function ActiveWorkout() {
           <span className="h-stat"><Icon name="dumbbell" style={{ fontSize: 11 }} /> {fmtNum(liveVolume)} {S.unit}</span>
           <span className="h-stat-sep">·</span>
           <span className="h-stat"><Icon name="check" style={{ fontSize: 11 }} /> {done}/{total}</span>
+          <span className="h-stat-sep">·</span>
+          <HeartRateBadge />
+          <SyncStatusBadge />
         </div>
       </div>
       <button className="btn primary sm workout-finish-btn" aria-label={t('Finish')} onClick={finishWorkout}>
@@ -1296,6 +1333,45 @@ function ActiveWorkout() {
             {prCelebration.detail && (
               <div className="golden-pr-detail">{prCelebration.detail}</div>
             )}
+            <div style={{ marginTop: 6 }}>
+              <button
+                type="button"
+                className="btn sm"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '3px 8px',
+                  fontSize: 11,
+                  background: 'rgba(255,255,255,0.22)',
+                  border: '1px solid rgba(255,255,255,0.4)',
+                  color: '#fff',
+                  borderRadius: 6,
+                  cursor: 'pointer'
+                }}
+                onClick={() => {
+                  const curEntry = A.entries[A.cur]
+                  const curSetIdx = curEntry?.sets?.findIndex(st => st.done) ?? 0
+                  openFormCheckRecorder({
+                    exerciseId: curEntry?.id,
+                    exerciseName: prCelebration.exName,
+                    setIndex: curSetIdx >= 0 ? curSetIdx : 0,
+                    isPR: true,
+                    workoutId: A.routineId || 'freestyle',
+                    weight: prCelebration.weight,
+                    reps: prCelebration.reps,
+                    onAttached: videoId => {
+                      if (curEntry) {
+                        setField(A.cur, curSetIdx >= 0 ? curSetIdx : 0, 'formCheckVideoId', videoId)
+                      }
+                    }
+                  })
+                }}
+              >
+                <Icon name="video" size={12} />
+                <span>{t('Record PR Form Check')}</span>
+              </button>
+            </div>
           </div>
           <button
             type="button"

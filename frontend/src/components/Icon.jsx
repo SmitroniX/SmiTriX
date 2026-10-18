@@ -125,6 +125,11 @@ const P = {
   camera: <><path d="M3.6 8.8a2 2 0 0 1 2-2h1.9l1.3-2.1h6.4l1.3 2.1h1.9a2 2 0 0 1 2 2v8.4a2 2 0 0 1-2 2H5.6a2 2 0 0 1-2-2Z" /><circle cx="12" cy="12.8" r="3.3" /></>,
   image: <><rect x="3.6" y="4.8" width="16.8" height="14.4" rx="2.6" /><circle cx="8.6" cy="9.6" r="1.7" /><path d="m4.4 17.4 4.8-4.6 3.3 3 3-2.6 4.1 4" /></>,
   warning: <><path d="M12 3.4 21.2 19.4H2.8Z" /><path d="M12 9.6v4.4" /><circle cx="12" cy="16.6" r=".9" fill="currentColor" stroke="none" /></>,
+  video: <><rect x="3.4" y="6.4" width="12" height="11.2" rx="2.2" /><path d="m15.4 10.4 5.2-3.4v10l-5.2-3.4Z" /></>,
+  bluetooth: <path d="m7 7 10 10-5 5V2l5 5L7 17" />,
+  cloud: <path d="M6.5 18a4.5 4.5 0 0 1-.5-8.97A6 6 0 0 1 17.5 8a5 5 0 0 1 1.5 9.77H6.5Z" />,
+  cloudOff: <><path d="M2 2l20 20M8.5 8.5A6 6 0 0 1 17.5 8a5 5 0 0 1 1.5 9.77M15.5 15.5H6.5a4.5 4.5 0 0 1-.5-8.97" /></>,
+  arrowRotate: <><path d="M20 12A8 8 0 1 1 18 6.5l2-2" /><path d="M20 2v4.5H15.5" /></>,
 }
 
 // A few keys are aliases so call sites can say what they mean.
@@ -134,6 +139,8 @@ P.exercises = P.magnifier
 P.weight = P.scale
 P.streak = P.flame
 P.done = P.check
+P.sync = P.arrowRotate
+P.offline = P.cloudOff
 
 export const ICON_NAMES = Object.keys(P)
 
