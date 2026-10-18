@@ -12,6 +12,7 @@ import Icon from '../components/Icon.jsx'
 import BodyMap, { BodyMapLegend } from '../components/BodyMap.jsx'
 import { loadOfWorkouts, muscleBalanceWindow, rankOf, MUSCLE_NAME, musclesOf } from '../lib/muscles.js'
 import { fatigueOf, strengthOf, STRENGTH_FLOOR, LB_TO_KG } from '../lib/recovery.js'
+import { calculateMuscleRecoveryHours } from '../lib/readiness.js'
 import { strengthExerciseRowsForMuscle } from '../lib/strength-exercises.js'
 import { fatigueStateOf } from '../lib/recovery-view.js'
 import { e1rmSeries, best1RM } from '../lib/onerm.js'
@@ -180,7 +181,14 @@ function MuscleBalance({ S }) {
       <div className="muted small" style={{ marginTop: 10 }}>{t('Fatigue shows how recently each muscle was trained. High means rest.')}</div>
       {sel && <div className="mrow" style={{ borderTop: 'var(--hair) solid var(--sep)', marginTop: 4, paddingTop: 10 }}>
         <span className="nm"><b>{t(MUSCLE_NAME[sel])}</b></span>
-        <span className="v">{fatigueLabel(fatigue[sel])}</span>
+        <span className="v">
+          {fatigueLabel(fatigue[sel])}
+          {calculateMuscleRecoveryHours(fatigue[sel]) > 0 && (
+            <span className="dim small" style={{ display: 'block', fontWeight: 400 }}>
+              {t('~{0}h recovery needed', calculateMuscleRecoveryHours(fatigue[sel]))}
+            </span>
+          )}
+        </span>
       </div>}
     </> : <>
       <h2>{t('Strength')}</h2>

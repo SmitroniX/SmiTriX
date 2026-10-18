@@ -1,6 +1,6 @@
 import { EXIDX } from './exercises.js'
 import { MUSCLES, MUSCLE_NAME, musclesOf, muscleBalanceWindow, loadOfWorkouts } from './muscles.js'
-import { fatigueOf, FATIGUE_STATES, FATIGUE_HALF_LIFE_MS, LB_TO_KG } from './recovery.js'
+import { fatigueOf, FATIGUE_STATES, FATIGUE_HALF_LIFE_MS, LB_TO_KG, exerciseFor } from './recovery.js'
 import { fatigueStateOf } from './recovery-view.js'
 import { isWarmupRow, extraVolumeOf } from './workout-model.js'
 
@@ -43,7 +43,8 @@ export function calculateMuscleRecoveryHours(fatigueValue, halfLifeMs = FATIGUE_
   const v = -Math.log(1 - clampedF)
   const vReady = -Math.log(1 - READY_FATIGUE_THRESHOLD)
   if (v <= vReady) return 0
-  const halfLifeHours = halfLifeMs / 3600000
+  const hl = Number.isFinite(Number(halfLifeMs)) && Number(halfLifeMs) > 0 ? Number(halfLifeMs) : FATIGUE_HALF_LIFE_MS
+  const halfLifeHours = hl / 3600000
   const hours = halfLifeHours * (Math.log(v / vReady) / Math.LN2)
   return Math.round(hours * 10) / 10
 }
@@ -77,8 +78,9 @@ export function latestMuscleTraining(workouts) {
     const timestamp = Number(workout?.start || (workout?.d ? new Date(workout.d).getTime() : NaN))
     if (!Number.isFinite(timestamp)) continue
     for (const entry of workout?.entries || []) {
+      if (!entry || typeof entry !== 'object') continue
       if (!(entry?.sets || []).some(set => set?.done === true && !isWarmupRow(set))) continue
-      const exercise = EXIDX[entry.id] || entry.exercise || entry
+      const exercise = exerciseFor(entry)
       for (const slug of Object.keys(musclesOf(exercise))) {
         if (MUSCLES.includes(slug) && (latest[slug] == null || timestamp > latest[slug])) {
           latest[slug] = timestamp
@@ -100,13 +102,14 @@ export function volumeOfWorkouts(workouts, opts = {}) {
   const vols = Object.fromEntries(MUSCLES.map(slug => [slug, 0]))
   for (const w of workouts || []) {
     for (const e of w?.entries || []) {
-      const ex = EXIDX[e.id] || e.exercise || e
+      if (!e || typeof e !== 'object') continue
+      const ex = exerciseFor(e)
       const weights = musclesOf(ex)
       for (const s of e?.sets || []) {
         if (!s?.done || isWarmupRow(s)) continue
-        const reps = Number(s.r) || 1
-        const weight = Number(s.w) || 0
-        const extra = extraVolumeOf(s)
+        const reps = Math.max(0, Number(s.r) || 0)
+        const weight = Math.max(0, Number(s.w) || 0)
+        const extra = Math.max(0, extraVolumeOf(s))
         const rowVol = (weight * reps) + extra
         for (const [slug, wgt] of Object.entries(weights)) {
           if (Object.prototype.hasOwnProperty.call(vols, slug)) {
@@ -141,12 +144,12 @@ export const MUSCLE_REGIONS = Object.freeze({
  * @returns {{ score: number, category: 'optimal'|'good'|'moderate'|'low' }}
  */
 export function calculateOverallReadiness(muscleScores) {
-  const values = Object.values(muscleScores)
+  const values = Object.values(muscleScores || {}).map(Number).filter(Number.isFinite)
   if (!values.length) return { score: 100, category: READINESS_CATEGORIES.OPTIMAL }
   const avg = values.reduce((sum, v) => sum + v, 0) / values.length
   const min = Math.min(...values)
   // 75% whole-body average readiness + 25% most fatigued muscle bottleneck
-  const score = Math.round(avg * 0.75 + min * 0.25)
+  const score = Math.max(0, Math.min(100, Math.round(avg * 0.75 + min * 0.25)))
   const category = score >= 80
     ? READINESS_CATEGORIES.OPTIMAL
     : score >= 60
@@ -166,12 +169,13 @@ export function calculateOverallReadiness(muscleScores) {
  * @returns {object}
  */
 export function calculateReadinessIndex(workouts = [], now = Date.now(), opts = {}) {
+  const list = (workouts || []).filter(w => w && typeof w === 'object')
   const current = Number.isFinite(Number(now)) ? Number(now) : Date.now()
-  const fatigue = fatigueOf(workouts, current, opts)
-  const in30d = muscleBalanceWindow(workouts, 30, current)
+  const fatigue = fatigueOf(list, current, opts)
+  const in30d = muscleBalanceWindow(list, 30, current)
   const sets30dMap = loadOfWorkouts(in30d)
   const volume30dMap = volumeOfWorkouts(in30d, opts)
-  const lastTrainedMap = latestMuscleTraining(workouts)
+  const lastTrainedMap = latestMuscleTraining(list)
 
   const muscleReadiness = {}
   const musclesList = []
@@ -263,25 +267,20 @@ export function calculateReadinessIndex(workouts = [], now = Date.now(), opts = 
   })
 
   let totalWorkSets = 0
+  let totalVolume30d = 0
   for (const w of in30d) {
     for (const e of w?.entries || []) {
       for (const s of e?.sets || []) {
-        if (s?.done && !isWarmupRow(s)) totalWorkSets++
+        if (s?.done && !isWarmupRow(s)) {
+          totalWorkSets++
+          const reps = Math.max(0, Number(s.r) || 0)
+          const weight = Math.max(0, Number(s.w) || 0)
+          const extra = Math.max(0, extraVolumeOf(s))
+          totalVolume30d += (weight * reps) + extra
+        }
       }
     }
   }
-
-  const totalVolume30d = (workouts || []).reduce((sum, w) => {
-    const ts = Number(w?.start || (w?.d ? new Date(w.d).getTime() : NaN))
-    if (!Number.isFinite(ts) || ts <= current - 30 * 86400000) return sum
-    let v = 0
-    for (const e of w?.entries || []) {
-      for (const s of e?.sets || []) {
-        if (s?.done && !isWarmupRow(s)) v += (Number(s.w) || 0) * (Number(s.r) || 0) + extraVolumeOf(s)
-      }
-    }
-    return sum + v
-  }, 0)
 
   return {
     overallScore,

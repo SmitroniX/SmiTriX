@@ -16,6 +16,7 @@ import { openTutorial, TutorialWelcomeCard, hasSeenTutorial } from '../component
 import ActivityHeatmap from '../components/ActivityHeatmap.jsx'
 import RecoveryMap from '../components/RecoveryMap.jsx'
 import PRWall from '../components/PRWall.jsx'
+import { LB_TO_KG } from '../lib/recovery.js'
 
 function formatElapsed(start) {
   if (!start) return '0:00'
@@ -54,6 +55,7 @@ export default function Home() {
   // On a rest day, saying when you train next beats leaving the row as a full stop.
   const next = !S.active && !routine ? nextTrainingDay(S, todayISO()) : null
   const bw = lastBW(S)
+  const bodyweightKg = bw && bw.w > 0 ? (S.unit === 'lb' ? bw.w * LB_TO_KG : bw.w) : null
   const prevBW = S.bodyweight.length > 1 ? S.bodyweight[S.bodyweight.length - 2] : null
   const delta = bw && prevBW ? bw.w - prevBW.w : null
 
@@ -385,7 +387,7 @@ export default function Home() {
           <h2 style={{ margin: 0 }}>{t('Muscle recovery')}</h2>
           <span className="dim small">{t('Readiness')}</span>
         </div>
-        <RecoveryMap workouts={S.workouts} body={S.body} />
+        <RecoveryMap workouts={S.workouts} body={S.body} unit={S.unit} bodyweightKg={bodyweightKg} />
       </div>
     )}
 

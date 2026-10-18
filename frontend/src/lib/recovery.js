@@ -63,7 +63,7 @@ function emptyMuscleMap(value) {
 
 // Current catalogue metadata stays authoritative. Finished entries retain a nested muscle
 // snapshot specifically so deleted custom exercises can still contribute to recovery maps.
-function exerciseFor(entry) {
+export function exerciseFor(entry) {
   return EXIDX[entry?.id] || entry?.exercise || entry?.ex || entry
 }
 
@@ -167,10 +167,12 @@ function loadKgFor(ex, entry, set, workout, opts = {}) {
 function session1RMs(workout, opts = {}) {
   const best = new Map()
   for (const entry of workout?.entries || []) {
+    if (!entry || typeof entry !== 'object') continue
     const ex = exerciseFor(entry)
     for (const set of entry.sets || []) {
+      if (!set || set?.done !== true) continue
       const load = loadKgFor(ex, entry, set, workout, opts)
-      if (set?.done !== true || !(load > 0) || !(set.r > 0)) continue
+      if (!(load > 0) || !(set.r > 0)) continue
       const est = epley1RM(load, set.r)
       if (!best.has(entry.id) || est > best.get(entry.id)) best.set(entry.id, est)
     }
@@ -227,10 +229,11 @@ function sessionTonnages(workout, opts = {}) {
   const sums = emptyMuscleMap(0)
   const oneRms = session1RMs(workout, opts)
   for (const entry of workout?.entries || []) {
+    if (!entry || typeof entry !== 'object') continue
     const ex = exerciseFor(entry)
     const weights = musclesOf(ex)
     for (const set of entry.sets || []) {
-      if (set?.done !== true) continue
+      if (!set || set?.done !== true) continue
       const measured = setTonnage(ex, entry, set, workout, oneRms.get(entry.id), opts)
       const tonnage = Number.isFinite(measured) && measured > 0 ? measured : ZERO_LOAD_SET_STIMULUS
       for (const [slug, weight] of Object.entries(weights)) {

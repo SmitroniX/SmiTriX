@@ -57,6 +57,13 @@ describe('calculateMuscleRecoveryHours', () => {
     expect(Number.isFinite(hoursNear1)).toBe(true)
     expect(hoursNear1).toBeGreaterThan(100)
   })
+
+  it('handles invalid or non-positive custom half-life by falling back to default', () => {
+    const normal = calculateMuscleRecoveryHours(0.5)
+    expect(calculateMuscleRecoveryHours(0.5, 0)).toBeCloseTo(normal, 1)
+    expect(calculateMuscleRecoveryHours(0.5, -5000)).toBeCloseTo(normal, 1)
+    expect(calculateMuscleRecoveryHours(0.5, NaN)).toBeCloseTo(normal, 1)
+  })
 })
 
 describe('muscleReadinessScore', () => {
@@ -143,6 +150,34 @@ describe('latestMuscleTraining', () => {
     const latest = latestMuscleTraining(workouts)
     expect(latest.quadriceps).toBeUndefined()
   })
+
+  it('recognizes exercises configured with entry.ex fallback', () => {
+    const t = Date.UTC(2026, 9, 14, 10, 0)
+    const workouts = [
+      {
+        start: t,
+        entries: [
+          {
+            id: 'custom-curl',
+            ex: { tg: 'biceps', bp: 'arms' },
+            sets: [{ done: true, w: 20, r: 12 }],
+          },
+        ],
+      },
+    ]
+
+    const latest = latestMuscleTraining(workouts)
+    expect(latest.biceps).toBe(t)
+  })
+
+  it('handles null entries and invalid dates safely', () => {
+    const workouts = [
+      null,
+      { d: 'invalid-date', entries: null },
+      { start: Date.now(), entries: [null, { sets: null }] },
+    ]
+    expect(latestMuscleTraining(workouts)).toEqual({})
+  })
 })
 
 describe('volumeOfWorkouts', () => {
@@ -172,6 +207,44 @@ describe('volumeOfWorkouts', () => {
     expect(vols.chest).toBe(2000)
   })
 
+  it('recognizes entry.ex fallback for custom exercises in volume calculations', () => {
+    const workouts = [
+      {
+        entries: [
+          {
+            id: 'custom-overhead',
+            ex: { tg: 'deltoids', bp: 'shoulders' },
+            sets: [{ done: true, w: 40, r: 10 }],
+          },
+        ],
+      },
+    ]
+
+    const vols = volumeOfWorkouts(workouts)
+    expect(vols.deltoids).toBe(400)
+  })
+
+  it('clamps negative weight or reps to 0 to prevent volume subtraction', () => {
+    const workouts = [
+      {
+        entries: [
+          {
+            id: 'bench-press',
+            exercise: { tg: 'chest', bp: 'chest' },
+            sets: [
+              { done: true, w: -50, r: 10 },
+              { done: true, w: 100, r: -5 },
+              { done: true, w: 100, r: 5 },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const vols = volumeOfWorkouts(workouts)
+    expect(vols.chest).toBe(500)
+  })
+
   it('ignores warmup sets in volume calculations', () => {
     const workouts = [
       {
@@ -194,13 +267,14 @@ describe('volumeOfWorkouts', () => {
 })
 
 describe('calculateOverallReadiness', () => {
-  it('returns 100 and optimal for empty input', () => {
-    const res = calculateOverallReadiness({})
-    expect(res.score).toBe(100)
-    expect(res.category).toBe(READINESS_CATEGORIES.OPTIMAL)
+  it('returns 100 and optimal for empty or invalid input', () => {
+    expect(calculateOverallReadiness({})).toEqual({ score: 100, category: READINESS_CATEGORIES.OPTIMAL })
+    expect(calculateOverallReadiness(null)).toEqual({ score: 100, category: READINESS_CATEGORIES.OPTIMAL })
+    expect(calculateOverallReadiness(undefined)).toEqual({ score: 100, category: READINESS_CATEGORIES.OPTIMAL })
+    expect(calculateOverallReadiness({ a: NaN, b: Infinity })).toEqual({ score: 100, category: READINESS_CATEGORIES.OPTIMAL })
   })
 
-  it('classifies categories according to threshold bands', () => {
+  it('classifies categories according to threshold bands and clamps out-of-range values', () => {
     // >= 80 -> optimal
     expect(calculateOverallReadiness({ a: 90, b: 85 }).category).toBe(READINESS_CATEGORIES.OPTIMAL)
     // 60-79 -> good
@@ -209,6 +283,9 @@ describe('calculateOverallReadiness', () => {
     expect(calculateOverallReadiness({ a: 50, b: 50 }).category).toBe(READINESS_CATEGORIES.MODERATE)
     // < 40 -> low
     expect(calculateOverallReadiness({ a: 30, b: 30 }).category).toBe(READINESS_CATEGORIES.LOW)
+    // Clamping
+    expect(calculateOverallReadiness({ a: 150, b: 120 }).score).toBe(100)
+    expect(calculateOverallReadiness({ a: -50, b: -20 }).score).toBe(0)
   })
 })
 
@@ -325,5 +402,62 @@ describe('calculateReadinessIndex', () => {
     expect(res.totalSets30d).toBe(0)
     expect(res.muscleMap['lower-back'].sets30d).toBe(0)
     expect(res.muscleMap['lower-back'].volume30d).toBe(0)
+  })
+
+  it('handles null or undefined workouts gracefully', () => {
+    const resNull = calculateReadinessIndex(null)
+    expect(resNull.overallScore).toBe(100)
+    expect(resNull.totalVolume30d).toBe(0)
+    expect(resNull.totalSets30d).toBe(0)
+    expect(resNull.workoutCount30d).toBe(0)
+
+    const resUndef = calculateReadinessIndex(undefined)
+    expect(resUndef.overallScore).toBe(100)
+    expect(resUndef.totalVolume30d).toBe(0)
+  })
+
+  it('handles workouts with negative weights or reps without subtracting volume', () => {
+    const now = Date.UTC(2026, 9, 15, 12, 0)
+    const workouts = [
+      {
+        start: now - 3600000,
+        entries: [
+          {
+            id: 'bench-press',
+            exercise: { tg: 'chest', bp: 'chest' },
+            sets: [
+              { done: true, w: -100, r: 10 },
+              { done: true, w: 100, r: -5 },
+              { done: true, w: 100, r: 10 },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const res = calculateReadinessIndex(workouts, now)
+    expect(res.totalVolume30d).toBe(1000)
+    expect(res.totalSets30d).toBe(3)
+    expect(res.muscleMap.chest.volume30d).toBe(1000)
+  })
+
+  it('handles malformed or null entries and corrupted timestamps gracefully', () => {
+    const now = Date.UTC(2026, 9, 15, 12, 0)
+    const workouts = [
+      null,
+      { d: 'corrupted-date', entries: null },
+      {
+        start: now - 3600000,
+        entries: [
+          null,
+          { id: 'biceps-curl', exercise: null, sets: [null, { done: true, w: 20, r: 10 }] },
+        ],
+      },
+    ]
+
+    const res = calculateReadinessIndex(workouts, now)
+    expect(Number.isFinite(res.overallScore)).toBe(true)
+    expect(res.workoutCount30d).toBe(1)
+    expect(res.totalSets30d).toBe(1)
   })
 })

@@ -258,7 +258,7 @@ export function loadOf(items) {
  */
 export const loadOfWorkouts = (workouts, pick) =>
   loadOf((workouts || []).flatMap(w =>
-    (w.entries || []).map(e => ({ id: e.id, ex: e.exercise || e, sets: (e.sets || []).filter(s => s.done && !isWarmupRow(s) && (!pick || pick(s))).length }))))
+    (w?.entries || []).filter(Boolean).map(e => ({ id: e.id, ex: e.exercise || e, sets: (e.sets || []).filter(s => s && s.done && !isWarmupRow(s) && (!pick || pick(s))).length }))))
 
 /**
  * Workouts in one existing Muscle balance range, with time injected for deterministic tests.
@@ -267,7 +267,7 @@ export const loadOfWorkouts = (workouts, pick) =>
  * first weekday — the caller passes it since this takes workouts rather than the whole state.
  */
 export function muscleBalanceWindow(workouts, win, now = Date.now(), today = todayISO(), ws = MONDAY) {
-  return (workouts || []).filter(workout => win === 0
+  return (workouts || []).filter(workout => !workout ? false : win === 0
     ? true
     : win === 7
       ? weekKey(workout.d, ws) === weekKey(today, ws)
