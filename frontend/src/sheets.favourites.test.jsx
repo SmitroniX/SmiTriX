@@ -93,4 +93,48 @@ describe('exercise picker', () => {
     act(() => chip(host).click())
     expect(names(host)).toEqual([EXDB[5].n, EXDB[9].n])
   })
+
+  it('filters exercises when clicking Chest or Back muscle chips without throwing', () => {
+    exercisePicker(vi.fn())
+    const host = renderTop()
+
+    const chestChip = [...host.querySelectorAll('.chips .chip')].find(b => b.textContent.trim() === 'Chest')
+    expect(chestChip).toBeDefined()
+    act(() => chestChip.click())
+
+    // Should filter to chest exercises and section title should update
+    const sectionTitle = host.querySelector('.picker-section-title')?.textContent
+    expect(sectionTitle).toContain('Chest')
+    expect(names(host).length).toBeGreaterThan(0)
+
+    const backChip = [...host.querySelectorAll('.chips .chip')].find(b => b.textContent.trim() === 'Back')
+    expect(backChip).toBeDefined()
+    act(() => backChip.click())
+
+    const backSectionTitle = host.querySelector('.picker-section-title')?.textContent
+    expect(backSectionTitle).toContain('Back')
+    expect(names(host).length).toBeGreaterThan(0)
+  })
+
+  it('filters exercises using the muscle panel picker without throwing', () => {
+    exercisePicker(vi.fn())
+    const host = renderTop()
+
+    // Find and click the muscle pill
+    const musclePill = [...host.querySelectorAll('.picker-pill')].find(el => el.textContent.includes('Muscles') || el.textContent.includes('All Muscles'))
+    expect(musclePill).toBeDefined()
+    act(() => musclePill.click())
+
+    // Panel should now be open
+    const panelChips = [...host.querySelectorAll('.picker-panel-chip')]
+    expect(panelChips.length).toBeGreaterThan(0)
+
+    const chestPanelChip = panelChips.find(b => b.textContent.trim() === 'Chest')
+    expect(chestPanelChip).toBeDefined()
+    act(() => chestPanelChip.click())
+
+    const sectionTitle = host.querySelector('.picker-section-title')?.textContent
+    expect(sectionTitle).toContain('Chest')
+    expect(names(host).length).toBeGreaterThan(0)
+  })
 })
