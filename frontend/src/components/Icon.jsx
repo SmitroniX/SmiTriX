@@ -92,6 +92,7 @@ const P = {
 
   /* ---- objects ---- */
   person: <><circle cx="12" cy="8" r="3.8" /><path d="M4.8 20.4a7.2 7.2 0 0 1 14.4 0" /></>,
+  user: <><circle cx="12" cy="8" r="3.8" /><path d="M4.8 20.4a7.2 7.2 0 0 1 14.4 0" /></>,
   personCircle: <><circle cx="12" cy="12" r="8.4" /><circle cx="12" cy="10" r="2.9" /><path d="M6.6 18.4a5.8 5.8 0 0 1 10.8 0" /></>,
   clipboard: <><rect x="5.4" y="4.8" width="13.2" height="15.8" rx="2.6" /><path d="M9 4.8a1.6 1.6 0 0 1 1.6-1.6h2.8A1.6 1.6 0 0 1 15 4.8v1.4H9Z" /><path d="M9.2 11.6h5.6M9.2 15.2h4" /></>,
   list: <path d="M8.4 6.6h11.2M8.4 12h11.2M8.4 17.4h11.2M4.6 6.6h.01M4.6 12h.01M4.6 17.4h.01" />,

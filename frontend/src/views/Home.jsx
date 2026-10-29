@@ -133,7 +133,9 @@ export default function Home() {
       <div><h1>{user ? t('Hi {0}', user.name) : 'SmiTriX'}</h1><div className="sub">{today.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' })}</div></div>
       <div className="row" style={{ gap: 6 }}>
         <button className="iconbtn" onClick={() => openTutorial(0)} aria-label={t('Tutorial & Guide')} title={t('Tutorial & Guide')}><Icon name="help" /></button>
-        <button className="iconbtn" onClick={() => nav('/settings')} aria-label={t('Settings')}><Icon name="gear" /></button>
+        <button className="iconbtn" onClick={() => nav('/profile')} aria-label={t('Profile')} style={{ background: 'var(--acc)', color: 'var(--on-acc)', fontSize: 14, fontWeight: 700 }}>
+          {user?.name?.trim() ? user.name.trim()[0].toUpperCase() : <Icon name="user" />}
+        </button>
       </div>
     </div>
 

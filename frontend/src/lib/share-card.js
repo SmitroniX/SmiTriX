@@ -12,6 +12,8 @@ export function renderShareCardCanvas(options = {}) {
     name = 'Workout',
     date = '',
     muscles = [],
+    exercises = [],
+    streak = 0,
   } = options || {}
   const W = 1080
   const H = 1350
@@ -88,6 +90,27 @@ export function renderShareCardCanvas(options = {}) {
   ctx.textAlign = 'center'
   ctx.fillText('⚡ SMITRIX', W / 2, badgeY + 31)
 
+  // Streak badge
+  if (streak > 0) {
+    const sText = `🔥 ${streak} week streak`
+    ctx.font = '700 18px -apple-system, BlinkMacSystemFont, sans-serif'
+    const sTextW = ctx.measureText ? ctx.measureText(sText).width : 130
+    const sW = Math.max(160, Math.round(sTextW + 36))
+    const sH = 38
+    const sX = W - sW - 85
+    const sY = badgeY + 3
+    ctx.fillStyle = 'rgba(255, 159, 10, 0.12)'
+    ctx.beginPath()
+    drawRoundRect(sX, sY, sW, sH, 19)
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(255, 159, 10, 0.4)'
+    ctx.lineWidth = 1
+    ctx.stroke()
+    ctx.fillStyle = '#ff9f0a'
+    ctx.textAlign = 'center'
+    ctx.fillText(sText, sX + sW / 2, sY + 25)
+  }
+
   // 5. Title
   ctx.fillStyle = '#ffffff'
   ctx.font = '800 64px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif'
@@ -151,12 +174,61 @@ export function renderShareCardCanvas(options = {}) {
     ctx.fillText(st.val, x + 28, y + 118)
   })
 
-  // 8. PR Showcase or Target Muscles Section
+  // 8. PR Showcase, Target Muscles, or Exercises Section
   let nextY = 705
+
+  // Exercise breakdown
+  if (exercises && exercises.length > 0) {
+    const exCardW = 910, exCardX = (W - exCardW) / 2
+    let exCardY = nextY
+    const maxEx = prs && prs.length > 0 ? 3 : 5
+
+    ctx.fillStyle = 'rgba(235, 235, 245, 0.5)'
+    ctx.font = '700 20px -apple-system, BlinkMacSystemFont, sans-serif'
+    ctx.textAlign = 'left'
+    ctx.fillText('EXERCISES', exCardX + 4, exCardY + 20)
+    exCardY += 40
+
+    exercises.slice(0, maxEx).forEach((ex, i) => {
+      const setsText = typeof ex.sets === 'string' ? ex.sets : `${ex.sets} sets`
+      const rowY = exCardY + i * 44
+
+      ctx.fillStyle = '#ffffff'
+      ctx.font = '500 24px -apple-system, BlinkMacSystemFont, sans-serif'
+      ctx.textAlign = 'left'
+
+      // Truncate exercise name if needed to prevent text collision
+      let exName = ex.name || 'Exercise'
+      const maxNameWidth = 540
+      if (ctx.measureText && ctx.measureText(exName).width > maxNameWidth) {
+        while (exName.length > 3 && ctx.measureText(exName + '…').width > maxNameWidth) {
+          exName = exName.slice(0, -1)
+        }
+        exName += '…'
+      }
+      ctx.fillText(exName, exCardX + 12, rowY)
+
+      ctx.fillStyle = 'rgba(235, 235, 245, 0.5)'
+      ctx.font = '500 22px -apple-system, BlinkMacSystemFont, sans-serif'
+      ctx.fillText(setsText, exCardX + 580, rowY)
+    })
+    if (exercises.length > maxEx) {
+      ctx.fillStyle = 'rgba(235, 235, 245, 0.35)'
+      ctx.font = '400 20px -apple-system, BlinkMacSystemFont, sans-serif'
+      ctx.textAlign = 'left'
+      ctx.fillText(`+${exercises.length - maxEx} more exercises`, exCardX + 12, exCardY + maxEx * 44)
+    }
+    nextY = exCardY + Math.min(exercises.length, maxEx) * 44 + (exercises.length > maxEx ? 36 : 0) + 24
+  }
 
   if (prs && prs.length > 0) {
     const prCardW = 910
-    const prCardH = Math.min(320, 96 + prs.length * 48)
+    const maxPr = exercises && exercises.length > 0 ? 3 : 5
+    const displayPrs = prs.slice(0, maxPr)
+    const hasExercises = Boolean(exercises && exercises.length > 0)
+    const prCardH = hasExercises
+      ? 96 + displayPrs.length * 44 + (prs.length > maxPr ? 32 : 0)
+      : Math.min(320, 96 + prs.length * 48)
     const prCardX = (W - prCardW) / 2
     const prCardY = nextY
 
@@ -176,13 +248,18 @@ export function renderShareCardCanvas(options = {}) {
 
     ctx.fillStyle = '#ffffff'
     ctx.font = '600 25px -apple-system, BlinkMacSystemFont, sans-serif'
-    prs.slice(0, 5).forEach((item, i) => {
+    displayPrs.forEach((item, i) => {
       const text = typeof item === 'string' ? item : item.name || item.id
       ctx.fillText(`•  ${text}`, prCardX + 38, prCardY + 100 + i * 44)
     })
+    if (prs.length > maxPr) {
+      ctx.fillStyle = 'rgba(255, 214, 10, 0.7)'
+      ctx.font = '500 20px -apple-system, BlinkMacSystemFont, sans-serif'
+      ctx.fillText(`+${prs.length - maxPr} more PRs`, prCardX + 38, prCardY + 100 + maxPr * 44)
+    }
 
-    nextY = prCardY + prCardH + 35
-  } else if (muscles && muscles.length > 0) {
+    nextY = prCardY + prCardH + 30
+  } else if (muscles && muscles.length > 0 && (!exercises || exercises.length === 0)) {
     // Muscle tags showcase
     const mCardW = 910
     const mCardH = 130
@@ -207,7 +284,7 @@ export function renderShareCardCanvas(options = {}) {
     ctx.fillText(muscles.slice(0, 5).join('  ·  '), mCardX + 30, mCardY + 92)
 
     nextY = mCardY + mCardH + 35
-  } else {
+  } else if (!exercises || exercises.length === 0) {
     // Session highlight showcase when no PRs or muscles specified
     const sCardW = 910
     const sCardH = 130
@@ -235,15 +312,16 @@ export function renderShareCardCanvas(options = {}) {
   }
 
   // 9. Motivational quote
+  const quoteY = Math.max(1180, Math.min(1215, nextY + 25))
   ctx.fillStyle = 'rgba(235, 235, 245, 0.45)'
   ctx.font = 'italic 500 26px -apple-system, BlinkMacSystemFont, sans-serif'
   ctx.textAlign = 'center'
-  ctx.fillText('“Consistency is what transforms average into excellence.”', W / 2, 1180)
+  ctx.fillText('“Consistency is what transforms average into excellence.”', W / 2, quoteY)
 
   // 10. App footer
   ctx.fillStyle = 'rgba(235, 235, 245, 0.35)'
   ctx.font = '700 22px -apple-system, BlinkMacSystemFont, sans-serif'
-  ctx.fillText('TRACKED WITH SMITRIX · NO ADS, NO SUBSCRIPTIONS', W / 2, 1260)
+  ctx.fillText('TRACKED WITH SMITRIX · NO ADS, NO SUBSCRIPTIONS', W / 2, Math.max(1260, quoteY + 65))
 
   return canvas
 }

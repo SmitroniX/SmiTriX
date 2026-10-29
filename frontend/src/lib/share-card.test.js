@@ -124,4 +124,47 @@ describe('share-card generator', () => {
     expect(blob).toBeInstanceOf(Blob)
     expect(blob.type).toBe('image/png')
   })
+
+  it('renders streak badge when streak > 0', () => {
+    renderShareCardCanvas({
+      name: 'Full Body',
+      streak: 5,
+    })
+    expect(mockCtx.fillText).toHaveBeenCalledWith('🔥 5 week streak', expect.any(Number), expect.any(Number))
+  })
+
+  it('renders exercise breakdown when exercises are provided', () => {
+    renderShareCardCanvas({
+      name: 'Chest & Arms',
+      exercises: [
+        { name: 'Bench Press', sets: '4 sets' },
+        { name: 'Incline Dumbbell Press', sets: '3 sets' },
+      ],
+    })
+    expect(mockCtx.fillText).toHaveBeenCalledWith('EXERCISES', expect.any(Number), expect.any(Number))
+    expect(mockCtx.fillText).toHaveBeenCalledWith('Bench Press', expect.any(Number), expect.any(Number))
+    expect(mockCtx.fillText).toHaveBeenCalledWith('4 sets', expect.any(Number), expect.any(Number))
+  })
+
+  it('truncates very long exercise names with ellipsis', () => {
+    mockCtx.measureText = vi.fn(text => ({ width: text.length * 15 }))
+    renderShareCardCanvas({
+      name: 'Leg Day',
+      exercises: [
+        { name: 'Super Long Cable Incline Alternating Hammer Curl With Single Arm Grip', sets: '3 sets' },
+      ],
+    })
+
+    const textCalls = mockCtx.fillText.mock.calls.map(c => c[0])
+    const truncated = textCalls.find(t => typeof t === 'string' && t.endsWith('…'))
+    expect(truncated).toBeTruthy()
+  })
+
+  it('renders multi-digit streaks properly', () => {
+    renderShareCardCanvas({
+      name: 'Full Body',
+      streak: 52,
+    })
+    expect(mockCtx.fillText).toHaveBeenCalledWith('🔥 52 week streak', expect.any(Number), expect.any(Number))
+  })
 })

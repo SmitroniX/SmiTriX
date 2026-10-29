@@ -212,8 +212,8 @@ body.resting #app{padding-bottom:calc(250px + var(--sab))}
 .iconbtn:disabled{opacity:.32}
 
 h4.sec{
-  font-size:13px;font-weight:400;letter-spacing:-.004em;color:var(--label-2);
-  text-transform:none;margin:22px 0 8px;padding:0 4px;
+  font-size:11px;font-weight:600;letter-spacing:0.06em;color:var(--label-3);
+  text-transform:uppercase;margin:20px 0 8px;padding:0 4px;
 }
 .card h2{
   font-size:13px;font-weight:400;letter-spacing:-.004em;color:var(--label-2);
@@ -229,7 +229,7 @@ h4.sec{
   background:var(--surface);border-radius:var(--r-card);
   padding:16px;margin-bottom:12px;
   border:1px solid var(--sep-op);
-  box-shadow:0 4px 16px -4px rgba(0,0,0,.25);
+  box-shadow:0 2px 8px -2px rgba(0,0,0,.18), 0 1px 2px rgba(0,0,0,.1);
   transition:border-color var(--fast),box-shadow var(--fast);
 }
 .card.tappable:active{background:var(--surface-2);transform:scale(.99)}
@@ -671,16 +671,17 @@ h4.sec{
 .whdr, .whdr.stick{
   position:sticky;top:0;z-index:20;
   margin:calc(-1 * (var(--sat) + 8px)) calc(-1 * var(--pad)) 6px;
-  padding:calc(var(--sat) + 8px) var(--pad) 0;
+  padding:calc(var(--sat) + 6px) 12px 6px;
   background:color-mix(in srgb,var(--bg) 94%,transparent);
   -webkit-backdrop-filter:saturate(180%) blur(12px);backdrop-filter:saturate(180%) blur(12px);
 }
-.whdr .hdr, .whdr.stick .hdr{margin-bottom:12px}
-.whdr .wprog, .whdr.stick .wprog{margin-bottom:10px}
+.whdr .hdr, .whdr.stick .hdr{margin-bottom:6px}
+.whdr .hdr.workout-top-bar, .whdr.stick .hdr.workout-top-bar{margin:6px 0 0}
+.whdr .wprog, .whdr.stick .wprog{margin-bottom:6px}
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
   .whdr, .whdr.stick{background:var(--bg)}
 }
-.wprog{height:5px;background:var(--surface-2);border-radius:99px;overflow:hidden;margin-bottom:16px;box-shadow:inset 0 1px 2px rgba(0,0,0,.3)}
+.wprog{height:3px;background:var(--surface-2);border-radius:99px;overflow:hidden;margin-bottom:12px}
 .wprog i{display:block;height:100%;background:linear-gradient(90deg, color-mix(in srgb, var(--acc) 75%, #00d2ff), var(--acc));border-radius:99px;box-shadow:0 0 8px var(--acc);transition:width var(--med) var(--ease)}
 .exmedia{
   position:relative;border-radius:var(--r-lg);overflow:hidden;
@@ -890,18 +891,18 @@ h4.sec{
   transform:scale(1.08);
 }
 /* --- SmiTriX Workout Screen & Top Bar --- */
-.workout-top-bar, .hevy-top-bar{display:grid;grid-template-columns:minmax(36px, 1fr) auto minmax(auto, 1fr);align-items:center;gap:6px}
+.workout-top-bar, .hevy-top-bar{display:grid;grid-template-columns:36px 1fr auto;align-items:center;gap:8px}
 .workout-top-bar > :first-child, .hevy-top-bar > :first-child{justify-self:start}
 .workout-top-bar > :last-child, .hevy-top-bar > :last-child{justify-self:end}
 .workout-title-center, .hevy-title-center{text-align:center;min-width:0;justify-self:center}
 .workout-workout-name, .workout-name-title, .hevy-workout-name{
-  font-size:15px;font-weight:700;letter-spacing:-.015em;
-  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  font-size:14px;font-weight:600;letter-spacing:-.012em;
+  display:inline-flex;align-items:center;justify-content:center;gap:5px;
   max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 .workout-stats-chips, .hevy-stats-chips{
-  display:flex;align-items:center;justify-content:center;gap:5px;
-  font-size:11.5px;color:var(--label-2);margin-top:2px;font-variant-numeric:tabular-nums;
+  display:flex;align-items:center;justify-content:center;gap:4px;
+  font-size:11px;color:var(--label-3);margin-top:1px;font-variant-numeric:tabular-nums;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
 }
 .workout-stats-chips .h-stat, .hevy-stats-chips .h-stat{display:inline-flex;align-items:center;gap:3px}
@@ -1575,7 +1576,7 @@ h4.sec{
 
 /* --- stat tiles --- */
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-.tile{background:var(--surface);border-radius:var(--r-card);padding:14px}
+.tile{background:var(--surface);border-radius:var(--r-card);padding:14px;border:1px solid var(--sep-op)}
 .tile .l{
   color:var(--label-2);font-size:13px;font-weight:400;letter-spacing:-.004em;
   text-transform:none;display:flex;align-items:center;gap:5px;
@@ -2189,5 +2190,45 @@ body.resting #toast{bottom:calc(200px + var(--sab))}
 }
 .golden-pr-close:active {
   background: rgba(255, 255, 255, 0.2);
+}
+
+/* --- profile --- */
+.profile-hero{text-align:center;margin-bottom:20px}
+.profile-avatar{
+  width:72px;height:72px;border-radius:50%;margin:0 auto 10px;
+  background:linear-gradient(135deg,var(--acc),var(--acc-2));color:var(--on-acc);
+  font-size:26px;font-weight:700;letter-spacing:-.02em;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 20px color-mix(in srgb,var(--acc) 35%,transparent);
+}
+.profile-name{font-size:24px;font-weight:700;letter-spacing:-.02em;margin:0 0 2px}
+.profile-since{margin:0}
+.profile-stats-row{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;
+}
+.profile-stat{
+  background:var(--surface);border-radius:var(--r-card);padding:14px 10px;text-align:center;
+}
+.profile-stat-v{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.profile-stat-l{font-size:12px;color:var(--label-2);margin-top:3px}
+.profile-bw-current{margin-top:8px}
+.profile-bw-current .big{font-size:28px;font-weight:600}
+
+/* --- consistency bars --- */
+.consistency-bars{display:flex;align-items:flex-end;gap:4px;height:64px;padding-top:8px}
+.consistency-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
+.consistency-bar{width:100%;min-height:4px;border-radius:3px;overflow:hidden;display:flex;align-items:flex-end}
+.consistency-bar-fill{width:100%;height:100%;border-radius:3px}
+.consistency-bar-num{font-size:9px;color:var(--label-3);font-variant-numeric:tabular-nums}
+
+/* --- plan day accent --- */
+.plan-day-active{box-shadow:inset 3px 0 0 var(--acc)}
+
+/* --- home hero muscle chips --- */
+.hero-muscle-chip{
+  display:inline-flex;align-items:center;padding:3px 9px;border-radius:6px;
+  font-size:11px;font-weight:600;letter-spacing:.01em;
+  background:color-mix(in srgb,var(--acc) 12%,transparent);color:var(--acc);
+  text-transform:capitalize;
 }
 

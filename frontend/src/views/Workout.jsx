@@ -1316,11 +1316,11 @@ function ActiveWorkout() {
           <span>{A.name}</span>
         </div>
         <div className="sub workout-stats-chips">
-          <span className="h-stat"><Icon name="clock" style={{ fontSize: 11 }} /> {A.backfill ? fmtDate(A.d, true) : <Elapsed start={A.start} />}</span>
+          <span className="h-stat"><Icon name="clock" style={{ fontSize: 10 }} /> {A.backfill ? fmtDate(A.d, true) : <Elapsed start={A.start} />}</span>
           <span className="h-stat-sep">·</span>
-          <span className="h-stat"><Icon name="dumbbell" style={{ fontSize: 11 }} /> {fmtNum(liveVolume)} {S.unit}</span>
+          <span className="h-stat"><Icon name="dumbbell" style={{ fontSize: 10 }} /> {fmtNum(liveVolume)} {S.unit}</span>
           <span className="h-stat-sep">·</span>
-          <span className="h-stat"><Icon name="check" style={{ fontSize: 11 }} /> {done}/{total}</span>
+          <span className="h-stat"><Icon name="check" style={{ fontSize: 10 }} /> {done}/{total}</span>
           <span className="h-stat-sep">·</span>
           <HeartRateBadge />
           <SyncStatusBadge />

@@ -4,7 +4,7 @@ import { useUI } from './store/useUI.js'
 import { EXDB, EXIDX, BODYPARTS, isCardio, isBodyweightEq, allExercises, equipmentOf, smOf, matchExercise, scoreExercise, exOr, usageMap, QUICK_EQ_PRESETS, QUICK_MUSCLE_GROUPS, matchesMuscleGroup } from './lib/exercises.js'
 import { activeProfile, exAvailable, ALL_EQUIPMENT, newProfile } from './lib/equipment.js'
 import { fmtDate, fmtNum, fmtVol, fmtDur, durPart, todayISO, isoOf, uid, exCount, DAYN, DAYS, weekOrder, weekStartOf, weekDayOffset, MONTHS_LONG, ACCENTS } from './lib/format.js'
-import { lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, effectiveRoutineId, workoutVolume, setsDone, setsDoneActive, lastBW, supersetUnits, unitOf, setLabel, defaultConfig, cleanupSg, modeOf, effortOf, EFFORT, capEffort, stepEffort, isBw, isPerSide, sideReps, workSetsDone, applyIntensifierPlan, MAX_PLANNED_WARMUPS, NOTE_MAX } from './lib/history.js'
+import { lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, effectiveRoutineId, workoutVolume, setsDone, setsDoneActive, lastBW, streakWeeks, supersetUnits, unitOf, setLabel, defaultConfig, cleanupSg, modeOf, effortOf, EFFORT, capEffort, stepEffort, isBw, isPerSide, sideReps, workSetsDone, applyIntensifierPlan, MAX_PLANNED_WARMUPS, NOTE_MAX } from './lib/history.js'
 import { usesBar, barWeightFor, defaultBarWeight, hasBarOverride } from './lib/bar.js'
 import { toScale, rirOf, EFFORT_PRESETS, effortColor } from './lib/effort.js'
 import { beep, vibrate } from './lib/sound.js'
@@ -2436,6 +2436,13 @@ function FinishSummary({ w, prs, e1prs = [], close }) {
         unit: st.unit,
         name: w.name || 'Workout',
         date: fmtDate(w.d, true),
+        exercises: (w.entries || [])
+          .filter(e => (e.sets || []).some(s => s.done))
+          .map(e => ({
+            name: exerciseNameFor(exOr(e.id)),
+            sets: (e.sets || []).filter(s => s.done).length + ' sets'
+          })),
+        streak: streakWeeks(st),
       })
       if (!blob) return
       const file = new File([blob], `smitrix-workout-${w.d || 'summary'}.png`, { type: 'image/png' })

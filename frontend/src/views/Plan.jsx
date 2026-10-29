@@ -54,9 +54,9 @@ export default function Plan() {
       <div className="list" style={{ display: 'flex', flexDirection: 'column' }}>
         {weekOrder(weekStartOf(S)).map(d => {
           const r = S.routines.find(x => x.id === S.week[d])
-          return <div key={d} className="item" {...tappable(() => dayAssignSheet(d))}>
+          return <div key={d} className={'item' + (r ? ' plan-day-active' : '')} {...tappable(() => dayAssignSheet(d))}>
             <div className="grow"><div className="tt">{t(DAYN[d])}</div></div>
-            {r ? <span className="tag acc"><Icon name={glyphOf(r.emoji)} />{r.name}</span> : <span className="tag">{t('Rest')}</span>}
+            {r ? <span className="tag acc"><Icon name={glyphOf(r.emoji)} />{r.name}</span> : <span className="tag dim">{t('Rest')}</span>}
             <Icon name="chevronRight" className="chev" /></div>
         })}
       </div>

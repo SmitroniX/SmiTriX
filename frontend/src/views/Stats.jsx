@@ -445,8 +445,51 @@ export default function Stats() {
       <div className="tile"><div className="l"><Icon name="calendar" />{t('This month')}</div><div className="v">{monthW}</div></div>
       <div className="tile"><div className="l"><Icon name="flame" />{t('Week streak')}</div><div className="v">{streakWeeks(S)}</div></div>
       <div className="tile"><div className="l"><Icon name="scale" />{t('Weight 30d')}</div><div className="v" style={{ fontSize: 22, color: bwDelta30 === null ? 'inherit' : bwDeltaColor(bwDelta30, (lastBW(S) || {}).w || 0) }}>{bwDelta30 === null ? '—' : (bwDelta30 > 0 ? '+' : '') + fmtNum(bwDelta30) + ' ' + S.unit}</div></div>
-
+      <div className="tile" {...tappable(() => calendarSheet())}><div className="l"><Icon name="target" />{t('Unique days')}</div><div className="v">{new Set(workouts.map(w => w.d).filter(Boolean)).size}</div></div>
     </div>
+
+    {/* Consistency card */}
+    {workouts.length > 2 && (() => {
+      // Workouts per week for the last 12 weeks
+      const weeks12 = []
+      for (let w = 0; w < 12; w++) {
+        const wkEnd = new Date(now - w * 7 * 86400000)
+        const wkStart = new Date(now - (w + 1) * 7 * 86400000)
+        const count = workouts.filter(wo => {
+          const t = wo.start || new Date(wo.d).getTime()
+          return t >= wkStart.getTime() && t < wkEnd.getTime()
+        }).length
+        weeks12.push(count)
+      }
+      weeks12.reverse()
+      const avg = weeks12.reduce((s, v) => s + v, 0) / 12
+      const max = Math.max(1, ...weeks12)
+      const activeWeeks = weeks12.filter(c => c > 0).length
+
+      return <div className="card">
+        <h2>{t('Consistency')} <span className="dim" style={{ textTransform: 'none', letterSpacing: 0 }}>· {t('last 12 weeks')}</span></h2>
+        <div className="row between" style={{ marginBottom: 10 }}>
+          <div>
+            <div className="stat-v">{fmtNum(Math.round(avg * 10) / 10)}</div>
+            <div className="small dim">{t('avg per week')}</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div className="stat-v">{activeWeeks}<span className="dim" style={{ fontSize: 16 }}>/12</span></div>
+            <div className="small dim">{t('active weeks')}</div>
+          </div>
+        </div>
+        <div className="consistency-bars">
+          {weeks12.map((c, i) => (
+            <div key={i} className="consistency-bar-col">
+              <div className="consistency-bar" style={{ height: Math.max(4, Math.round(c / max * 48)) }}>
+                <div className="consistency-bar-fill" style={{ background: c > 0 ? 'var(--acc)' : 'var(--surface-3)' }} />
+              </div>
+              <span className="consistency-bar-num">{c || ''}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    })()}
 
     <div className="card">
       <h2>{t('Activity — last 12 months')} <span className="dim" style={{ textTransform: 'none', letterSpacing: 0 }}>· {t('by time trained')}</span></h2>
