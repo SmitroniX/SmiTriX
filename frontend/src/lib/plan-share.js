@@ -363,3 +363,101 @@ export function printPlan(S, owner) {
   if (doc.readyState === 'complete') setTimeout(run, 120)
   else ifr.onload = () => setTimeout(run, 120)
 }
+
+/* ============================ single routine sharing ============================ */
+
+export function buildRoutineBundle(routine, S = {}) {
+  if (!routine) return null
+  const usedCustom = new Set()
+  const cleanedEx = (routine.ex || []).map(e => {
+    if (e.id && String(e.id).startsWith('c_')) usedCustom.add(e.id)
+    return cleanEx(e)
+  })
+  const customEx = (S.customEx || []).filter(c => usedCustom.has(c.id))
+  return {
+    smitrix: 'routine',
+    v: 1,
+    exportedAt: todayISO(),
+    unit: S.unit || 'kg',
+    routine: {
+      name: routine.name || 'Shared Routine',
+      emoji: routine.emoji || 'dumbbell',
+      ex: cleanedEx
+    },
+    customEx
+  }
+}
+
+export function parseRoutine(raw) {
+  if (!raw) return null
+  let obj = raw
+  if (typeof raw === 'string') {
+    try {
+      const trimmed = raw.trim()
+      if (trimmed.startsWith('{')) {
+        obj = JSON.parse(trimmed)
+      } else {
+        const decoded = atob(trimmed)
+        obj = JSON.parse(decoded)
+      }
+    } catch {
+      return null
+    }
+  }
+  if (!obj || (!obj.routine && !obj.name && !obj.ex)) return null
+  const r = obj.routine || obj
+  if (!Array.isArray(r.ex)) return null
+  return {
+    name: String(r.name || 'Imported Routine').slice(0, 50),
+    emoji: String(r.emoji || 'dumbbell'),
+    ex: r.ex.map(cleanEx),
+    customEx: Array.isArray(obj.customEx) ? obj.customEx : []
+  }
+}
+
+export function mergeRoutine(s, parsed) {
+  if (!s || !parsed) return null
+  if (Array.isArray(parsed.customEx) && parsed.customEx.length > 0) {
+    const existing = new Set((s.customEx || []).map(c => c.id))
+    parsed.customEx.forEach(c => {
+      if (!existing.has(c.id)) {
+        s.customEx = s.customEx || []
+        s.customEx.push(c)
+      }
+    })
+  }
+  const newRoutine = {
+    id: uid(),
+    name: parsed.name || 'Imported Routine',
+    emoji: parsed.emoji || 'dumbbell',
+    ex: (parsed.ex || []).map(e => ({
+      ...e,
+      sets: Math.max(1, Number(e.sets) || 3),
+      reps: Math.max(1, Number(e.reps) || 10),
+      weight: Number(e.weight) || 0
+    }))
+  }
+  s.routines = s.routines || []
+  s.routines.push(newRoutine)
+  return newRoutine
+}
+
+export function routineShareText(routine, S = {}) {
+  if (!routine) return ''
+  const lines = [
+    `⚡ ${routine.name.toUpperCase()} (SmiTriX Routine)`,
+    `Exercises: ${routine.ex?.length || 0}`,
+    `----------------------------------------`
+  ]
+  ;(routine.ex || []).forEach((e, idx) => {
+    const ex = EXIDX[e.id]
+    const name = ex ? exerciseNameFor(ex) : (e.n || e.id)
+    const sets = e.sets || 3
+    const reps = e.reps || 10
+    const w = e.weight ? ` @ ${e.weight} ${S.unit || 'kg'}` : ''
+    lines.push(`${idx + 1}. ${name} — ${sets} × ${reps}${w}`)
+  })
+  lines.push(`----------------------------------------`)
+  lines.push(`Tracked on SmiTriX · Self-Hosted & Local-First`)
+  return lines.join('\n')
+}

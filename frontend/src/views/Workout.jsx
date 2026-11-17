@@ -13,7 +13,7 @@ import { t, exerciseNameFor } from '../lib/i18n.js'
 import { api } from '../lib/api.js'
 import { insertionIndexAfterCurrentUnit, nextUnfinishedUnit, setProgressHighWater, supersetFlowStep, restAfterSet, restOnRecheck, restSecFor } from '../lib/supersetFlow.js'
 import Media from '../components/Media.jsx'
-import { startFlow, exercisePicker, exConfigSheet, exerciseDetailSheet, finishWorkout, workoutCompleteSheet, confirmSheet, exerciseNoteSheet, sessionNoteSheet, swapActiveWorkoutExercise, barWeightSheet, plateCalculatorSheet, menuSheet, effortPickerSheet, exerciseHistorySheet } from '../sheets.jsx'
+import { startFlow, exercisePicker, exConfigSheet, exerciseDetailSheet, finishWorkout, workoutCompleteSheet, confirmSheet, exerciseNoteSheet, sessionNoteSheet, swapActiveWorkoutExercise, barWeightSheet, plateCalculatorSheet, menuSheet, effortPickerSheet, exerciseHistorySheet, shareRoutineSheet } from '../sheets.jsx'
 import { effortColor } from '../lib/effort.js'
 import { estimate1RM, best1RM } from '../lib/onerm.js'
 import Icon from '../components/Icon.jsx'
@@ -47,6 +47,7 @@ function StartChooser() {
       title: r.name,
       items: [
         { icon: 'pencil', label: t('Edit routine'), onClick: () => nav('/plan/r/' + r.id) },
+        { icon: 'share', label: t('Share routine'), onClick: () => shareRoutineSheet(r) },
         {
           icon: 'copy',
           label: t('Duplicate routine'),
@@ -66,7 +67,11 @@ function StartChooser() {
             confirmText: t('Delete'),
             danger: true,
             onConfirm: () => {
-              update(s => { s.routines = s.routines.filter(x => x.id !== r.id) })
+              update(s => {
+                s.routines = s.routines.filter(x => x.id !== r.id)
+                Object.keys(s.week).forEach(k => { if (s.week[k] === r.id) delete s.week[k] })
+                Object.keys(s.dayPlan).forEach(k => { if (s.dayPlan[k] === r.id) delete s.dayPlan[k] })
+              })
               useUI.getState().toast(t('Routine deleted'))
             }
           })

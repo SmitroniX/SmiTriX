@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
+import { useUI } from '../store/useUI.js'
 import { DAYN, weekOrder, weekStartOf, uid, exCount } from '../lib/format.js'
 import { t } from '../lib/i18n.js'
 import { dayAssignSheet, starterPlanSheet, planToolsSheet } from '../sheets.jsx'
@@ -11,6 +12,14 @@ import { DEMO } from '../lib/demo.js'
 import { MOBILE } from '../lib/mobile.js'
 import { coachAvailable } from '../lib/coach.js'
 import { openTutorial } from '../components/TutorialDialog.jsx'
+import { copyRoutine } from '../lib/routines.js'
+
+const openSplitChooser = () => import('../sheets.jsx').then(m => m.splitChooserSheet?.())
+const openImportRoutine = () => import('../sheets.jsx').then(m => m.importRoutineSheet?.())
+const openShareRoutine = r => import('../sheets.jsx').then(m => m.shareRoutineSheet?.(r))
+const openStartFlow = id => import('../sheets.jsx').then(m => m.startFlow?.(id))
+const openRoutineMenu = (title, subtitle, items) => import('../sheets.jsx').then(m => m.menuSheet?.({ title, subtitle, items }))
+const openConfirm = opts => import('../sheets.jsx').then(m => m.confirmSheet?.(opts))
 
 export default function Plan() {
   const nav = useNavigate()
@@ -32,10 +41,48 @@ export default function Plan() {
     nav('/plan/r/' + r.id)
   }
 
+  const handleRoutineMenu = (r, ev) => {
+    ev?.stopPropagation?.()
+    openRoutineMenu(r.name, exCount(r.ex?.length || 0), [
+      { icon: 'play', label: t('Start workout'), onClick: () => openStartFlow(r.id) },
+      { icon: 'pencil', label: t('Edit routine'), onClick: () => nav('/plan/r/' + r.id) },
+      { icon: 'share', label: t('Share routine'), onClick: () => openShareRoutine(r) },
+      {
+        icon: 'copy',
+        label: t('Duplicate routine'),
+        onClick: () => {
+          const copy = copyRoutine(r, t('Copy'))
+          update(s => { s.routines.push(copy) })
+          useUI.getState().toast(t('Routine duplicated'))
+        }
+      },
+      {
+        icon: 'trash',
+        label: t('Delete routine'),
+        danger: true,
+        onClick: () => openConfirm({
+          title: t('Delete {0}?', r.name),
+          message: t('This will remove the routine from your plan and week schedule.'),
+          confirmText: t('Delete'),
+          danger: true,
+          onConfirm: () => {
+            update(s => {
+              s.routines = s.routines.filter(x => x.id !== r.id)
+              Object.keys(s.week).forEach(k => { if (s.week[k] === r.id) delete s.week[k] })
+              Object.keys(s.dayPlan).forEach(k => { if (s.dayPlan[k] === r.id) delete s.dayPlan[k] })
+            })
+            useUI.getState().toast(t('Routine deleted'))
+          }
+        })
+      }
+    ])
+  }
+
   return <>
     <div className="hdr">
       <div><h1>{t('Plan')}</h1><div className="sub">{t('Your weekly routine')}</div></div>
       <div className="row" style={{ gap: 6 }}>
+        <button className="iconbtn" onClick={openSplitChooser} aria-label={t('Explore Splits & Legends')} title={t('Explore Splits & Legends')}><Icon name="sparkles" /></button>
         <button className="iconbtn" onClick={() => openTutorial(1)} aria-label={t('How planning works')} title={t('How planning works')}><Icon name="help" /></button>
         <button className="iconbtn" onClick={planToolsSheet} aria-label={t('Share your plan')} title={t('Share your plan')}><Icon name="upload" /></button>
       </div>
@@ -63,14 +110,33 @@ export default function Plan() {
     </div><div>
       <div className="row between" style={{ marginTop: 22, marginBottom: 10 }}>
         <h4 className="sec" style={{ margin: 0 }}>{t('Routines')}</h4>
-        <Button size="sm" variant="tinted" icon="plus" onClick={addRoutine}>{t('New')}</Button>
+        <div className="row" style={{ gap: 6 }}>
+          <Button size="sm" variant="tinted" icon="sparkles" onClick={openSplitChooser}>{t('Splits')}</Button>
+          <Button size="sm" variant="tinted" icon="plus" onClick={addRoutine}>{t('New')}</Button>
+        </div>
       </div>
       {S.routines.length ? <div className="list">{S.routines.map(r => <div key={r.id} className="item" {...tappable(() => nav('/plan/r/' + r.id))}>
         <span className="lrow-i"><Icon name={glyphOf(r.emoji)} /></span>
         <div className="grow"><div className="tt">{r.name}</div><div className="ss">{exCount(r.ex.length)}</div></div>
+        <button
+          className="iconbtn"
+          style={{ width: 32, height: 32, borderRadius: 8, color: 'var(--sub)', marginRight: 2, flexShrink: 0 }}
+          onClick={ev => handleRoutineMenu(r, ev)}
+          aria-label={t('Routine options')}
+          title={t('Routine options')}
+        >
+          <Icon name="dotsVertical" />
+        </button>
         <Icon name="chevronRight" className="chev" /></div>)}</div> : <>
-        <div className="empty"><div className="ico"><Icon name="clipboard" /></div>{t('No routines yet.')}<br />{t('Create one or load the starter plan.')}</div>
+        <div className="empty">
+          <div className="ico"><Icon name="clipboard" /></div>
+          {t('No routines yet.')}<br />{t('Create one or explore legendary workout splits.')}
+        </div>
         <Button icon="sparkles" onClick={starterPlanSheet}>{t('Load starter plan')}</Button>
+        <div style={{ height: 8 }} />
+        <Button variant="tinted" icon="sparkles" onClick={openSplitChooser}>{t('Explore Splits & Legends')}</Button>
+        <div style={{ height: 8 }} />
+        <Button variant="ghost" icon="download" onClick={openImportRoutine}>{t('Import shared routine')}</Button>
         <div style={{ height: 8 }} />
         <Button variant="ghost" className="dim" icon="lightbulb" onClick={() => openTutorial(1)}>{t('How planning works (Guide)')}</Button>
       </>}

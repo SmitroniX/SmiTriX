@@ -27,7 +27,10 @@ import { exerciseMuscleSnapshot, loadOfWorkouts, MUSCLES, MUSCLE_NAME, normalize
 import { parseImport, mergeImport } from './lib/import-csv.js'
 import { importHevyData, HevyApiError, HEVY_DEV_SETTINGS, mergeHevyRoutines } from './lib/import-hevy.js'
 import { getHevyApiKey, setHevyApiKey } from './lib/coach-secrets.js'
-import { buildPlanBundle, parsePlan, mergePlan, printPlan } from './lib/plan-share.js'
+import { buildPlanBundle, parsePlan, mergePlan, printPlan, buildRoutineBundle, parseRoutine, mergeRoutine, routineShareText } from './lib/plan-share.js'
+import ShareCardModal from './components/ShareCardModal.jsx'
+import SplitChooserModal from './components/SplitChooserModal.jsx'
+import AchievementsModal from './components/AchievementsModal.jsx'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from './lib/onerm.js'
 import { exerciseHistory } from './lib/exercise-history.js'
 import { nextPrescription, applyPrescription, policyFor, defaultIncrement, POLICIES_FOR, POLICY_NAME, POLICY_DESC, MAX_BW_SETS, weightIncrement, stepWeight } from './lib/progression.js'
@@ -1942,8 +1945,11 @@ function PlanTools({ close }) {
       <div className="dim small" style={{ margin: '7px 2px 0', lineHeight: 1.4 }}>{t('A clean one-page-per-plan printout — no exercise ever splits across a page.')}</div>
     </>}
     {!hasRoutines && <div className="dim small" style={{ margin: '12px 2px 0' }}>{t('Add an exercise to a routine first — an empty plan has nothing to share.')}</div>}
-    <h4 className="sec">{t('Got a plan from a friend?')}</h4>
-    <Button variant="ghost" icon="folder" onClick={() => fileRef.current?.click()}>{t('Import a plan file')}</Button>
+    <h4 className="sec">{t('Got a routine or plan from a friend?')}</h4>
+    <div className="row" style={{ gap: 8 }}>
+      <Button variant="tinted" icon="download" onClick={() => { close(); importRoutineSheet() }} style={{ flex: 1 }}>{t('Import Routine')}</Button>
+      <Button variant="ghost" icon="folder" onClick={() => fileRef.current?.click()} style={{ flex: 1 }}>{t('Import Plan File')}</Button>
+    </div>
     <input ref={fileRef} type="file" accept="application/json,.json" onChange={pickFile} hidden />
   </>
 }
@@ -2076,10 +2082,206 @@ function WorkoutDetail({ w, close }) {
       placeholder={t('How the session went as a whole.')}
       onFocus={onNoteFocus} onChange={e => setNote(e.target.value)} onBlur={saveNote} />
     <div style={{ height: 14 }} />
-    <Button variant="danger" onClick={() => confirmSheet({ title: t('Delete workout?'), message: t('This removes it from your history for good.'), confirmText: t('Delete'), danger: true, onConfirm: () => { update(s => { s.workouts = s.workouts.filter(x => x.id !== w.id) }); close(); toast(t('Workout deleted')) } })}>{t('Delete workout')}</Button>
+    <div className="row" style={{ gap: 8 }}>
+      <Button variant="primary" icon="share" style={{ flex: 1 }} onClick={() => { close(); shareWorkoutSheet(w) }}>{t('Share workout')}</Button>
+      <Button variant="danger" icon="trash" style={{ flex: 1 }} onClick={() => confirmSheet({ title: t('Delete workout?'), message: t('This removes it from your history for good.'), confirmText: t('Delete'), danger: true, onConfirm: () => { update(s => { s.workouts = s.workouts.filter(x => x.id !== w.id) }); close(); toast(t('Workout deleted')) } })}>{t('Delete')}</Button>
+    </div>
   </>
 }
 export const workoutDetailSheet = w => ui().openSheet(close => <WorkoutDetail w={w} close={close} />)
+
+export const shareWorkoutSheet = (w, opts = {}) => {
+  const st = useStore.getState().S
+  const athlete = useStore.getState().user?.name || ''
+  ui().openSheet(close => (
+    <ShareCardModal
+      workout={w}
+      prs={opts.prs || w.prs || []}
+      e1prs={opts.e1prs || []}
+      unit={st.unit}
+      streak={streakWeeks(st)}
+      athleteName={athlete}
+      close={close}
+    />
+  ), { kind: 'center' })
+}
+
+function ShareRoutineModal({ routine, close }) {
+  const st = useStore(s => s.S)
+  const bundle = buildRoutineBundle(routine, st)
+  const shareText = routineShareText(routine, st)
+  const jsonStr = JSON.stringify(bundle, null, 2)
+  const base64Code = btoa(JSON.stringify(bundle))
+
+  const handleCopyText = () => {
+    navigator.clipboard?.writeText(shareText)
+    toast(t('Routine text summary copied!'))
+  }
+
+  const handleCopyCode = () => {
+    navigator.clipboard?.writeText(base64Code)
+    toast(t('Share code copied! Send to a friend.'))
+  }
+
+  const handleDownload = () => {
+    const blob = new Blob([jsonStr], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `smitrix-routine-${(routine.name || 'routine').toLowerCase().replace(/\s+/g, '-')}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast(t('Routine file downloaded'))
+  }
+
+  const handleShareNative = async () => {
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: `${routine.name} — SmiTriX Routine`,
+          text: shareText
+        })
+      } catch (e) {
+        if (e?.name !== 'AbortError') handleCopyText()
+      }
+    } else {
+      handleCopyText()
+    }
+  }
+
+  return (
+    <div style={{ padding: '4px 0' }}>
+      <div className="row between" style={{ marginBottom: 12 }}>
+        <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Icon name="share" style={{ color: 'var(--acc)' }} />
+          {t('Share Routine')}
+        </h3>
+        <button className="iconbtn" onClick={close} aria-label="Close"><Icon name="xmark" /></button>
+      </div>
+
+      <div style={{ padding: '12px 14px', background: 'var(--surface-2)', borderRadius: 14, marginBottom: 14 }}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: '#ffffff', marginBottom: 2 }}>
+          {routine.name}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--label-2)' }}>
+          {t('{0} exercises planned', routine.ex?.length || 0)}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <Button variant="primary" icon="share" onClick={handleShareNative}>
+          {t('Share Routine to Friends')}
+        </Button>
+        <Button variant="tinted" icon="copy" onClick={handleCopyText}>
+          {t('Copy Text Summary (WhatsApp / Chat)')}
+        </Button>
+        <div className="row" style={{ gap: 8 }}>
+          <Button variant="ghost" icon="key" onClick={handleCopyCode} style={{ flex: 1 }}>
+            {t('Copy Share Code')}
+          </Button>
+          <Button variant="ghost" icon="download" onClick={handleDownload} style={{ flex: 1 }}>
+            {t('Save File')}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+export const shareRoutineSheet = routine => ui().openSheet(close => <ShareRoutineModal routine={routine} close={close} />, { kind: 'center' })
+
+function ImportRoutineModal({ close }) {
+  const [inputVal, setInputVal] = useState('')
+  const [parsed, setParsed] = useState(null)
+  const [error, setError] = useState('')
+  const fileRef = useRef(null)
+
+  const handleParse = (text) => {
+    setError('')
+    const res = parseRoutine(text)
+    if (res) {
+      setParsed(res)
+    } else {
+      setError(t('Invalid routine format. Paste valid SmiTriX routine code or JSON.'))
+    }
+  }
+
+  const handleImport = () => {
+    if (!parsed) return
+    update(s => {
+      mergeRoutine(s, parsed)
+    })
+    toast(t('Routine “{0}” imported successfully!', parsed.name))
+    close()
+    nav('/plan')
+  }
+
+  const handleFile = (e) => {
+    const f = e.target.files[0]
+    if (!f) return
+    const rd = new FileReader()
+    rd.onload = () => handleParse(rd.result)
+    rd.readAsText(f)
+  }
+
+  return (
+    <div style={{ padding: '4px 0' }}>
+      <div className="row between" style={{ marginBottom: 12 }}>
+        <h3 style={{ margin: 0 }}>{t('Import Shared Routine')}</h3>
+        <button className="iconbtn" onClick={close} aria-label="Close"><Icon name="xmark" /></button>
+      </div>
+
+      {!parsed ? (
+        <>
+          <div className="small dim" style={{ marginBottom: 8 }}>{t('Paste shared routine code, JSON, or choose file:')}</div>
+          <textarea
+            className="input"
+            rows={4}
+            value={inputVal}
+            onChange={e => {
+              setInputVal(e.target.value)
+              if (e.target.value.trim()) handleParse(e.target.value)
+            }}
+            placeholder={t('Paste SmiTriX routine code or JSON here...')}
+            style={{ marginBottom: 10, fontFamily: 'monospace', fontSize: 12 }}
+          />
+          {error ? <div className="small" style={{ color: 'var(--red)', marginBottom: 8 }}>{error}</div> : null}
+          <div className="row" style={{ gap: 8 }}>
+            <Button variant="tinted" icon="folder" onClick={() => fileRef.current?.click()} style={{ flex: 1 }}>{t('Choose File')}</Button>
+            <input ref={fileRef} type="file" accept=".json,application/json" onChange={handleFile} hidden />
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{ padding: '12px 14px', background: 'var(--surface-2)', borderRadius: 14, marginBottom: 14 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#ffffff', marginBottom: 2 }}>{parsed.name}</div>
+            <div style={{ fontSize: 12, color: 'var(--acc)' }}>{t('{0} exercises included', parsed.ex?.length || 0)}</div>
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 160, overflowY: 'auto' }}>
+              {parsed.ex.map((e, idx) => {
+                const ex = EXIDX[e.id]
+                return (
+                  <div key={idx} className="small dim">
+                    • {ex ? exerciseNameFor(ex) : (e.n || e.id)} ({e.sets} × {e.reps})
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+          <Button variant="primary" icon="plus" onClick={handleImport}>{t('Import into My Routines')}</Button>
+          <div style={{ height: 8 }} />
+          <Button variant="ghost" onClick={() => setParsed(null)}>{t('Back')}</Button>
+        </>
+      )}
+    </div>
+  )
+}
+export const importRoutineSheet = () => ui().openSheet(close => <ImportRoutineModal close={close} />, { kind: 'center' })
+
+export const splitChooserSheet = (category = 'legend') => ui().openSheet(close => <SplitChooserModal initialCategory={category} close={close} />, { kind: 'center' })
+
+export const achievementsSheet = () => {
+  const st = useStore.getState().S
+  ui().openSheet(close => <AchievementsModal S={st} close={close} />, { kind: 'center' })
+}
 
 /* ============================ calendar ============================ */
 function Calendar({ start, close }) {
@@ -2128,13 +2330,50 @@ export const calendarSheet = start => ui().openSheet(close => <Calendar start={s
 /* shared small workout row (used in lists) */
 export function WorkoutRow({ w, onClick }) {
   const st = useStore(s => s.S)
+  const update = useStore(s => s.update)
   const glyph = glyphOf((st.routines.find(r => r.id === w.routineId) || {}).emoji)
+
+  const handleMenu = ev => {
+    ev.stopPropagation()
+    menuSheet({
+      title: w.name,
+      subtitle: fmtDate(w.d, true),
+      items: [
+        { icon: 'info', label: t('View details'), onClick: () => workoutDetailSheet(w) },
+        { icon: 'share', label: t('Share workout card'), onClick: () => shareWorkoutSheet(w) },
+        {
+          icon: 'trash',
+          label: t('Delete workout'),
+          danger: true,
+          onClick: () => confirmSheet({
+            title: t('Delete workout?'),
+            message: t('This removes it from your history for good.'),
+            confirmText: t('Delete'),
+            danger: true,
+            onConfirm: () => {
+              update(s => { s.workouts = s.workouts.filter(x => x.id !== w.id) })
+              useUI.getState().toast(t('Workout deleted'))
+            }
+          })
+        }
+      ]
+    })
+  }
+
   return <div className="item" {...tappable(onClick)}>
     <span className="lrow-i" style={{ width: 34, height: 34, borderRadius: 8, fontSize: 19 }}><Icon name={glyph} /></span>
     <div className="grow"><div className="tt">{w.name}</div>
       <div className="ss">{[fmtDate(w.d, true), ...durPart(w.end - w.start), t('{0} sets', setsDone(w)), fmtVol(w.vol, st.unit)].join(' · ')}</div></div>
     {w.prs && w.prs.length > 0 && <span className="pr"><Icon name="trophy" />{w.prs.length} PR</span>}
-    <Icon name="chevronRight" className="chev" />
+    <button
+      className="iconbtn"
+      style={{ width: 32, height: 32, borderRadius: 8, color: 'var(--sub)', marginLeft: 4, flexShrink: 0 }}
+      onClick={handleMenu}
+      aria-label={t('Workout options')}
+      title={t('Workout options')}
+    >
+      <Icon name="dotsVertical" />
+    </button>
   </div>
 }
 
@@ -2490,7 +2729,7 @@ function FinishSummary({ w, prs, e1prs = [], close }) {
     <BodyMap load={loadOfWorkouts([w])} body={st.body} />
     <div style={{ height: 14 }} />
     <div className="row" style={{ gap: 8 }}>
-      <Button icon="share" onClick={handleShare} style={{ flex: 1 }}>{t('Share card')}</Button>
+      <Button icon="share" onClick={() => shareWorkoutSheet(w, { prs, e1prs })} style={{ flex: 1 }}>{t('Share card')}</Button>
       <Button variant="primary" onClick={() => { close(); nav('/home') }} style={{ flex: 1 }}>{t('Nice!')}</Button>
     </div>
   </div>

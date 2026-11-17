@@ -8,7 +8,7 @@ import { uid } from '../lib/format.js'
 import { t, exerciseNameFor } from '../lib/i18n.js'
 import { supersetUnits, moveSupersetUnit, cleanupSg, exLine, defaultConfig } from '../lib/history.js'
 import { Thumb } from '../components/Media.jsx'
-import { glyphPicker, exercisePicker, exConfigSheet, confirmSheet } from '../sheets.jsx'
+import { glyphPicker, exercisePicker, exConfigSheet, confirmSheet, shareRoutineSheet } from '../sheets.jsx'
 import Icon from '../components/Icon.jsx'
 import { glyphOf } from '../lib/glyphs.js'
 import { Button, Row, SelectRow, Switch } from '../components/ui.jsx'
@@ -440,6 +440,8 @@ export default function RoutineEdit() {
         exConfigSheet(ex, null, cfg => edit(x => { x.push({ id: ex.id, ...cfg }) }), null, r)
       }
     })} icon="plus">{t('Add exercise')}</Button>
+    <div style={{ height: 10 }} />
+    <Button variant="tinted" icon="share" onClick={() => shareRoutineSheet(r)}>{t('Share routine')}</Button>
     <div style={{ height: 10 }} />
     <Button onClick={() => {
       const copy = copyRoutine(r, t('Copy'))
