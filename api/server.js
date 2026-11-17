@@ -18,6 +18,7 @@ import { startCadence } from './coach/cadence.js';
 import { startWarmup } from './coach/warmup.js';
 import { dayReminderPush, restTimerPush, testPush } from './push-messages.js';
 import { verifyError } from './verify-error.js';
+import { checkRateLimit, recordAuthFailure, recordAuthSuccess, sanitizeInput } from './rate-limit.js';
 
 const PORT = +(process.env.PORT || 3000);
 const DATA = process.env.DATA_DIR || '/data';
@@ -429,7 +430,10 @@ function readBody(req) {
       chunks.push(d);
     });
     req.on('end', () => {
-      try { resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}); }
+      try {
+        const parsed = chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {};
+        resolve(sanitizeInput(parsed));
+      }
       catch { reject(new Error('bad json')); }
     });
     req.on('error', reject);
@@ -650,6 +654,7 @@ const routes = {
     const body = await readBody(req);
     const c = takeChallenge(body.cid);
     if (!c) {
+      recordAuthFailure(clientIp(req));
       audit(req, 'auth.login.fail', { ok: false, msg: 'challenge-expired' });
       return json(res, 400, { error: 'challenge expired — try again' });
     }
@@ -658,6 +663,7 @@ const routes = {
       // No credential id goes in the log: it is a stable handle for one passkey, and recording it
       // would let an admin correlate an unknown device across attempts. Nothing here identifies
       // the caller beyond the timestamp (and the network, if AUDIT_IP is on).
+      recordAuthFailure(clientIp(req));
       audit(req, 'auth.login.fail', { ok: false, msg: 'unknown-credential' });
       return json(res, 404, { error: 'unknown passkey — create a profile first' });
     }
@@ -677,10 +683,12 @@ const routes = {
         }
       });
     } catch (e) {
+      recordAuthFailure(clientIp(req));
       audit(req, 'auth.login.fail', { ok: false, user: db.users.find(u => u.id === cred.userId), uid: cred.userId, msg: 'verify-error' });
       return json(res, 400, { error: verifyError(e, { rpId: RP_ID, origin: ORIGIN }) });
     }
     if (!verification.verified) {
+      recordAuthFailure(clientIp(req));
       audit(req, 'auth.login.fail', { ok: false, user: db.users.find(u => u.id === cred.userId), uid: cred.userId, msg: 'not-verified' });
       return json(res, 400, { error: 'not verified' });
     }
@@ -688,13 +696,16 @@ const routes = {
     saveDb();
     const user = db.users.find(u => u.id === cred.userId);
     if (!user) {
+      recordAuthFailure(clientIp(req));
       audit(req, 'auth.login.fail', { ok: false, uid: cred.userId, msg: 'user-missing' });
       return json(res, 500, { error: 'user missing' });
     }
     if (user.disabled) {
+      recordAuthFailure(clientIp(req));
       audit(req, 'auth.login.fail', { ok: false, user, msg: 'account-disabled' });
       return json(res, 403, { error: 'this account has been disabled' });
     }
+    recordAuthSuccess(clientIp(req));
     audit(req, 'auth.login.ok', { user });
     json(res, 200, { user: { id: user.id, name: user.name, admin: isAdmin(user) } }, { 'Set-Cookie': sessionCookie(user) });
   },
@@ -1015,6 +1026,18 @@ http.createServer(async (req, res) => {
   const key = req.method + ' ' + url.pathname;
   const handler = routes[key];
   if (!handler) return json(res, 404, { error: 'not found' });
+
+  // Rate Limiting & Brute-Force Shield
+  const callerIp = clientIp(req) || req.socket?.remoteAddress;
+  const sessionUser = readSession(req);
+  const rl = checkRateLimit(req, key, callerIp, sessionUser?.id);
+  if (rl.limited) {
+    return json(res, rl.status || 429, { error: 'Too many requests', retryAfter: rl.retryAfter }, {
+      'Retry-After': String(rl.retryAfter || 60),
+      'X-RateLimit-Limit': String(rl.total || 120),
+      'X-RateLimit-Remaining': '0'
+    });
+  }
   if (!csrfOk(req, key)) {
     // Logged, not audited: this is reachable without a session, and an audit entry per attempt
     // would let anyone fill the log. An operator who has genuinely mis-set ORIGIN needs to see

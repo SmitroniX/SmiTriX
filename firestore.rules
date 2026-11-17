@@ -1,0 +1,83 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for auth verification and input validation
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.admin == true;
+    }
+
+    // User profile document: only the authenticated owner can read or write
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if isOwner(userId) 
+        && request.resource.data.keys().hasAll(['updatedAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 60;
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // User sync state / private fitness data backup
+    match /users/{userId}/data/{docId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
+
+    // Analytics events: allow append-only write from clients with consent; no client-side read
+    match /analytics_events/{eventId} {
+      allow read: if isAdmin();
+      allow create: if request.resource.data.keys().hasAll(['event', 'timestamp'])
+        && request.resource.data.event is string
+        && request.resource.data.event.size() <= 80
+        && request.resource.data.timestamp is number;
+      allow update, delete: if false;
+    }
+
+    // Crash reports: allow append-only write from clients; no client-side read
+    match /crash_reports/{reportId} {
+      allow read: if isAdmin();
+      allow create: if request.resource.data.keys().hasAll(['message', 'timestamp'])
+        && request.resource.data.message is string
+        && request.resource.data.message.size() <= 2000
+        && request.resource.data.timestamp is number;
+      allow update, delete: if false;
+    }
+
+    // User feedback: allow submit; no client-side read
+    match /feedback/{feedbackId} {
+      allow read: if isAdmin();
+      allow create: if request.resource.data.keys().hasAll(['message', 'timestamp'])
+        && request.resource.data.message is string
+        && request.resource.data.message.size() <= 1000
+        && request.resource.data.timestamp is number;
+      allow update, delete: if false;
+    }
+
+    // Security events: append-only auth/rate-limit audits; no client-side read
+    match /security_events/{eventId} {
+      allow read: if isAdmin();
+      allow create: if request.resource.data.keys().hasAll(['type', 'timestamp'])
+        && request.resource.data.type is string
+        && request.resource.data.timestamp is number;
+      allow update, delete: if false;
+    }
+
+    // Plans and Tier configurations: public read, admin-only write
+    match /plans_config/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Default deny all other paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

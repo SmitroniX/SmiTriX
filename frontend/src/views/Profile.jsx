@@ -319,6 +319,24 @@ export default function Profile() {
         <span className="tag dim" style={{ fontSize: 11, fontWeight: 700 }}>
           Level {athleteLevel}
         </span>
+        <button
+          onClick={() => nav('/plans')}
+          className="tag"
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            cursor: 'pointer',
+            background: S.tier === 'free' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+            color: S.tier === 'free' ? 'var(--blue)' : 'var(--amber)',
+            border: 'none',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4
+          }}
+          title={t('Manage subscription and features')}
+        >
+          {S.tier === 'free' ? `⚡ ${t('Free Plan')}` : `🏛️ ${t('Legacy Plan')}`}
+        </button>
       </div>
 
       {/* XP Level Progress Bar */}

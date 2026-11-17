@@ -23,6 +23,7 @@ import { playRestChime } from '../lib/sound.js'
 import { getApiKey, setApiKey, clearApiKey, hasApiKey, getHevyApiKey, setHevyApiKey, clearHevyApiKey } from '../lib/coach-secrets.js'
 import { HTTP_PROVIDERS, HTTP_PROVIDER_IDS, validateBaseUrl } from '../../../api/coach/core/providers.js'
 import { testHevyApiKey } from '../lib/import-hevy.js'
+import { setAnalyticsConsent } from '../lib/analytics.js'
 
 export default function Settings() {
   const nav = useNavigate()
@@ -401,6 +402,15 @@ export default function Settings() {
       </div>
     </Section>
 
+    {/* ---------- plans & feature management ---------- */}
+    <Section title={t('Plans & Feature Management')}>
+      <Row icon="shield" iconTint="var(--amber)"
+        title={t('Plans & Feature Tiers')}
+        subtitle={t('Compare Free Community Plan and Golden Era Legacy Vault')}
+        accessory="chevron"
+        onClick={() => nav('/plans')} />
+    </Section>
+
     {/* ---------- help & guide ---------- */}
     <Section title={t('Help & Guide')}>
       <Row icon="lightbulb" iconTint="var(--yellow)"
@@ -412,6 +422,15 @@ export default function Settings() {
 
     {/* ---------- data: fill it, bring things over, back it up, wipe it ---------- */}
     <Section title={t('Data')}>
+      <Row icon="chartLine" iconTint="var(--indigo)"
+        title={t('Anonymous Diagnostics & Telemetry')}
+        subtitle={t('Helps detect crashes and improve performance. Strictly zero personal data.')}>
+        <Switch checked={S.analyticsOptIn !== false} onChange={v => {
+          update(s => { s.analyticsOptIn = v })
+          setAnalyticsConsent(v)
+          toast(v ? t('Telemetry enabled') : t('Telemetry disabled'))
+        }} />
+      </Row>
       {MOBILE && updateInfo?.hasUpdate && updateInfo.apkUrl && <Row icon="info" iconTint="var(--purple)" title={t('SmiTriX v{0} available', updateInfo.latestVersion)}
         accessory="chevron"
         onClick={onUpdateRowClick} />}

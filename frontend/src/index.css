@@ -2265,3 +2265,50 @@ body.resting #toast{bottom:calc(200px + var(--sab))}
   text-transform:capitalize;
 }
 
+/* --- AegisDNS Cybersecurity Animation System --- */
+@keyframes aegisPulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.97); }
+  50% { opacity: 0.85; transform: scale(1.03); }
+}
+@keyframes aegisRadarSweep {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes aegisTraceFlow {
+  0% { stroke-dashoffset: 40; }
+  100% { stroke-dashoffset: 0; }
+}
+@keyframes aegisGlowWave {
+  0%, 100% { filter: drop-shadow(0 0 4px var(--acc)); }
+  50% { filter: drop-shadow(0 0 14px var(--acc)); }
+}
+.aegis-hud-card {
+  position: relative;
+  background: radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.08) 0%, rgba(18, 18, 22, 0.95) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+}
+.aegis-badge {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.aegis-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--acc);
+  box-shadow: 0 0 8px var(--acc);
+  animation: aegisPulse 2s infinite ease-in-out;
+}
+
+
