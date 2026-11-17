@@ -31,6 +31,8 @@ import { buildPlanBundle, parsePlan, mergePlan, printPlan, buildRoutineBundle, p
 import ShareCardModal from './components/ShareCardModal.jsx'
 import SplitChooserModal from './components/SplitChooserModal.jsx'
 import AchievementsModal from './components/AchievementsModal.jsx'
+import QrCanvas from './components/QrCanvas.jsx'
+import CameraScan from './components/CameraScan.jsx'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from './lib/onerm.js'
 import { exerciseHistory } from './lib/exercise-history.js'
 import { nextPrescription, applyPrescription, policyFor, defaultIncrement, POLICIES_FOR, POLICY_NAME, POLICY_DESC, MAX_BW_SETS, weightIncrement, stepWeight } from './lib/progression.js'
@@ -2108,10 +2110,12 @@ export const shareWorkoutSheet = (w, opts = {}) => {
 
 function ShareRoutineModal({ routine, close }) {
   const st = useStore(s => s.S)
+  const [tab, setTab] = useState('share')
   const bundle = buildRoutineBundle(routine, st)
   const shareText = routineShareText(routine, st)
   const jsonStr = JSON.stringify(bundle, null, 2)
   const base64Code = btoa(JSON.stringify(bundle))
+  const qrUrl = `smitrix://routine?code=${base64Code}`
 
   const handleCopyText = () => {
     navigator.clipboard?.writeText(shareText)
@@ -2159,7 +2163,7 @@ function ShareRoutineModal({ routine, close }) {
         <button className="iconbtn" onClick={close} aria-label="Close"><Icon name="xmark" /></button>
       </div>
 
-      <div style={{ padding: '12px 14px', background: 'var(--surface-2)', borderRadius: 14, marginBottom: 14 }}>
+      <div style={{ padding: '12px 14px', background: 'var(--surface-2)', borderRadius: 14, marginBottom: 12 }}>
         <div style={{ fontSize: 16, fontWeight: 800, color: '#ffffff', marginBottom: 2 }}>
           {routine.name}
         </div>
@@ -2168,28 +2172,57 @@ function ShareRoutineModal({ routine, close }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Button variant="primary" icon="share" onClick={handleShareNative}>
-          {t('Share Routine to Friends')}
-        </Button>
-        <Button variant="tinted" icon="copy" onClick={handleCopyText}>
-          {t('Copy Text Summary (WhatsApp / Chat)')}
-        </Button>
-        <div className="row" style={{ gap: 8 }}>
-          <Button variant="ghost" icon="key" onClick={handleCopyCode} style={{ flex: 1 }}>
+      <div className="seg" style={{ '--n': 2, '--i': tab === 'share' ? 0 : 1, marginBottom: 14 }}>
+        <span className="seg-sel" aria-hidden="true" />
+        <button className={tab === 'share' ? 'on' : ''} onClick={() => setTab('share')}>
+          <Icon name="share" />
+          <span>{t('Share / Export')}</span>
+        </button>
+        <button className={tab === 'qr' ? 'on' : ''} onClick={() => setTab('qr')}>
+          <Icon name="qr" />
+          <span>{t('QR Code')}</span>
+        </button>
+      </div>
+
+      {tab === 'share' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Button variant="primary" icon="share" onClick={handleShareNative}>
+            {t('Share to Friends (Apps / Chat)')}
+          </Button>
+          <Button variant="tinted" icon="copy" onClick={handleCopyText}>
+            {t('Copy Text Summary')}
+          </Button>
+          <div className="row" style={{ gap: 8 }}>
+            <Button variant="ghost" icon="key" onClick={handleCopyCode} style={{ flex: 1 }}>
+              {t('Copy Code')}
+            </Button>
+            <Button variant="ghost" icon="download" onClick={handleDownload} style={{ flex: 1 }}>
+              {t('Save File')}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ textAlign: 'center', padding: '8px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+            <div style={{ padding: 12, background: '#ffffff', borderRadius: 16, display: 'inline-block' }}>
+              <QrCanvas value={qrUrl} size={190} />
+            </div>
+          </div>
+          <div className="small dim" style={{ marginBottom: 12, lineHeight: 1.4 }}>
+            {t('Point another phone running SmiTriX at this QR code to instantly import this routine.')}
+          </div>
+          <Button variant="tinted" icon="copy" onClick={handleCopyCode}>
             {t('Copy Share Code')}
           </Button>
-          <Button variant="ghost" icon="download" onClick={handleDownload} style={{ flex: 1 }}>
-            {t('Save File')}
-          </Button>
         </div>
-      </div>
+      )}
     </div>
   )
 }
 export const shareRoutineSheet = routine => ui().openSheet(close => <ShareRoutineModal routine={routine} close={close} />, { kind: 'center' })
 
-function ImportRoutineModal({ close }) {
+function ImportRoutineModal({ close, startScanning = false }) {
+  const [scanning, setScanning] = useState(startScanning)
   const [inputVal, setInputVal] = useState('')
   const [parsed, setParsed] = useState(null)
   const [error, setError] = useState('')
@@ -2223,6 +2256,24 @@ function ImportRoutineModal({ close }) {
     rd.readAsText(f)
   }
 
+  if (scanning) {
+    return (
+      <div style={{ padding: '4px 0' }}>
+        <div className="row between" style={{ marginBottom: 12 }}>
+          <h3 style={{ margin: 0 }}>{t('Scan Routine QR')}</h3>
+          <button className="iconbtn" onClick={() => setScanning(false)} aria-label="Cancel"><Icon name="xmark" /></button>
+        </div>
+        <CameraScan
+          onFound={code => {
+            setScanning(false)
+            handleParse(code.value)
+          }}
+          onCancel={() => setScanning(false)}
+        />
+      </div>
+    )
+  }
+
   return (
     <div style={{ padding: '4px 0' }}>
       <div className="row between" style={{ marginBottom: 12 }}>
@@ -2232,7 +2283,12 @@ function ImportRoutineModal({ close }) {
 
       {!parsed ? (
         <>
-          <div className="small dim" style={{ marginBottom: 8 }}>{t('Paste shared routine code, JSON, or choose file:')}</div>
+          <div style={{ marginBottom: 12 }}>
+            <Button variant="primary" icon="camera" onClick={() => setScanning(true)}>
+              {t('Scan QR with Camera')}
+            </Button>
+          </div>
+          <div className="small dim" style={{ marginBottom: 8 }}>{t('Or paste routine code / JSON / choose file:')}</div>
           <textarea
             className="input"
             rows={4}
@@ -2259,8 +2315,9 @@ function ImportRoutineModal({ close }) {
               {parsed.ex.map((e, idx) => {
                 const ex = EXIDX[e.id]
                 return (
-                  <div key={idx} className="small dim">
-                    • {ex ? exerciseNameFor(ex) : (e.n || e.id)} ({e.sets} × {e.reps})
+                  <div key={idx} className="small row between" style={{ padding: '3px 0', borderBottom: '1px solid var(--sep-op)' }}>
+                    <span>{idx + 1}. {ex ? exerciseNameFor(ex) : (e.n || e.id)}</span>
+                    <span className="dim">{e.sets || 3} × {e.reps || 10}{e.weight ? ` @ ${e.weight}` : ''}</span>
                   </div>
                 )
               })}
@@ -2268,13 +2325,13 @@ function ImportRoutineModal({ close }) {
           </div>
           <Button variant="primary" icon="plus" onClick={handleImport}>{t('Import into My Routines')}</Button>
           <div style={{ height: 8 }} />
-          <Button variant="ghost" onClick={() => setParsed(null)}>{t('Back')}</Button>
+          <Button variant="ghost" onClick={() => { setParsed(null); setInputVal('') }}>{t('Back')}</Button>
         </>
       )}
     </div>
   )
 }
-export const importRoutineSheet = () => ui().openSheet(close => <ImportRoutineModal close={close} />, { kind: 'center' })
+export const importRoutineSheet = opts => ui().openSheet(close => <ImportRoutineModal close={close} startScanning={!!opts?.startScanning} />, { kind: 'center' })
 
 export const splitChooserSheet = (category = 'legend') => ui().openSheet(close => <SplitChooserModal initialCategory={category} close={close} />, { kind: 'center' })
 

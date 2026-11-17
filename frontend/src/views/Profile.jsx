@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { streakWeeks, lastBW } from '../lib/history.js'
 import { fmtNum, todayISO, weekStartOf } from '../lib/format.js'
-import { t } from '../lib/i18n.js'
+import { t, exerciseNameFor } from '../lib/i18n.js'
 import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
 import ActivityHeatmap from '../components/ActivityHeatmap.jsx'
@@ -138,13 +138,107 @@ export default function Profile() {
   // Achievements Score
   const achieveStats = useMemo(() => evaluateAchievements(S), [S])
 
-  // Body Type Info
+  // Athlete XP & Level Progression System
+  const athleteXP = useMemo(() => {
+    const wXp = workouts.length * 100
+    const sXp = totalSets * 10
+    const vXp = Math.round(totalVolume / 100)
+    const aXp = (achieveStats.totalPoints || 0) * 15
+    return wXp + sXp + vXp + aXp
+  }, [workouts.length, totalSets, totalVolume, achieveStats.totalPoints])
+
+  const athleteLevel = Math.max(1, Math.floor(Math.sqrt(athleteXP / 50)) + 1)
+  const currentLvlXP = Math.pow(athleteLevel - 1, 2) * 50
+  const nextLvlXP = Math.pow(athleteLevel, 2) * 50
+  const xpInLevel = Math.max(0, athleteXP - currentLvlXP)
+  const xpNeeded = Math.max(1, nextLvlXP - currentLvlXP)
+  const xpPct = Math.min(100, Math.max(0, Math.round((xpInLevel / xpNeeded) * 100)))
+
+  const rankTitle = useMemo(() => {
+    if (athleteLevel >= 50) return t('Immortal Golden Era Legend')
+    if (athleteLevel >= 35) return t('Titan of Strength')
+    if (athleteLevel >= 20) return t('Master of Hypertrophy')
+    if (athleteLevel >= 10) return t('Iron Vanguard')
+    if (athleteLevel >= 5) return t('Athletic Practitioner')
+    return t('Novice Iron Lifter')
+  }, [athleteLevel])
+
+  // Strength Standards Calculation relative to Bodyweight
+  const bwVal = currentWeightVal || (S.unit === 'lb' ? 165 : 75)
+  const toRatio = lift => (bwVal > 0 && lift > 0) ? Math.round((lift / bwVal) * 100) / 100 : 0
+  const getStandardTag = (ratio, thresholds) => {
+    if (!ratio) return { label: 'Unranked', color: 'var(--label-3)' }
+    if (ratio >= thresholds.elite) return { label: 'Elite', color: '#bf5af2' }
+    if (ratio >= thresholds.advanced) return { label: 'Advanced', color: '#ff9f0a' }
+    if (ratio >= thresholds.intermediate) return { label: 'Intermediate', color: '#30d158' }
+    return { label: 'Novice', color: '#0a84ff' }
+  }
+
+  const benchRatio = toRatio(benchPr)
+  const squatRatio = toRatio(squatPr)
+  const deadliftRatio = toRatio(deadliftPr)
+  const ohpRatio = toRatio(ohpPr)
+
+  const benchTier = getStandardTag(benchRatio, { intermediate: 0.9, advanced: 1.25, elite: 1.6 })
+  const squatTier = getStandardTag(squatRatio, { intermediate: 1.2, advanced: 1.6, elite: 2.1 })
+  const deadliftTier = getStandardTag(deadliftRatio, { intermediate: 1.4, advanced: 1.9, elite: 2.5 })
+  const ohpTier = getStandardTag(ohpRatio, { intermediate: 0.6, advanced: 0.85, elite: 1.1 })
+
+  // Body Type Info & Tailored Macro / Recovery Guidelines
   const bodyTypeKey = athlete.bodyType || 'mesomorph'
   const bodyTypeMeta = {
-    ectomorph: { label: 'Ectomorph', tag: 'Fast Metabolism · Hardgainer Mass Protocol', splitId: 'ectomorph-mass', icon: 'flame' },
-    mesomorph: { label: 'Mesomorph', tag: 'Athletic Build · Power & Hypertrophy PHUL', splitId: 'mesomorph-phul', icon: 'bolt' },
-    endomorph: { label: 'Endomorph', tag: 'High Density · Metabolic Conditioning', splitId: 'endomorph-shred', icon: 'shield' }
-  }[bodyTypeKey] || { label: 'Mesomorph', tag: 'Athletic Build · Power & Hypertrophy PHUL', splitId: 'mesomorph-phul', icon: 'bolt' }
+    ectomorph: {
+      label: 'Ectomorph',
+      tag: 'Fast Metabolism · Hardgainer Mass Protocol',
+      splitId: 'ectomorph-mass',
+      icon: 'flame',
+      macro: '55% Carbs · 25% Protein · 20% Fats',
+      caloric: '+400 kcal Surplus (Hypercaloric)',
+      recovery: '48–72h between heavy compound days',
+      focus: 'High tension, low volume, heavy compounds (3 days/wk)'
+    },
+    mesomorph: {
+      label: 'Mesomorph',
+      tag: 'Athletic Build · Power & Hypertrophy PHUL',
+      splitId: 'mesomorph-phul',
+      icon: 'bolt',
+      macro: '40% Carbs · 30% Protein · 30% Fats',
+      caloric: '+200 kcal Lean Surplus / Recomp',
+      recovery: '48h per muscle group',
+      focus: 'Heavy strength + hypertrophy isolation (4 days/wk)'
+    },
+    endomorph: {
+      label: 'Endomorph',
+      tag: 'High Density · Metabolic Conditioning',
+      splitId: 'endomorph-shred',
+      icon: 'shield',
+      macro: '25% Carbs · 40% Protein · 35% Fats',
+      caloric: '-300 kcal Deficit / Carb Cycling',
+      recovery: 'Active recovery & high volume tolerance',
+      focus: 'Short rest intervals, supersets & density (4 days/wk)'
+    }
+  }[bodyTypeKey] || {
+    label: 'Mesomorph',
+    tag: 'Athletic Build · Power & Hypertrophy PHUL',
+    splitId: 'mesomorph-phul',
+    icon: 'bolt',
+    macro: '40% Carbs · 30% Protein · 30% Fats',
+    caloric: '+200 kcal Lean Surplus / Recomp',
+    recovery: '48h per muscle group',
+    focus: 'Heavy strength + hypertrophy isolation (4 days/wk)'
+  }
+
+  // Recent PRs from exWeights
+  const recentPRs = useMemo(() => {
+    const list = []
+    for (const [exId, record] of Object.entries(S.exWeights || {})) {
+      if (record && record.w > 0) {
+        const ex = exOr(exId)
+        list.push({ id: exId, name: ex ? exerciseNameFor(ex) : exId, weight: record.w, date: record.d })
+      }
+    }
+    return list.sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).slice(0, 4)
+  }, [S.exWeights])
 
   return <div className="narrow">
     {/* Navigation Header */}
@@ -192,19 +286,19 @@ export default function Profile() {
       <div
         className="profile-avatar"
         style={{
-          width: 80,
-          height: 80,
-          borderRadius: 40,
+          width: 84,
+          height: 84,
+          borderRadius: 42,
           background: 'linear-gradient(135deg, var(--surface-3) 0%, var(--surface-2) 100%)',
           border: '2.5px solid var(--acc)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: 28,
+          fontSize: 30,
           fontWeight: 800,
           color: 'var(--acc)',
           margin: '0 auto 12px',
-          boxShadow: '0 4px 20px color-mix(in srgb, var(--acc) 25%, transparent)'
+          boxShadow: '0 4px 20px color-mix(in srgb, var(--acc) 30%, transparent)'
         }}
       >
         {initials}
@@ -214,13 +308,28 @@ export default function Profile() {
         {user?.name || 'Athlete'}
       </h1>
 
-      <div className="row" style={{ justifyContent: 'center', gap: 6, marginBottom: 8 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--acc)', marginBottom: 6 }}>
+        {rankTitle}
+      </div>
+
+      <div className="row" style={{ justifyContent: 'center', gap: 6, marginBottom: 12 }}>
         <span className="tag acc" style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>
           {athlete.goal ? t(athlete.goal) : t('Hypertrophy Athlete')}
         </span>
-        <span className="tag dim" style={{ fontSize: 11 }}>
-          Level {Math.max(1, Math.floor(workouts.length / 5) + 1)}
+        <span className="tag dim" style={{ fontSize: 11, fontWeight: 700 }}>
+          Level {athleteLevel}
         </span>
+      </div>
+
+      {/* XP Level Progress Bar */}
+      <div style={{ maxWidth: 280, margin: '0 auto 12px' }}>
+        <div className="row between" style={{ fontSize: 11, color: 'var(--label-3)', marginBottom: 4 }}>
+          <span>{fmtNum(athleteXP)} XP</span>
+          <span>{fmtNum(nextLvlXP)} XP (Level {athleteLevel + 1})</span>
+        </div>
+        <div style={{ height: 6, background: 'rgba(255, 255, 255, 0.1)', borderRadius: 3, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${xpPct}%`, background: 'linear-gradient(90deg, var(--acc), #40c8e0)', borderRadius: 3 }} />
+        </div>
       </div>
 
       {athlete.bio ? (
@@ -273,8 +382,24 @@ export default function Profile() {
         </button>
       </div>
 
-      <div style={{ fontSize: 13, color: 'var(--label-2)', marginBottom: 12, lineHeight: 1.4 }}>
+      <div style={{ fontSize: 13, color: 'var(--label-2)', marginBottom: 10, lineHeight: 1.4 }}>
         {bodyTypeMeta.tag}
+      </div>
+
+      {/* Tailored Nutritional & Recovery Guidelines */}
+      <div style={{ background: 'var(--surface-2)', borderRadius: 12, padding: '10px 12px', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+        <div className="row between">
+          <span className="dim">{t('Nutrition Target:')}</span>
+          <span style={{ fontWeight: 600, color: '#ffffff' }}>{bodyTypeMeta.caloric}</span>
+        </div>
+        <div className="row between">
+          <span className="dim">{t('Macros:')}</span>
+          <span style={{ fontWeight: 600, color: 'var(--acc)' }}>{bodyTypeMeta.macro}</span>
+        </div>
+        <div className="row between">
+          <span className="dim">{t('Recovery Window:')}</span>
+          <span style={{ fontWeight: 600, color: 'var(--teal)' }}>{bodyTypeMeta.recovery}</span>
+        </div>
       </div>
 
       <div className="row" style={{ gap: 8 }}>
@@ -288,7 +413,7 @@ export default function Profile() {
             setShowSplitChooser(true)
           }}
         >
-          {t('Explore Body Type Splits')}
+          {t('Body Type Splits')}
         </Button>
         <Button
           size="sm"
@@ -342,12 +467,12 @@ export default function Profile() {
       </Button>
     </div>
 
-    {/* The Big 3 / Big 4 Strength Hall */}
+    {/* The Big 3 / Big 4 Strength Hall & Relative Strength Standards */}
     <div className="card" style={{ marginBottom: 16 }}>
       <div className="row between" style={{ marginBottom: 12 }}>
         <div className="row" style={{ gap: 6, alignItems: 'center' }}>
           <Icon name="barbell" style={{ color: 'var(--acc)', fontSize: 18 }} />
-          <h2 style={{ margin: 0, fontSize: 16 }}>{t('The Big 3 Strength Hall')}</h2>
+          <h2 style={{ margin: 0, fontSize: 16 }}>{t('Compound Strength Standards')}</h2>
         </div>
         <span className="tag dim" style={{ fontSize: 11, fontWeight: 700 }}>
           {big3Total > 0 ? `${fmtNum(Math.round(big3Total))} ${S.unit} Total` : t('Log Lifts')}
@@ -356,28 +481,44 @@ export default function Profile() {
 
       <div className="tiles" style={{ gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
         <div className="tile">
-          <div className="l">{t('Bench Press')}</div>
+          <div className="row between">
+            <span className="l">{t('Bench Press')}</span>
+            {benchRatio > 0 && <span style={{ fontSize: 10, fontWeight: 700, color: benchTier.color }}>{benchTier.label}</span>}
+          </div>
           <div className="v" style={{ fontSize: 18, fontWeight: 700, color: benchPr ? 'var(--acc)' : 'var(--label-3)' }}>
             {benchPr ? `${fmtNum(benchPr)} ${S.unit}` : '—'}
           </div>
+          {benchRatio > 0 && <div className="small dim" style={{ fontSize: 11, marginTop: 2 }}>{benchRatio}× BW</div>}
         </div>
         <div className="tile">
-          <div className="l">{t('Back Squat')}</div>
+          <div className="row between">
+            <span className="l">{t('Back Squat')}</span>
+            {squatRatio > 0 && <span style={{ fontSize: 10, fontWeight: 700, color: squatTier.color }}>{squatTier.label}</span>}
+          </div>
           <div className="v" style={{ fontSize: 18, fontWeight: 700, color: squatPr ? 'var(--acc)' : 'var(--label-3)' }}>
             {squatPr ? `${fmtNum(squatPr)} ${S.unit}` : '—'}
           </div>
+          {squatRatio > 0 && <div className="small dim" style={{ fontSize: 11, marginTop: 2 }}>{squatRatio}× BW</div>}
         </div>
         <div className="tile">
-          <div className="l">{t('Deadlift')}</div>
+          <div className="row between">
+            <span className="l">{t('Deadlift')}</span>
+            {deadliftRatio > 0 && <span style={{ fontSize: 10, fontWeight: 700, color: deadliftTier.color }}>{deadliftTier.label}</span>}
+          </div>
           <div className="v" style={{ fontSize: 18, fontWeight: 700, color: deadliftPr ? 'var(--acc)' : 'var(--label-3)' }}>
             {deadliftPr ? `${fmtNum(deadliftPr)} ${S.unit}` : '—'}
           </div>
+          {deadliftRatio > 0 && <div className="small dim" style={{ fontSize: 11, marginTop: 2 }}>{deadliftRatio}× BW</div>}
         </div>
         <div className="tile">
-          <div className="l">{t('Overhead Press')}</div>
+          <div className="row between">
+            <span className="l">{t('Overhead Press')}</span>
+            {ohpRatio > 0 && <span style={{ fontSize: 10, fontWeight: 700, color: ohpTier.color }}>{ohpTier.label}</span>}
+          </div>
           <div className="v" style={{ fontSize: 18, fontWeight: 700, color: ohpPr ? 'var(--acc)' : 'var(--label-3)' }}>
             {ohpPr ? `${fmtNum(ohpPr)} ${S.unit}` : '—'}
           </div>
+          {ohpRatio > 0 && <div className="small dim" style={{ fontSize: 11, marginTop: 2 }}>{ohpRatio}× BW</div>}
         </div>
       </div>
 
@@ -387,6 +528,29 @@ export default function Profile() {
           : t('Target: 1,000 lb Club ({0} {1} remaining)', fmtNum(Math.max(0, Math.round((S.unit === 'lb' ? 1000 : 453.5) - big3Total))), S.unit)}
       </div>
     </div>
+
+    {/* Recent PRs Showcase */}
+    {recentPRs.length > 0 && (
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="row between" style={{ marginBottom: 8 }}>
+          <h2>{t('Recent Personal Records (PRs)')}</h2>
+          <Icon name="trophy" style={{ color: 'var(--yellow)', fontSize: 16 }} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {recentPRs.map(pr => (
+            <div key={pr.id} className="row between" style={{ padding: '6px 0', borderBottom: '1px solid var(--sep-op)' }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{pr.name}</div>
+                <div className="dim small" style={{ fontSize: 11 }}>{fmtDate(pr.date)}</div>
+              </div>
+              <span className="tag acc" style={{ fontWeight: 800 }}>
+                {fmtNum(pr.weight)} {S.unit}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
 
     {/* Lifetime Stats Card */}
     <div className="card" style={{ marginBottom: 16 }}>

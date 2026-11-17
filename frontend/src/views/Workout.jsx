@@ -441,7 +441,9 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
     <Media ex={ex} key={entry.id} compact={compact} minimizable />
     <div className="row between" style={{ marginBottom: 6 }}>
       <div style={{ fontSize: compact ? 17 : 20, fontWeight: 600, letterSpacing: '-.02em', textTransform: 'capitalize', lineHeight: 1.2 }}>{exerciseNameFor(ex)}</div>
-      <div className="row" style={{ gap: 2, flex: 'none' }}>
+      <div className="row" style={{ gap: 4, flex: 'none' }}>
+        <button className="iconbtn" aria-label={t('Exercise History & PRs')} title={t('Exercise History & PRs')}
+          onClick={() => exerciseHistorySheet(entry.id)}><Icon name="history" /></button>
         {entry.note && <button className="iconbtn" aria-label={t('Note')} title={t('Note')} style={{ color: 'var(--acc)' }}
           onClick={() => exerciseNoteSheet(entryIdx)}><Icon name="pencil" /></button>}
         <button className="iconbtn" aria-label={t('More')} title={t('More')} onClick={openMore}><Icon name="more" /></button>

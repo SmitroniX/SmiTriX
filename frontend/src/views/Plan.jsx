@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
@@ -13,9 +14,11 @@ import { MOBILE } from '../lib/mobile.js'
 import { coachAvailable } from '../lib/coach.js'
 import { openTutorial } from '../components/TutorialDialog.jsx'
 import { copyRoutine } from '../lib/routines.js'
+import { exOr } from '../lib/exercises.js'
+import { musclesOf, MUSCLE_NAME } from '../lib/muscles.js'
 
 const openSplitChooser = () => import('../sheets.jsx').then(m => m.splitChooserSheet?.())
-const openImportRoutine = () => import('../sheets.jsx').then(m => m.importRoutineSheet?.())
+const openImportRoutine = opts => import('../sheets.jsx').then(m => m.importRoutineSheet?.(opts))
 const openShareRoutine = r => import('../sheets.jsx').then(m => m.shareRoutineSheet?.(r))
 const openStartFlow = id => import('../sheets.jsx').then(m => m.startFlow?.(id))
 const openRoutineMenu = (title, subtitle, items) => import('../sheets.jsx').then(m => m.menuSheet?.({ title, subtitle, items }))
@@ -39,6 +42,47 @@ export default function Plan() {
     const r = { id: uid(), name: t('New routine'), emoji: DEFAULT_GLYPH, ex: [] }
     update(s => { s.routines.push(r) })
     nav('/plan/r/' + r.id)
+  }
+
+  // Calculate weekly muscle stimulation frequency from scheduled routines
+  const weekStimulus = useMemo(() => {
+    const counts = {}
+    const order = weekOrder(weekStartOf(S))
+    for (const d of order) {
+      const rId = S.week?.[d]
+      if (!rId) continue
+      const r = (S.routines || []).find(x => x.id === rId)
+      if (!r) continue
+      const seen = new Set()
+      for (const e of r.ex || []) {
+        const ex = exOr(e.id)
+        if (!ex) continue
+        const m = musclesOf(ex)
+        for (const [slug, weight] of Object.entries(m)) {
+          if (weight >= 0.5 && !seen.has(slug)) {
+            seen.add(slug)
+            counts[slug] = (counts[slug] || 0) + 1
+          }
+        }
+      }
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([slug, count]) => ({ name: MUSCLE_NAME[slug] || slug, count }))
+  }, [S.week, S.routines, S.weekStart])
+
+  const getRoutineMuscles = r => {
+    const s = new Set()
+    for (const e of r.ex || []) {
+      const ex = exOr(e.id)
+      if (!ex) continue
+      const m = musclesOf(ex)
+      for (const [slug, w] of Object.entries(m)) {
+        if (w >= 0.8) s.add(MUSCLE_NAME[slug] || slug)
+      }
+    }
+    return Array.from(s).slice(0, 2)
   }
 
   const handleRoutineMenu = (r, ev) => {
@@ -82,6 +126,7 @@ export default function Plan() {
     <div className="hdr">
       <div><h1>{t('Plan')}</h1><div className="sub">{t('Your weekly routine')}</div></div>
       <div className="row" style={{ gap: 6 }}>
+        <button className="iconbtn" onClick={() => openImportRoutine({ startScanning: true })} aria-label={t('Scan Routine QR')} title={t('Scan Routine QR')}><Icon name="qr" /></button>
         <button className="iconbtn" onClick={openSplitChooser} aria-label={t('Explore Splits & Legends')} title={t('Explore Splits & Legends')}><Icon name="sparkles" /></button>
         <button className="iconbtn" onClick={() => openTutorial(1)} aria-label={t('How planning works')} title={t('How planning works')}><Icon name="help" /></button>
         <button className="iconbtn" onClick={planToolsSheet} aria-label={t('Share your plan')} title={t('Share your plan')}><Icon name="upload" /></button>
@@ -107,6 +152,27 @@ export default function Plan() {
             <Icon name="chevronRight" className="chev" /></div>
         })}
       </div>
+
+      {/* Weekly Muscle Frequency Stimulation Mini-Card */}
+      {weekStimulus.length > 0 && (
+        <div style={{ marginTop: 12, padding: '12px 14px', background: 'var(--surface)', borderRadius: 'var(--r)', border: '1px solid var(--sep-op)', marginBottom: 8 }}>
+          <div className="row between" style={{ marginBottom: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--label-3)', letterSpacing: '0.04em' }}>
+              {t('Weekly Muscle Frequency')}
+            </span>
+            <span style={{ fontSize: 10, color: 'var(--acc)', fontWeight: 600 }}>
+              {t('Optimal: 2× / week')}
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {weekStimulus.map(m => (
+              <span key={m.name} className="tag acc" style={{ fontSize: 11, padding: '3px 8px' }}>
+                {m.name} <strong>{m.count}×</strong>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div><div>
       <div className="row between" style={{ marginTop: 22, marginBottom: 10 }}>
         <h4 className="sec" style={{ margin: 0 }}>{t('Routines')}</h4>
@@ -115,19 +181,31 @@ export default function Plan() {
           <Button size="sm" variant="tinted" icon="plus" onClick={addRoutine}>{t('New')}</Button>
         </div>
       </div>
-      {S.routines.length ? <div className="list">{S.routines.map(r => <div key={r.id} className="item" {...tappable(() => nav('/plan/r/' + r.id))}>
-        <span className="lrow-i"><Icon name={glyphOf(r.emoji)} /></span>
-        <div className="grow"><div className="tt">{r.name}</div><div className="ss">{exCount(r.ex.length)}</div></div>
-        <button
-          className="iconbtn"
-          style={{ width: 32, height: 32, borderRadius: 8, color: 'var(--sub)', marginRight: 2, flexShrink: 0 }}
-          onClick={ev => handleRoutineMenu(r, ev)}
-          aria-label={t('Routine options')}
-          title={t('Routine options')}
-        >
-          <Icon name="dotsVertical" />
-        </button>
-        <Icon name="chevronRight" className="chev" /></div>)}</div> : <>
+      {S.routines.length ? <div className="list">{S.routines.map(r => {
+        const muscles = getRoutineMuscles(r)
+        return (
+          <div key={r.id} className="item" {...tappable(() => nav('/plan/r/' + r.id))}>
+            <span className="lrow-i"><Icon name={glyphOf(r.emoji)} /></span>
+            <div className="grow">
+              <div className="tt">{r.name}</div>
+              <div className="ss">
+                {exCount(r.ex.length)} · ~{Math.max(15, (r.ex.length || 0) * 8)}m
+                {muscles.length > 0 && ` · ${muscles.join(', ')}`}
+              </div>
+            </div>
+            <button
+              className="iconbtn"
+              style={{ width: 32, height: 32, borderRadius: 8, color: 'var(--sub)', marginRight: 2, flexShrink: 0 }}
+              onClick={ev => handleRoutineMenu(r, ev)}
+              aria-label={t('Routine options')}
+              title={t('Routine options')}
+            >
+              <Icon name="dotsVertical" />
+            </button>
+            <Icon name="chevronRight" className="chev" />
+          </div>
+        )
+      })}</div> : <>
         <div className="empty">
           <div className="ico"><Icon name="clipboard" /></div>
           {t('No routines yet.')}<br />{t('Create one or explore legendary workout splits.')}
@@ -136,7 +214,9 @@ export default function Plan() {
         <div style={{ height: 8 }} />
         <Button variant="tinted" icon="sparkles" onClick={openSplitChooser}>{t('Explore Splits & Legends')}</Button>
         <div style={{ height: 8 }} />
-        <Button variant="ghost" icon="download" onClick={openImportRoutine}>{t('Import shared routine')}</Button>
+        <Button variant="ghost" icon="camera" onClick={() => openImportRoutine({ startScanning: true })}>{t('Scan Routine QR with Camera')}</Button>
+        <div style={{ height: 8 }} />
+        <Button variant="ghost" icon="download" onClick={() => openImportRoutine()}>{t('Import shared routine')}</Button>
         <div style={{ height: 8 }} />
         <Button variant="ghost" className="dim" icon="lightbulb" onClick={() => openTutorial(1)}>{t('How planning works (Guide)')}</Button>
       </>}

@@ -393,7 +393,12 @@ export function parseRoutine(raw) {
   let obj = raw
   if (typeof raw === 'string') {
     try {
-      const trimmed = raw.trim()
+      let trimmed = raw.trim()
+      if (trimmed.includes('smitrix://routine?code=')) {
+        trimmed = trimmed.split('smitrix://routine?code=')[1]
+      } else if (trimmed.includes('smitrix://routine?data=')) {
+        trimmed = decodeURIComponent(trimmed.split('smitrix://routine?data=')[1])
+      }
       if (trimmed.startsWith('{')) {
         obj = JSON.parse(trimmed)
       } else {
