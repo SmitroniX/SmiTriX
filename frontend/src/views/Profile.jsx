@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { streakWeeks, lastBW } from '../lib/history.js'
-import { fmtNum, todayISO, weekStartOf } from '../lib/format.js'
+import { fmtNum, fmtDate, todayISO, weekStartOf } from '../lib/format.js'
 import { t, exerciseNameFor } from '../lib/i18n.js'
 import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
@@ -681,7 +681,7 @@ export default function Profile() {
             <div key={pr.id} className="row between" style={{ padding: '6px 0', borderBottom: '1px solid var(--sep-op)' }}>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 13 }}>{pr.name}</div>
-                <div className="dim small" style={{ fontSize: 11 }}>{fmtDate(pr.date)}</div>
+                {pr.date ? <div className="dim small" style={{ fontSize: 11 }}>{fmtDate(pr.date)}</div> : null}
               </div>
               <span className="tag acc" style={{ fontWeight: 800 }}>
                 {fmtNum(pr.weight)} {S.unit}

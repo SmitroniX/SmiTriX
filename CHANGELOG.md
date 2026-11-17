@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.6.4 — 2026-11-17
+
+Hotfix for Profile view crash (fmtDate import resolution), Workout Stepper digit clipping fix, and unit test hardening.
+
+- 🐛 **Profile Section fmtDate Crash Hotfix**:
+  - Imported `fmtDate` from `lib/format.js` in `views/Profile.jsx`.
+  - Added null-safe checks for `pr.date` when rendering Recent Personal Records (PRs) showcase.
+  - Added unit test coverage in `Profile.test.jsx` verifying that profiles with active PR records render without crashing.
+- 📐 **Workout Stepper Display & Multi-Digit Auto-Scaling**:
+  - Fixed visual clipping in `NumberField` where 3-digit and 4-digit numbers (such as 156 or 157 reps) had their final digit cut off inside `.stp.r` / `.stp.w`.
+  - Added automatic responsive font-scaling classes (`long-val` and `xlong-val`) and adjusted stepper button dimensions so multi-digit numbers fit cleanly.
+- 🚀 **Release Build**:
+  - Android APK versionCode bumped to 30.
+
 ## v1.6.3 — 2026-11-17
 
 Google API Key Hardening & Rotation, Zero-Leakage Static Site Distribution, and Production Release.

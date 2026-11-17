@@ -37,6 +37,9 @@ export function NumberField({ value, onChange, decimal = true, nullable = false,
     setDraft(s)
     onChange(n)
   }
+  const displayVal = draft ?? (value ?? '')
+  const valLen = String(displayVal).length
+  const lenClass = valLen >= 4 ? ' xlong-val' : valLen >= 3 ? ' long-val' : ''
   return (
     <input
       type="text"
@@ -44,8 +47,8 @@ export function NumberField({ value, onChange, decimal = true, nullable = false,
       autoComplete="off"
       autoCorrect="off"
       spellCheck="false"
-      className={'num ' + className}
-      value={draft ?? (value ?? '')}
+      className={'num' + lenClass + (className ? ' ' + className : '')}
+      value={displayVal}
       onFocus={e => {
         e.target.select()
         rest.onFocus?.(e)

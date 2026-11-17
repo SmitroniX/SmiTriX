@@ -241,4 +241,23 @@ describe('Profile view', () => {
 
     expect(host.textContent).toContain('500 kg')
   })
+
+  it('renders recent PRs showcase with formatted dates without throwing', () => {
+    useStore.getState().update(s => {
+      s.exWeights = {
+        '0025': { w: 120, d: '2026-10-15' },
+      }
+    })
+
+    act(() => {
+      root.render(
+        <MemoryRouter>
+          <Profile />
+        </MemoryRouter>
+      )
+    })
+
+    expect(host.textContent).toContain('Recent Personal Records (PRs)')
+    expect(host.textContent).toContain('120 kg')
+  })
 })

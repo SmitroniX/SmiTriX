@@ -1,6 +1,6 @@
 {
   "name": "smitrix-api",
-  "version": "1.6.3",
+  "version": "1.6.4",
   "private": true,
   "author": "Asmit Jogdand (SmitroniX) <https://github.com/SmitroniX>",
   "type": "module",
