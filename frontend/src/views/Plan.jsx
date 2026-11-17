@@ -145,7 +145,7 @@ export default function Plan() {
       <h4 className="sec">{t('Week schedule')}</h4>
       <div className="list" style={{ display: 'flex', flexDirection: 'column' }}>
         {weekOrder(weekStartOf(S)).map(d => {
-          const r = S.routines.find(x => x.id === S.week[d])
+          const r = (S.routines || []).find(x => x.id === S.week?.[d])
           return <div key={d} className={'item' + (r ? ' plan-day-active' : '')} {...tappable(() => dayAssignSheet(d))}>
             <div className="grow"><div className="tt">{t(DAYN[d])}</div></div>
             {r ? <span className="tag acc"><Icon name={glyphOf(r.emoji)} />{r.name}</span> : <span className="tag dim">{t('Rest')}</span>}
@@ -181,7 +181,7 @@ export default function Plan() {
           <Button size="sm" variant="tinted" icon="plus" onClick={addRoutine}>{t('New')}</Button>
         </div>
       </div>
-      {S.routines.length ? <div className="list">{S.routines.map(r => {
+      {(S.routines || []).length ? <div className="list">{(S.routines || []).map(r => {
         const muscles = getRoutineMuscles(r)
         return (
           <div key={r.id} className="item" {...tappable(() => nav('/plan/r/' + r.id))}>

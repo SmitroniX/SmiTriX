@@ -302,15 +302,21 @@ export function bestWeightFor(S, exId) {
   return best
 }
 export function effectiveRoutineId(S, iso) {
-  const ov = S.dayPlan[iso]
+  if (!S) return null
+  const dayPlan = S.dayPlan || {}
+  const ov = dayPlan[iso]
   if (ov === 'rest') return null
-  if (ov && S.routines.some(r => r.id === ov)) return ov
+  const routines = S.routines || []
+  if (ov && routines.some(r => r.id === ov)) return ov
   const wd = new Date(iso + 'T12:00:00').getDay()
-  return S.week[wd] || null
+  const week = S.week || {}
+  return week[wd] || null
 }
 export function effectiveRoutine(S, iso) {
+  if (!S) return null
   const id = effectiveRoutineId(S, iso)
-  return id ? S.routines.find(r => r.id === id) || null : null
+  const routines = S.routines || []
+  return id ? routines.find(r => r.id === id) || null : null
 }
 
 /**

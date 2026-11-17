@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.6.1 — 2026-11-17
+
+Hotfix for Workout StartChooser screen rendering when upgrading existing user data, hardened effectiveRoutineId, and enhanced ErrorBoundary reporting.
+
+- 🐛 **Workout StartChooser & Routine Null-Safety Fix**:
+  - Fixed `TypeError` in `StartChooser` and `effectiveRoutineId` where undefined or unpopulated `dayPlan`, `week`, or `routines` objects caused the workout launch screen to crash.
+  - Added full defensive fallback checks across `history.js`, `Workout.jsx`, `Home.jsx`, and `Plan.jsx`.
+  - Added unit test coverage for all empty, missing, and partial routine data structures (`Workout.startchooser.test.jsx`).
+- 🛡️ **Enhanced ErrorBoundary Fallback**:
+  - Displays formatted error diagnostics directly on the error screen.
+  - Automatically captures and dispatches render crashes to Firestore `crash_reports` via `analytics.js`.
+  - Added dedicated navigation escape hatch ("Return to Home").
+
 ## v1.6.0 — 2026-11-17
 
 Firebase Authentication & Cloud Firestore integration, AegisDNS-inspired onboarding animation tutorial, dedicated Plans & Feature Manager, privacy-centric telemetry with user consent, sliding-window rate limiting, and routine QR sharing.

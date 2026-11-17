@@ -35,11 +35,12 @@ const SWIPE_IGNORED_TARGETS = 'button,input,textarea,select,a,[role="button"],[r
 /* ---------- start chooser (no active workout) ---------- */
 function StartChooser() {
   const nav = useNavigate()
-  const S = useStore(s => s.S)
+  const S = useStore(s => s.S) || {}
   const update = useStore(s => s.update)
   const todayR = effectiveRoutine(S, todayISO())
-  const todayOvr = S.dayPlan[todayISO()] !== undefined
-  const others = S.routines.filter(r => r !== todayR)
+  const todayOvr = S.dayPlan && S.dayPlan[todayISO()] !== undefined
+  const routines = Array.isArray(S.routines) ? S.routines : []
+  const others = routines.filter(r => r && r !== todayR)
 
   const handleRoutineMenu = (r, ev) => {
     ev?.stopPropagation?.()
@@ -53,7 +54,7 @@ function StartChooser() {
           label: t('Duplicate routine'),
           onClick: () => {
             const copy = { ...structuredClone(r), id: uid(), name: t('{0} (Copy)', r.name) }
-            update(s => { s.routines.push(copy) })
+            update(s => { (s.routines = s.routines || []).push(copy) })
             useUI.getState().toast(t('Routine duplicated'))
           }
         },
@@ -68,9 +69,9 @@ function StartChooser() {
             danger: true,
             onConfirm: () => {
               update(s => {
-                s.routines = s.routines.filter(x => x.id !== r.id)
-                Object.keys(s.week).forEach(k => { if (s.week[k] === r.id) delete s.week[k] })
-                Object.keys(s.dayPlan).forEach(k => { if (s.dayPlan[k] === r.id) delete s.dayPlan[k] })
+                s.routines = (s.routines || []).filter(x => x.id !== r.id)
+                Object.keys(s.week || {}).forEach(k => { if (s.week[k] === r.id) delete s.week[k] })
+                Object.keys(s.dayPlan || {}).forEach(k => { if (s.dayPlan[k] === r.id) delete s.dayPlan[k] })
               })
               useUI.getState().toast(t('Routine deleted'))
             }
@@ -81,8 +82,9 @@ function StartChooser() {
   }
 
   const routinePreview = r => {
-    if (!r.ex?.length) return t('No exercises yet')
-    return r.ex.slice(0, 4).map(e => exerciseNameFor(exOr(e.id))).join(', ') + (r.ex.length > 4 ? ', …' : '')
+    const list = Array.isArray(r?.ex) ? r.ex : []
+    if (!list.length) return t('No exercises yet')
+    return list.slice(0, 4).map(e => exerciseNameFor(exOr(e?.id))).join(', ') + (list.length > 4 ? ', …' : '')
   }
 
   return <div className="narrow">
@@ -150,7 +152,7 @@ function StartChooser() {
           <span className="lrow-i" style={{ width: 40, height: 40, borderRadius: 10, fontSize: 22 }}><Icon name={glyphOf(todayR.emoji)} /></span>
           <div>
             <div style={{ fontSize: 17, fontWeight: 700 }}>{todayR.name}</div>
-            <div className="dim small">{exCount(todayR.ex.length)}</div>
+            <div className="dim small">{exCount((todayR.ex || []).length)}</div>
           </div>
         </div>
         <div className="dim small" style={{ marginBottom: 12, lineHeight: 1.4 }}>
@@ -174,7 +176,7 @@ function StartChooser() {
                   <span className="lrow-i" style={{ width: 34, height: 34, borderRadius: 8, fontSize: 19 }}><Icon name={glyphOf(r.emoji)} /></span>
                   <div>
                     <div style={{ fontSize: 15, fontWeight: 700 }}>{r.name}</div>
-                    <div className="dim small">{exCount(r.ex.length)}</div>
+                    <div className="dim small">{exCount((r.ex || []).length)}</div>
                   </div>
                 </div>
                 <button className="iconbtn" onClick={ev => handleRoutineMenu(r, ev)} aria-label={t('Routine options')}><Icon name="ellipsis" /></button>
@@ -189,7 +191,7 @@ function StartChooser() {
       </div>
     )}
 
-    {!S.routines.length && (
+    {!routines.length && (
       <div className="card empty" style={{ padding: 20 }}>
         <div className="ico"><Icon name="calendar" /></div>
         <div style={{ fontWeight: 600, marginTop: 6 }}>{t('No routines yet')}</div>
