@@ -1,7 +1,7 @@
 {
   "name": "smitrix-frontend",
   "private": true,
-  "version": "1.6.2",
+  "version": "1.6.3",
   "author": "Asmit Jogdand (SmitroniX) <https://github.com/SmitroniX>",
   "type": "module",
   "scripts": {

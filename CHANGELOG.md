@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.6.3 — 2026-11-17
+
+Google API Key Hardening & Rotation, Zero-Leakage Static Site Distribution, and Production Release.
+
+- 🛡️ **Secret Rotation & Google Cloud API Key Revocation**:
+  - Permanently revoked and deleted expired Google Cloud API Key (leaked Key #2) via Google Cloud API Keys API.
+  - Resolved GitHub Secret Scanning Alert #2 as revoked.
+  - Re-provisioned restricted Google API Key scoped exclusively to Firebase Auth, Firestore, and App Check services.
+  - Isolated all cloud API keys to encrypted GitHub Actions environment secrets (`VITE_FIREBASE_API_KEY`), guaranteeing zero local `.env` leaks.
+- 🌐 **Zero-Leakage Demo Website Build Pipeline**:
+  - Hardened `scripts/build-website.sh` to explicitly enforce `VITE_FIREBASE_API_KEY=""` during production web bundle compilation.
+  - Verified 0 occurrences of API credentials across public distribution assets in `website/demo/`.
+- 🚀 **Production Release**:
+  - Android APK build versionCode bumped to 29.
+
 ## v1.6.2 — 2026-11-17
 
 Authentication Onboarding Flow, Direct Login Navigation, Cloud Profile Account Sync, and CI Test Resiliency.
