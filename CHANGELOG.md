@@ -1,5 +1,30 @@
 # Changelog
 
+## v1.6.0 — 2026-11-17
+
+Firebase Authentication & Cloud Firestore integration, AegisDNS-inspired onboarding animation tutorial, dedicated Plans & Feature Manager, privacy-centric telemetry with user consent, sliding-window rate limiting, and routine QR sharing.
+
+- 🔥 **Firebase Authentication & Cloud Database**:
+  - Full Firebase Authentication integration supporting Google Sign-In, Email/Password login & registration, email verification, and password reset flows.
+  - Production Cloud Firestore database provisioned with strict owner-isolated security rules (`firestore.rules`).
+  - Seamless hybrid auth architecture: WebAuthn Passkeys, Firebase Auth, and local-first offline guest sessions.
+- 🛡️ **AegisDNS-Inspired Onboarding Animation Tutorial**:
+  - High-polish cyber-athletic vector onboarding experience with radar sweep animations, live telemetry monitors, and responsive step navigation.
+  - Custom SVG graphics: `AegisSecurityShieldSvg`, `AegisPlanMatrixSvg`, `AegisWorkoutTelemetrySvg`, and `AegisStatsSignalSvg`.
+- 📋 **Dedicated Plans & Feature Management**:
+  - Modular `subscription-plans.js` separating Free Plan and Golden Era Legacy Plan with feature entitlement matrix, benefits, and limitations.
+  - Dedicated `/plans` management view (`PlansManager.jsx`) with quick access from Settings and active tier badges in Profile.
+- 📊 **Privacy-Centric Structured Telemetry & Analytics**:
+  - Partitioned Firestore collections for application usage metrics, crash reports, feedback, and security events.
+  - Explicit user privacy consent toggle with persistent preference management and input sanitization.
+- ⚡ **Application Security & Server-Side Rate Limiting**:
+  - Sliding-window token bucket rate limiter protecting sensitive authentication and AI coach endpoints.
+  - Brute-force lockout defense enforcing 10-minute bans after consecutive login failures.
+  - Deep JSON input sanitization blocking prototype pollution and null byte attacks.
+- 📱 **Advanced Routine Sharing & Progression**:
+  - Routine QR code generation and instant camera scanning for workout sharing.
+  - Weekly muscle training frequency analytics and athlete XP leveling system.
+
 ## v1.5.0 — 2026-10-18
 
 Wearable BLE heart rate sensors, Compound Lift Form Check Video Vault, offline PWA Background Sync, 30-Day Muscle Recovery Readiness Index, Olympic plate badges, and full Japanese localization.
