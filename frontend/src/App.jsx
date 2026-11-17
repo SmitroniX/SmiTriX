@@ -132,6 +132,7 @@ function Shell() {
               <Route path="/profile" element={<Profile />} />
               <Route path="/plans" element={<PlansManager />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/login" element={<Login />} />
               {/* The Coach screens gate themselves on the instance config; the routes exist
                   unconditionally so a deep link from a notification lands somewhere sane
                   rather than on the catch-all. */}

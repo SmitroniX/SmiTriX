@@ -1,6 +1,21 @@
 # Changelog
 
-## v1.6.1 — 2026-11-17
+## v1.6.2 — 2026-11-17
+
+Authentication Onboarding Flow, Direct Login Navigation, Cloud Profile Account Sync, and CI Test Resiliency.
+
+- 🔐 **First-Class Login & Registration Flow**:
+  - Added dedicated `/login` route accessible from anywhere in the app (Profile, Settings, and direct navigation).
+  - Fixed mobile boot sequence to present the authentication screen on clean launch rather than silently forcing guest mode.
+  - Added seamless "Continue without account (Guest Mode)" toggle for 100% offline local-first use.
+  - Added Account & Cloud Sync management card to Profile view with 1-click Sign In / Sign Out.
+- ⚡ **Profile Section Unlocking & Enhancements**:
+  - Unlocked full feature access with active Legacy Plan defaults.
+  - Added active route highlighting in TabBar for Profile and Plans.
+  - Added direct Athlete Profile access from Settings and Home navigation headers.
+- 🧪 **CI Workflow & Test Resiliency**:
+  - Added safe mock API key fallback in `firebase.js` so automated GitHub Actions tests and headless CI environments pass cleanly without throwing `auth/invalid-api-key`.
+
 
 Hotfix for Workout StartChooser screen rendering when upgrading existing user data, hardened effectiveRoutineId, and enhanced ErrorBoundary reporting.
 

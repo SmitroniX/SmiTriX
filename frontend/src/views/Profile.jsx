@@ -7,7 +7,7 @@ import { t, exerciseNameFor } from '../lib/i18n.js'
 import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
 import ActivityHeatmap from '../components/ActivityHeatmap.jsx'
-import { bwSheet } from '../sheets.jsx'
+import { bwSheet, confirmSheet } from '../sheets.jsx'
 import { exOr } from '../lib/exercises.js'
 import { musclesOf, MUSCLE_NAME } from '../lib/muscles.js'
 import { evaluateAchievements } from '../lib/achievements.js'
@@ -15,17 +15,35 @@ import AchievementsModal from '../components/AchievementsModal.jsx'
 import EditProfileModal from '../components/EditProfileModal.jsx'
 import SplitChooserModal from '../components/SplitChooserModal.jsx'
 import { useUI } from '../store/useUI.js'
+import { logoutUser } from '../lib/firebase.js'
 
 export default function Profile() {
   const nav = useNavigate()
   const S = useStore(s => s.S)
   const user = useStore(s => s.user)
+  const setUser = useStore(s => s.setUser)
+  const setGuest = useStore(s => s.setGuest)
   const athlete = S.athleteProfile || {}
 
   const [showAchievements, setShowAchievements] = useState(false)
   const [showEditProfile, setShowEditProfile] = useState(false)
   const [showSplitChooser, setShowSplitChooser] = useState(false)
   const [splitChooserCategory, setSplitChooserCategory] = useState('legend')
+
+  const handleSignOut = () => {
+    confirmSheet({
+      title: t('Sign Out?'),
+      message: t('Your workouts remain saved on this device. You can sign back in anytime.'),
+      confirmText: t('Sign Out'),
+      danger: true,
+      onConfirm: async () => {
+        try { await logoutUser() } catch {}
+        setUser(null)
+        setGuest(true)
+        useUI.getState().toast(t('Signed out'))
+      }
+    })
+  }
 
   const workouts = S.workouts || []
   const totalSets = useMemo(() =>
@@ -359,6 +377,110 @@ export default function Profile() {
       <div className="profile-since dim small">
         {t('Training since {0}', memberSince)}
       </div>
+    </div>
+
+    {/* Account & Cloud Sync Status Card */}
+    <div
+      className="card"
+      style={{
+        background: user
+          ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, rgba(20, 20, 24, 0.95) 100%)'
+          : 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(20, 20, 24, 0.95) 100%)',
+        border: user ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(59, 130, 246, 0.3)',
+        marginBottom: 16,
+        padding: '16px 18px',
+        borderRadius: 16
+      }}
+    >
+      {user ? (
+        <div className="row between" style={{ alignItems: 'center' }}>
+          <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+            <span
+              className="lrow-i"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                background: 'rgba(34, 197, 94, 0.15)',
+                color: 'var(--acc)',
+                fontSize: 18,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <Icon name="cloud" />
+            </span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: '#ffffff' }}>
+                {user.email || user.name}
+              </div>
+              <div className="small dim" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>☁️ {t('Cloud Sync Active')}</span>
+                {user.emailVerified && <span style={{ color: 'var(--acc)', fontWeight: 600 }}>· {t('Verified')}</span>}
+              </div>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            style={{ fontSize: 12, color: 'var(--red)' }}
+            onClick={handleSignOut}
+          >
+            {t('Sign Out')}
+          </Button>
+        </div>
+      ) : (
+        <div>
+          <div className="row between" style={{ alignItems: 'center', marginBottom: 8 }}>
+            <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+              <span
+                className="lrow-i"
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  background: 'rgba(59, 130, 246, 0.15)',
+                  color: 'var(--blue)',
+                  fontSize: 18,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <Icon name="personCircle" />
+              </span>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{t('Guest Mode (Local Storage)')}</div>
+                <div className="small dim">{t('Data is stored only on this device')}</div>
+              </div>
+            </div>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                padding: '3px 8px',
+                borderRadius: 12,
+                background: 'rgba(255, 255, 255, 0.08)',
+                color: 'var(--label-2)'
+              }}
+            >
+              {t('Offline')}
+            </span>
+          </div>
+          <div className="small dim" style={{ marginBottom: 12, lineHeight: 1.4 }}>
+            {t('Sign in with Google or Email to unlock cloud sync, multi-device backup, and your verified athlete profile.')}
+          </div>
+          <Button
+            variant="primary"
+            icon="person"
+            style={{ width: '100%', fontSize: 14, fontWeight: 700 }}
+            onClick={() => nav('/login')}
+          >
+            {t('Sign In / Create Account')}
+          </Button>
+        </div>
+      )}
     </div>
 
     {/* Key Stats Row (Workouts, Streak, Days trained) */}

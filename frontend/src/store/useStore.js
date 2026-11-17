@@ -303,12 +303,26 @@ export const useStore = create((set, get) => {
         } else if (hasData(S)) {
           nativeSave(S)   // first run after an update from a file-less version: seed the mirror
         }
-        get().setGuest(true)
+
+        // Restore authenticated user if saved
+        const savedUserStr = localStorage.getItem('gym_user')
+        if (savedUserStr) {
+          try { get().setUser(JSON.parse(savedUserStr)) } catch {}
+        }
+
+        // Check if user explicitly used guest mode or is returning
+        const isExplicitGuest = localStorage.getItem('gym_guest') === '1'
+        if (!savedUserStr && !isExplicitGuest && !hasData(get().S)) {
+          // Fresh install: do not force guest mode, let user authenticate or choose guest on Login screen
+          set({ ready: true, needsMobileOnboarding: false })
+          return
+        }
+
+        if (!savedUserStr) {
+          get().setGuest(true)
+        }
         syncReminder(get().S)
-        // Only a genuinely first launch — nothing chosen yet and nothing to lose either — offers
-        // the choice. Picking local (even with no data yet) persists that choice below and this
-        // never asks again.
-        set({ ready: true, needsMobileOnboarding: !remote && !hasData(get().S) })
+        set({ ready: true, needsMobileOnboarding: false })
         return
       }
       // Demo build (GitHub Pages): no backend at all — seed once, stay in guest mode.

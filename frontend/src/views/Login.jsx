@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { webauthnOK, passkeyLogin, passkeyRegister, BIO } from '../lib/api.js'
@@ -129,9 +130,13 @@ function PasskeyRegisterSheet({ close }) {
 }
 
 export default function Login() {
+  const nav = useNavigate()
   const { setUser, pullState, setGuest } = useStore()
+  const user = useStore(s => s.user)
+  const isGuest = useStore(s => s.isGuest())
   const config = useStore(s => s.config)
   const canGuest = guestAllowed(config)
+  const canGoBack = !!(user || isGuest)
 
   const [mode, setMode] = useState('login') // 'login', 'register', 'passkey'
   const [email, setEmail] = useState('')
@@ -154,6 +159,7 @@ export default function Login() {
     trackEvent('login', { method: fbUser.providerData?.[0]?.providerId || 'password' })
     try { await pullState() } catch { /* offline or first time */ }
     useUI.getState().toast(t('Welcome back, {0}', userObj.name))
+    nav('/profile')
   }
 
   const handleGoogleSignIn = async () => {
@@ -275,6 +281,13 @@ export default function Login() {
 
   return (
     <div style={wrap}>
+      {canGoBack && (
+        <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 8 }}>
+          <button className="iconbtn" onClick={() => nav(-1)} aria-label={t('Back')}>
+            <Icon name="chevronLeft" />
+          </button>
+        </div>
+      )}
       {head}
 
       {/* Mode Selector Segmented Control */}
@@ -463,8 +476,8 @@ export default function Login() {
       {/* Guest Mode Fallback */}
       {canGuest && (
         <div style={{ marginTop: 14 }}>
-          <Button variant="ghost" className="dim" onClick={() => setGuest(true)} style={{ fontSize: 13 }}>
-            {t('Continue without account')}
+          <Button variant="ghost" className="dim" onClick={() => { setGuest(true); nav('/home') }} style={{ fontSize: 13 }}>
+            {t('Continue without account (Guest Mode)')}
           </Button>
         </div>
       )}
