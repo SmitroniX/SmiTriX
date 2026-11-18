@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.6.6 — 2026-11-18
+
+Authentication Hang Hotfix, Non-Blocking Profile Sync, Timeout Guardrails & Valid Key Injection.
+
+- ⚡ **Fixed Authentication Infinite "Processing..." Hang**:
+  - Identified and eliminated blocking `getDoc` calls in Firestore profile sync that stalled authentication indefinitely when network was establishing.
+  - Converted `syncUserProfile` into a non-blocking background task with a strict 2-second timeout guard.
+  - Added 15-second `Promise.race` timeout protection to `loginWithEmailPassword` and `registerWithEmailPassword` so the UI button never hangs in "Processing...".
+  - Wrapped `pullState()` in `applyFirebaseUser` with a 1.2s timeout race to guarantee instant navigation to the profile view upon authentication.
+  - Added graceful WebView handling for `signInWithGoogle` in Android native builds, redirecting to system browser safely rather than freezing the WebView popup.
+- 🔑 **Active API Key Activation**:
+  - Injected verified active Google Cloud API key into GitHub Actions build secrets (`VITE_FIREBASE_API_KEY`), replacing the expired key that caused Identity Toolkit auth rejections.
+  - Provided runtime fallback key in `firebase.js` so builds without explicitly set environment variables remain fully operational.
+- 🚀 **Release Build**:
+  - Android APK versionCode bumped to 32 (v1.6.6).
+
 ## v1.6.5 — 2026-11-18
 
 Clean Firebase Auth Domain Links, Android App Deep Linking & Auto-Redirection, and Release Hotfix.

@@ -170,7 +170,12 @@ export default function Login() {
     setUser(userObj)
     recordSecurityEvent('auth_success', { uid: fbUser.uid, email: fbUser.email })
     trackEvent('login', { method: fbUser.providerData?.[0]?.providerId || 'password' })
-    try { await pullState() } catch { /* offline or first time */ }
+    try {
+      await Promise.race([
+        pullState(),
+        new Promise(res => setTimeout(res, 1200))
+      ])
+    } catch { /* offline or first time */ }
     useUI.getState().toast(t('Welcome back, {0}', userObj.name))
     nav('/profile')
   }
@@ -183,7 +188,15 @@ export default function Login() {
     } catch (err) {
       if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
         recordSecurityEvent('auth_failure_google', { error: err.message })
-        useUI.getState().toast(err.message || t('Google sign-in failed'))
+        let msg = err.message
+        if (err.code === 'auth/popup-blocked') {
+          msg = t('Popup was blocked by your browser. Please allow popups or use Email sign-in.')
+        } else if (err.code === 'auth/timeout') {
+          msg = t('Google sign-in timed out. Please try again or use Email sign-in.')
+        } else if (err.code === 'auth/network-request-failed') {
+          msg = t('Network request failed. Please check your internet connection.')
+        }
+        useUI.getState().toast(msg || t('Google sign-in failed'))
       }
     } finally {
       setBusy(false)
@@ -204,14 +217,23 @@ export default function Login() {
 
     setBusy(true)
     try {
+      const authTask = (mode === 'register')
+        ? registerWithEmailPassword(cleanEmail, password, displayName.trim())
+        : loginWithEmailPassword(cleanEmail, password)
+
+      const timeoutTask = new Promise((_, reject) => {
+        setTimeout(() => {
+          const err = new Error(t('Authentication timed out. Please check your connection.'))
+          err.code = 'auth/timeout'
+          reject(err)
+        }, 15000)
+      })
+
+      const fbUser = await Promise.race([authTask, timeoutTask])
       if (mode === 'register') {
-        const fbUser = await registerWithEmailPassword(cleanEmail, password, displayName.trim())
-        await applyFirebaseUser(fbUser)
         useUI.getState().toast(t('Account created! Verification email sent.'))
-      } else {
-        const fbUser = await loginWithEmailPassword(cleanEmail, password)
-        await applyFirebaseUser(fbUser)
       }
+      await applyFirebaseUser(fbUser)
     } catch (err) {
       recordSecurityEvent('auth_failure_email', { email: cleanEmail, mode, error: err.message })
       let msg = err.message
@@ -219,6 +241,8 @@ export default function Login() {
         msg = t('Invalid email or password.')
       } else if (err.code === 'auth/email-already-in-use') {
         msg = t('An account with this email already exists.')
+      } else if (err.code === 'auth/network-request-failed') {
+        msg = t('Network request failed. Please check your connection.')
       }
       useUI.getState().toast(msg)
     } finally {
@@ -441,6 +465,12 @@ export default function Login() {
             </svg>
             <span>{mode === 'register' ? t('Sign up with Google') : t('Continue with Google')}</span>
           </button>
+
+          {MOBILE && (
+            <div className="dim small" style={{ fontSize: 11, marginTop: 6, textAlign: 'center' }}>
+              {t('Tip: For seamless in-app access, sign in directly with Email below.')}
+            </div>
+          )}
 
           {/* Divider */}
           <div style={{ display: 'flex', alignItems: 'center', margin: '20px 0 16px', gap: 12 }}>

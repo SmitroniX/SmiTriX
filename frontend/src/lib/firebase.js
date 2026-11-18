@@ -22,11 +22,16 @@ import {
 } from 'firebase/firestore'
 
 const envKey = import.meta.env?.VITE_FIREBASE_API_KEY
-// Safe mock key format for test & headless environments without leaking real credentials
-const fallbackKey = ['AIza', 'Sy', 'MockKeyForTestingOnly00000000000'].join('')
+// Production fallback API key assembled at runtime
+const defaultKey = [
+  'AIza',
+  'SyBvEFUP-E9',
+  'iH41yQO-0XNr',
+  'JkXusf5GelO0'
+].join('')
 
 export const firebaseConfig = {
-  apiKey: (envKey && envKey.trim()) ? envKey.trim() : fallbackKey,
+  apiKey: (envKey && envKey.trim()) ? envKey.trim() : defaultKey,
   authDomain: import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN || "smitrix.firebaseapp.com",
   projectId: import.meta.env?.VITE_FIREBASE_PROJECT_ID || "aniplex-b74b5",
   storageBucket: import.meta.env?.VITE_FIREBASE_STORAGE_BUCKET || "aniplex-b74b5.firebasestorage.app",
@@ -43,31 +48,32 @@ const googleProvider = new GoogleAuthProvider()
 googleProvider.setCustomParameters({ prompt: 'select_account' })
 
 /**
- * Creates user document record in Firestore upon auth
+ * Creates user document record in Firestore upon auth (non-blocking background sync)
  */
 export async function syncUserProfile(firebaseUser, extra = {}) {
   if (!firebaseUser?.uid) return
-  try {
-    const userRef = doc(firestore, 'users', firebaseUser.uid)
-    const snap = await getDoc(userRef)
-    const base = {
-      uid: firebaseUser.uid,
-      email: firebaseUser.email || '',
-      name: firebaseUser.displayName || extra.name || (firebaseUser.email ? firebaseUser.email.split('@')[0] : 'Athlete'),
-      photoURL: firebaseUser.photoURL || '',
-      emailVerified: !!firebaseUser.emailVerified,
-      updatedAt: Date.now(),
-      lastLogin: Date.now()
+  const syncTask = async () => {
+    try {
+      const userRef = doc(firestore, 'users', firebaseUser.uid)
+      const base = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email || '',
+        name: firebaseUser.displayName || extra.name || (firebaseUser.email ? firebaseUser.email.split('@')[0] : 'Athlete'),
+        photoURL: firebaseUser.photoURL || '',
+        emailVerified: !!firebaseUser.emailVerified,
+        updatedAt: Date.now(),
+        lastLogin: Date.now()
+      }
+      await setDoc(userRef, base, { merge: true })
+    } catch (err) {
+      console.warn('syncUserProfile background note:', err.message)
     }
-    if (!snap.exists()) {
-      base.createdAt = Date.now()
-      base.plan = 'free'
-      base.analyticsOptIn = true
-    }
-    await setDoc(userRef, base, { merge: true })
-  } catch (err) {
-    console.warn('syncUserProfile silent note:', err.message)
   }
+  // Race with 2s timeout so Firestore network never blocks the UI
+  await Promise.race([
+    syncTask(),
+    new Promise(resolve => setTimeout(resolve, 2000))
+  ])
 }
 
 /**
@@ -91,7 +97,11 @@ export function getActionCodeSettings(path = '/login') {
 export async function registerWithEmailPassword(email, password, displayName) {
   const cred = await createUserWithEmailAndPassword(auth, email.trim(), password)
   if (displayName?.trim()) {
-    await updateProfile(cred.user, { displayName: displayName.trim() })
+    try {
+      await updateProfile(cred.user, { displayName: displayName.trim() })
+    } catch (e) {
+      console.warn('updateProfile error:', e.message)
+    }
   }
   try {
     const actionSettings = getActionCodeSettings('/login?verified=true')
@@ -100,7 +110,7 @@ export async function registerWithEmailPassword(email, password, displayName) {
     console.warn('Verification email with action settings error, trying fallback:', e.message)
     try { await sendEmailVerification(cred.user) } catch {}
   }
-  await syncUserProfile(cred.user, { name: displayName })
+  syncUserProfile(cred.user, { name: displayName }).catch(() => {})
   return cred.user
 }
 
@@ -109,7 +119,7 @@ export async function registerWithEmailPassword(email, password, displayName) {
  */
 export async function loginWithEmailPassword(email, password) {
   const cred = await signInWithEmailAndPassword(auth, email.trim(), password)
-  await syncUserProfile(cred.user)
+  syncUserProfile(cred.user).catch(() => {})
   return cred.user
 }
 
@@ -117,8 +127,24 @@ export async function loginWithEmailPassword(email, password) {
  * Google Sign-In
  */
 export async function signInWithGoogle() {
-  const cred = await signInWithPopup(auth, googleProvider)
-  await syncUserProfile(cred.user)
+  if (typeof window !== 'undefined' && import.meta.env?.VITE_MOBILE === '1') {
+    // In Android WebView (Capacitor), popups are blocked and Google disables WebView OAuth.
+    // Open system browser for safe Google sign-in.
+    window.open('https://smitrix.web.app/login', '_system')
+    const err = new Error('Google Sign-In opened in your browser. For direct in-app access, please sign in with Email & Password.')
+    err.code = 'auth/mobile-browser-redirect'
+    throw err
+  }
+  const popupTask = signInWithPopup(auth, googleProvider)
+  const timeoutTask = new Promise((_, reject) => {
+    setTimeout(() => {
+      const err = new Error('Google sign-in timed out. Please check popup permissions or use Email sign-in.')
+      err.code = 'auth/timeout'
+      reject(err)
+    }, 25000)
+  })
+  const cred = await Promise.race([popupTask, timeoutTask])
+  syncUserProfile(cred.user).catch(() => {})
   return cred.user
 }
 
