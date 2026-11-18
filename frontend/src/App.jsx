@@ -101,6 +101,43 @@ function Shell() {
   // bound to the workout, not to the route — checking Stats mid-session keeps the screen on
   useWakeLock(!!S.active && S.keepAwake !== false)
 
+  // Handle mobile deep links and app links (smitrix:// and https://smitrix.web.app)
+  useEffect(() => {
+    let removeListener = null
+    import('@capacitor/app').then(({ App: CapApp }) => {
+      CapApp.addListener('appUrlOpen', data => {
+        if (!data?.url) return
+        try {
+          const rawUrl = data.url
+          let target = rawUrl
+            .replace(/^smitrix:\/\//i, '/')
+            .replace(/^https?:\/\/(?:smitrix\.web\.app|smitrix\.firebaseapp\.com|aniplex-b74b5\.firebaseapp\.com)/i, '')
+
+          if (!target.startsWith('/')) target = '/' + target
+          const [path, search] = target.split('?')
+          const q = search ? '?' + search : ''
+
+          if (path.includes('login') || rawUrl.includes('login') || q.includes('verified') || q.includes('mode=reset')) {
+            navigate('/login' + q)
+            if (q.includes('verified=true')) {
+              useUI.getState().toast('Email verified! You can now sign in.')
+            }
+          } else if (path && path !== '/') {
+            navigate(path + q)
+          }
+        } catch (e) {
+          console.warn('Deep link routing error:', e)
+        }
+      }).then(handle => {
+        removeListener = handle
+      }).catch(() => {})
+    }).catch(() => {})
+
+    return () => {
+      removeListener?.remove?.()
+    }
+  }, [navigate])
+
   const authed = user || isGuest
   if (!ready && !authed) return (
     <div id="app">

@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "aniplex-b74b5"
-  }
+  },
+  "targets": {
+    "aniplex-b74b5": {
+      "hosting": {
+        "smitrix": [
+          "smitrix"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

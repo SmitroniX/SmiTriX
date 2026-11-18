@@ -27,7 +27,7 @@ const fallbackKey = ['AIza', 'Sy', 'MockKeyForTestingOnly00000000000'].join('')
 
 export const firebaseConfig = {
   apiKey: (envKey && envKey.trim()) ? envKey.trim() : fallbackKey,
-  authDomain: import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN || "aniplex-b74b5.firebaseapp.com",
+  authDomain: import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN || "smitrix.firebaseapp.com",
   projectId: import.meta.env?.VITE_FIREBASE_PROJECT_ID || "aniplex-b74b5",
   storageBucket: import.meta.env?.VITE_FIREBASE_STORAGE_BUCKET || "aniplex-b74b5.firebasestorage.app",
   messagingSenderId: import.meta.env?.VITE_FIREBASE_MESSAGING_SENDER_ID || "959848366624",
@@ -71,6 +71,21 @@ export async function syncUserProfile(firebaseUser, extra = {}) {
 }
 
 /**
+ * ActionCodeSettings for deep-linking back into SmiTriX mobile app and web
+ */
+export function getActionCodeSettings(path = '/login') {
+  return {
+    url: `https://smitrix.web.app${path}`,
+    handleCodeInApp: true,
+    android: {
+      packageName: 'com.smitrix.app',
+      installApp: true,
+      minimumVersion: '30'
+    }
+  }
+}
+
+/**
  * Register with Email & Password
  */
 export async function registerWithEmailPassword(email, password, displayName) {
@@ -79,9 +94,11 @@ export async function registerWithEmailPassword(email, password, displayName) {
     await updateProfile(cred.user, { displayName: displayName.trim() })
   }
   try {
-    await sendEmailVerification(cred.user)
+    const actionSettings = getActionCodeSettings('/login?verified=true')
+    await sendEmailVerification(cred.user, actionSettings)
   } catch (e) {
-    console.warn('Verification email send error:', e.message)
+    console.warn('Verification email with action settings error, trying fallback:', e.message)
+    try { await sendEmailVerification(cred.user) } catch {}
   }
   await syncUserProfile(cred.user, { name: displayName })
   return cred.user
@@ -109,7 +126,13 @@ export async function signInWithGoogle() {
  * Send Password Reset Email
  */
 export async function sendPasswordReset(email) {
-  return sendPasswordResetEmail(auth, email.trim())
+  try {
+    const actionSettings = getActionCodeSettings('/login?mode=reset')
+    return await sendPasswordResetEmail(auth, email.trim(), actionSettings)
+  } catch (e) {
+    console.warn('Password reset with action settings error, trying fallback:', e.message)
+    return await sendPasswordResetEmail(auth, email.trim())
+  }
 }
 
 /**
@@ -117,7 +140,12 @@ export async function sendPasswordReset(email) {
  */
 export async function resendVerificationEmail() {
   if (auth.currentUser) {
-    return sendEmailVerification(auth.currentUser)
+    try {
+      const actionSettings = getActionCodeSettings('/login?verified=true')
+      return await sendEmailVerification(auth.currentUser, actionSettings)
+    } catch (e) {
+      return await sendEmailVerification(auth.currentUser)
+    }
   }
   throw new Error('No signed in user')
 }

@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.6.5 — 2026-11-18
+
+Clean Firebase Auth Domain Links, Android App Deep Linking & Auto-Redirection, and Release Hotfix.
+
+- 🔗 **Clean Firebase Auth Domain (No Random Numbers)**:
+  - Configured dedicated Firebase Hosting domain `smitrix.firebaseapp.com` and `smitrix.web.app` for authentication handlers.
+  - Replaced the default random project ID URL (`aniplex-b74b5.firebaseapp.com`) across Google Auth and email links with clean branded `smitrix.firebaseapp.com`.
+  - Added `smitrix.firebaseapp.com`, `smitrix.web.app`, `smitrix-app.firebaseapp.com`, and `smitrix-app.web.app` to authorized Firebase Auth domains.
+- 📱 **Android App Links & In-App Redirection**:
+  - Registered Digital Asset Links (`.well-known/assetlinks.json`) with the release keystore SHA-256 fingerprint on `smitrix.web.app`.
+  - Added Android App Links intent filters (`autoVerify="true"`) for `smitrix.web.app` and `smitrix.firebaseapp.com` in `AndroidManifest.xml`.
+  - Added custom scheme `smitrix://` intent filter for seamless deep linking into any view.
+  - Implemented `@capacitor/app` `appUrlOpen` routing in `App.jsx` to intercept incoming email verification and password reset links directly into native views.
+  - Updated `ActionCodeSettings` in Firebase email verification and password reset calls to target `https://smitrix.web.app/login` with `handleCodeInApp: true` and Android package `com.smitrix.app`.
+  - Added mobile browser detection in `Login.jsx` with an "Open in SmiTriX App" action banner and verification toast notifications.
+- 🚀 **Release Build**:
+  - Android APK versionCode bumped to 31 (v1.6.5).
+
 ## v1.6.4 — 2026-11-17
 
 Hotfix for Profile view crash (fmtDate import resolution), Workout Stepper digit clipping fix, and unit test hardening.

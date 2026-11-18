@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { webauthnOK, passkeyLogin, passkeyRegister, BIO } from '../lib/api.js'
@@ -7,6 +7,7 @@ import { hasData } from '../store/useStore.js'
 import { t } from '../lib/i18n.js'
 import { DEMO, REPO } from '../lib/demo.js'
 import { guestAllowed } from '../lib/guest.js'
+import { MOBILE } from '../lib/mobile.js'
 import {
   signInWithGoogle,
   loginWithEmailPassword,
@@ -131,6 +132,7 @@ function PasskeyRegisterSheet({ close }) {
 
 export default function Login() {
   const nav = useNavigate()
+  const loc = useLocation()
   const { setUser, pullState, setGuest } = useStore()
   const user = useStore(s => s.user)
   const isGuest = useStore(s => s.isGuest())
@@ -144,6 +146,17 @@ export default function Login() {
   const [displayName, setDisplayName] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState(false)
+
+  const isMobileBrowser = typeof navigator !== 'undefined' && /android|iphone|ipad|ipod/i.test(navigator.userAgent || '')
+
+  useEffect(() => {
+    const params = new URLSearchParams(loc.search)
+    if (params.get('verified') === 'true') {
+      useUI.getState().toast(t('Email verified! You can now sign in.'))
+    } else if (params.get('mode') === 'reset') {
+      useUI.getState().toast(t('Password reset link opened. Please sign in with your updated credentials.'))
+    }
+  }, [loc.search])
 
   const applyFirebaseUser = async fbUser => {
     const userObj = {
@@ -289,6 +302,51 @@ export default function Login() {
         </div>
       )}
       {head}
+
+      {!MOBILE && isMobileBrowser && (
+        <div
+          style={{
+            background: 'rgba(59, 130, 246, 0.12)',
+            border: '1px solid rgba(59, 130, 246, 0.35)',
+            borderRadius: 14,
+            padding: '12px 14px',
+            marginBottom: 18,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            textAlign: 'left'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ color: 'var(--blue)', display: 'flex' }}>
+              <Icon name="link" size={18} />
+            </span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--label-1)' }}>
+                {t('SmiTriX Mobile App')}
+              </div>
+              <div className="muted small" style={{ fontSize: 11 }}>
+                {t('Open directly in the Android application')}
+              </div>
+            </div>
+          </div>
+          <a
+            href={`smitrix://login${loc.search || ''}`}
+            className="btn primary"
+            style={{
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: 600,
+              borderRadius: 8,
+              textDecoration: 'none',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {t('Open App')}
+          </a>
+        </div>
+      )}
 
       {/* Mode Selector Segmented Control */}
       <div
