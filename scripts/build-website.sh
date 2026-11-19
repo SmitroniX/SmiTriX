@@ -18,6 +18,12 @@ cd ..
 rm -rf website/demo
 cp -r frontend/dist website/demo
 
+# Security guard: Ensure zero leaked Google API keys in public website/demo
+if grep -rn "AIzaSy" website/demo/; then
+  echo "CRITICAL ERROR: Leaked Google API Key detected in website/demo!"
+  exit 1
+fi
+
 echo "=== Rebuilding frontend/dist for Production (Firebase Hosting) ==="
 cd frontend
 npm run build

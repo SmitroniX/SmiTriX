@@ -31,17 +31,8 @@ export function isAdminEmail(email) {
   return String(email || '').trim().toLowerCase() === ADMIN_EMAIL
 }
 
-const envKey = import.meta.env?.VITE_FIREBASE_API_KEY
-// Production fallback API key assembled at runtime
-const defaultKey = [
-  'AIza',
-  'SyBvEFUP-E9',
-  'iH41yQO-0XNr',
-  'JkXusf5GelO0'
-].join('')
-
 export const firebaseConfig = {
-  apiKey: (envKey && envKey.trim()) ? envKey.trim() : defaultKey,
+  apiKey: import.meta.env?.VITE_FIREBASE_API_KEY || "",
   authDomain: import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN || "aniplex-b74b5.firebaseapp.com",
   projectId: import.meta.env?.VITE_FIREBASE_PROJECT_ID || "aniplex-b74b5",
   storageBucket: import.meta.env?.VITE_FIREBASE_STORAGE_BUCKET || "aniplex-b74b5.firebasestorage.app",

@@ -35,7 +35,10 @@ const umami = {
 const pkgVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
 
 export default defineConfig({
-  define: { __APP_VERSION__: JSON.stringify(pkgVersion) },
+  define: {
+    __APP_VERSION__: JSON.stringify(pkgVersion),
+    ...(process.env.VITE_DEMO === '1' ? { 'import.meta.env.VITE_FIREBASE_API_KEY': JSON.stringify('') } : {})
+  },
   plugins: [react(), umami],
   base: './',
   server: {
