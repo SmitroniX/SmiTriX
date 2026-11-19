@@ -40,8 +40,8 @@ describe('TabBar component', () => {
     expect(container.querySelector('#tabbar')).toBeNull()
   })
 
-  it('highlights Home tab on /home, /settings, /checkin, and /admin', async () => {
-    const routes = ['/home', '/settings', '/checkin', '/admin']
+  it('highlights Home tab on /home, /settings, /checkin, /admin, and /plan', async () => {
+    const routes = ['/home', '/settings', '/checkin', '/admin', '/plan']
     for (const route of routes) {
       await act(async () => {
         root.render(
@@ -51,54 +51,10 @@ describe('TabBar component', () => {
         )
       })
       const buttons = container.querySelectorAll('#tabbar button')
-      const homeBtn = buttons[0] // first tab is Home
+      expect(buttons.length).toBe(4)
+      const homeBtn = buttons[0] // 1st tab is Home
       expect(homeBtn.classList.contains('on'), `Home tab should be on for ${route}`).toBe(true)
     }
-  })
-
-  it('highlights Stats tab on /stats and /history', async () => {
-    const routes = ['/stats', '/history']
-    for (const route of routes) {
-      await act(async () => {
-        root.render(
-          <MemoryRouter initialEntries={[route]}>
-            <TabBar onStart={() => {}} />
-          </MemoryRouter>
-        )
-      })
-      const buttons = container.querySelectorAll('#tabbar button')
-      const statsBtn = buttons[3] // 4th button (Home, Plan, Start, Stats, Library)
-      expect(statsBtn.classList.contains('on'), `Stats tab should be on for ${route}`).toBe(true)
-    }
-  })
-
-  it('highlights Library tab on /library and /muscles', async () => {
-    const routes = ['/library', '/muscles']
-    for (const route of routes) {
-      await act(async () => {
-        root.render(
-          <MemoryRouter initialEntries={[route]}>
-            <TabBar onStart={() => {}} />
-          </MemoryRouter>
-        )
-      })
-      const buttons = container.querySelectorAll('#tabbar button')
-      const libBtn = buttons[4] // 5th button
-      expect(libBtn.classList.contains('on'), `Library tab should be on for ${route}`).toBe(true)
-    }
-  })
-
-  it('highlights Plan tab on /plan', async () => {
-    await act(async () => {
-      root.render(
-        <MemoryRouter initialEntries={['/plan']}>
-          <TabBar onStart={() => {}} />
-        </MemoryRouter>
-      )
-    })
-    const buttons = container.querySelectorAll('#tabbar button')
-    const planBtn = buttons[1] // 2nd button
-    expect(planBtn.classList.contains('on')).toBe(true)
   })
 
   it('highlights Start button on /workout', async () => {
@@ -110,7 +66,39 @@ describe('TabBar component', () => {
       )
     })
     const buttons = container.querySelectorAll('#tabbar button')
-    const startBtn = buttons[2] // 3rd button
+    const startBtn = buttons[1] // 2nd button
     expect(startBtn.classList.contains('on')).toBe(true)
+  })
+
+  it('highlights Exercises tab on /library and /muscles', async () => {
+    const routes = ['/library', '/muscles']
+    for (const route of routes) {
+      await act(async () => {
+        root.render(
+          <MemoryRouter initialEntries={[route]}>
+            <TabBar onStart={() => {}} />
+          </MemoryRouter>
+        )
+      })
+      const buttons = container.querySelectorAll('#tabbar button')
+      const libBtn = buttons[2] // 3rd button
+      expect(libBtn.classList.contains('on'), `Library tab should be on for ${route}`).toBe(true)
+    }
+  })
+
+  it('highlights Profile tab on /profile, /stats, /history, and /plans', async () => {
+    const routes = ['/profile', '/stats', '/history', '/plans']
+    for (const route of routes) {
+      await act(async () => {
+        root.render(
+          <MemoryRouter initialEntries={[route]}>
+            <TabBar onStart={() => {}} />
+          </MemoryRouter>
+        )
+      })
+      const buttons = container.querySelectorAll('#tabbar button')
+      const profileBtn = buttons[3] // 4th button
+      expect(profileBtn.classList.contains('on'), `Profile tab should be on for ${route}`).toBe(true)
+    }
   })
 })

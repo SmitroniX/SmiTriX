@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.7.3 — 2026-11-19
+
+Clean Zero-Preload Profiles, 4-Button Bottom Navigation, Profile Photo Upload, and App-Only Authentication.
+
+- 🧹 **Eliminated Preloaded Demo Workouts on All Profiles (`useStore.js`, `Login.jsx`, `Profile.jsx`)**:
+  - Removed automatic demo seeding (`resetDemo()`) from `boot()` so profiles never preload the fabricated 12-week Push/Pull/Legs workouts.
+  - Added automatic `stripDemoSeed()` sanitization across local storage and Cloud Firestore (`pullState()`) to purge any existing preloaded demo workouts, plus a 1-tap **Clear** button in the Profile `Workouts` header.
+- 🧭 **Streamlined 4-Button Bottom Navigation (`TabBar.jsx`)**:
+  - Simplified the bottom navigation bar from 6 crowded buttons down to 4 spacious tabs: **Home**, **Workout**, **Exercises**, and **Profile** (with Statistics, Measures, and Calendar accessible directly inside Profile's 2×2 Dashboard grid).
+- 📸 **Profile Photo Upload (`Profile.jsx`, `EditProfileModal.jsx`)**:
+  - Added direct profile photo upload by tapping the circular avatar (with camera badge) on the Profile screen or inside the **Edit Athlete Profile** modal, with automatic `256×256` square cropping and cloud sync.
+- 🔒 **Demo-Only Website & App-Only Login/Signup (`useStore.js`, `Login.jsx`, `Profile.jsx`)**:
+  - Removed Login/Signup requirements and prompts from the website (website runs as an instant interactive demo only), while keeping Login & Signup strictly inside the Android App (`VITE_MOBILE=1`, with `/login?native_google=1` acting solely as the Android App's Google OAuth relay).
+- 🚀 **Release Build**:
+  - Android APK versionCode bumped to 37 (v1.7.3).
+
 ## v1.7.2 — 2026-11-19
 
 Instant Native Android App Handoff After Web Sign-In & Root Deep-Link Hydration.

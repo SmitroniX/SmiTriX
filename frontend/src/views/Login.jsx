@@ -247,17 +247,8 @@ export default function Login() {
     recordSecurityEvent('auth_success', { uid: fbUser.uid, email: fbUser.email })
     trackEvent('login', { method: fbUser.providerData?.[0]?.providerId || 'password' })
 
-    // Run cloud sync in background without blocking or expiring the browser's user-gesture token
-    const syncJob = async () => {
-      if (hasData(useStore.getState().S)) {
-        await pushState()
-      }
-      await pullState()
-    }
-    syncJob().catch(() => {})
-
-    // When signing in on a mobile browser or via the Android OAuth bridge,
-    // NEVER call nav('/profile') on the website — immediately launch the SmiTriX Android app!
+    // When signing in via the Android OAuth bridge (!MOBILE), never push browser localStorage
+    // state to cloud — immediately redirect back into the native SmiTriX Android app!
     if (!MOBILE && (isNativeGoogleBridge || isMobileBrowser) && qs) {
       setStatusBanner({
         type: 'success',
@@ -265,6 +256,22 @@ export default function Login() {
       })
       triggerNativeAppRedirect(qs)
       return
+    }
+
+    // Inside the native app: ensure new registrations start with 0 preloaded workouts,
+    // and existing accounts pull from cloud without pushing demo/browser state over it.
+    if (mode === 'register') {
+      useStore.getState().update(s => {
+        s.workouts = []
+        s.bodyweight = []
+        s.routines = []
+        s.exWeights = {}
+        s.week = {}
+        s.dayPlan = {}
+        s.targetW = null
+      }, true)
+    } else {
+      pullState().catch(() => {})
     }
 
     useUI.getState().toast(t('Welcome, {0}', userObj.name))
@@ -365,8 +372,12 @@ export default function Login() {
     } else if (actionMode === 'reset') {
       setStatusBanner({ type: 'info', text: t('Password reset complete. Sign in with your updated password.') })
       useUI.getState().toast(t('Please sign in with your updated credentials.'))
-    } else if (!MOBILE && isMobileBrowser && user?.id) {
-      // If the user is already authenticated in this mobile browser when opening /login,
+    } else if (!MOBILE && !isNativeGoogleBridge && !oobCode) {
+      // Website is demo-only — Login & Signup is exclusively for the Android app
+      setGuest(true)
+      nav('/home', { replace: true })
+    } else if (!MOBILE && isNativeGoogleBridge && user?.id) {
+      // If the user is already authenticated in this mobile browser when opening /login?native_google=1,
       // immediately redirect their active session into the native SmiTriX Android app
       const qs = buildUserQuery(user)
       setStatusBanner({

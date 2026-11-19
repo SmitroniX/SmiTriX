@@ -65,10 +65,44 @@ export const DEF = {
 }
 const clone = o => JSON.parse(JSON.stringify(o))
 
+// Detects the fabricated 12-week Push/Pull/Legs demo seed (targetW === 77, ~32 workouts, weigh-ins starting near 82.4kg)
+export function isDemoSeedState(st) {
+  if (!st) return false
+  const bw0 = st.bodyweight?.[0]?.w
+  const hasDemoBw = st.targetW === 77 && typeof bw0 === 'number' && bw0 >= 81.5 && bw0 <= 83.2
+  const hasDemoRoutines = (st.routines || []).length === 3 &&
+    st.routines[0]?.name === 'Push' &&
+    st.routines[1]?.name === 'Pull' &&
+    st.routines[2]?.name === 'Legs' &&
+    (st.workouts || []).length >= 20
+  return !!(hasDemoBw || hasDemoRoutines)
+}
+
+export function stripDemoSeed(st) {
+  if (!st) return false
+  const flagged = typeof localStorage !== 'undefined' && localStorage.getItem(DEMO_SEEDED) === '1'
+  if (!flagged && !isDemoSeedState(st)) return false
+  st.workouts = []
+  st.bodyweight = []
+  st.routines = []
+  st.exWeights = {}
+  st.week = {}
+  st.dayPlan = {}
+  st.targetW = null
+  try { localStorage.removeItem(DEMO_SEEDED) } catch {}
+  return true
+}
+
 function loadState() {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return Object.assign(clone(DEF), JSON.parse(raw))
+    if (raw) {
+      const parsed = Object.assign(clone(DEF), JSON.parse(raw))
+      if (stripDemoSeed(parsed)) {
+        try { localStorage.setItem(KEY, JSON.stringify(parsed)) } catch {}
+      }
+      return parsed
+    }
   } catch (e) { /* ignore */ }
   return clone(DEF)
 }
@@ -225,10 +259,21 @@ export const useStore = create((set, get) => {
         try {
           const { pullCloudState } = await import('../lib/firebase.js')
           const state = await pullCloudState(curUser.id)
+          if (state && isDemoSeedState(state)) {
+            stripDemoSeed(state)
+            const cleaned = Object.assign(clone(DEF), state)
+            persist(cleaned, false)
+            await get().pushState()
+            return
+          }
           const S = get().S
+          if (stripDemoSeed(S)) {
+            persist(S, false)
+          }
           const dirty = localStorage.getItem('gym_dirty') === '1'
           const restored = restoredStateFor(S, state, dirty)
           if (restored) {
+            stripDemoSeed(restored)
             persist(restored, false)
           } else if (hasData(S)) {
             await get().pushState()
@@ -326,16 +371,25 @@ export const useStore = create((set, get) => {
         }
         const saved = await nativeLoad()
         const S = get().S
+        if (saved) stripDemoSeed(saved)
+        stripDemoSeed(S)
         if (saved && (!hasData(S) || (saved._ts || 0) >= (S._ts || 0))) {
-          persist(Object.assign(clone(DEF), saved), false)
-        } else if (hasData(S)) {
-          nativeSave(S)   // first run after an update from a file-less version: seed the mirror
+          const merged = Object.assign(clone(DEF), saved)
+          stripDemoSeed(merged)
+          persist(merged, false)
+        } else {
+          persist(S, false)
+          nativeSave(S)
         }
 
-        // Restore authenticated user if saved; Login & Signup is mandatory on production builds
+        // Restore authenticated user if saved; Login & Signup is mandatory inside the Android app
         const savedUserStr = localStorage.getItem('gym_user')
         if (savedUserStr) {
-          try { get().setUser(JSON.parse(savedUserStr)) } catch {}
+          try {
+            const u = JSON.parse(savedUserStr)
+            get().setUser(u)
+            get().pullState().catch(() => {})
+          } catch {}
         } else {
           get().setGuest(false)
         }
@@ -343,40 +397,21 @@ export const useStore = create((set, get) => {
         set({ ready: true, needsMobileOnboarding: false })
         return
       }
-      // Demo build (GitHub Pages): no backend at all — seed once, stay in guest mode.
-      if (DEMO) {
-        if (!localStorage.getItem(DEMO_SEEDED)) {
-          localStorage.setItem(DEMO_SEEDED, '1')
-          await get().resetDemo()
-        }
+      // Website build (!MOBILE):
+      // Website is demo-only with NO login/signup on the website (and NO preloaded workouts in profile).
+      // The ONLY exception is when the Android app opens /login?native_google=1 or /login?oobCode=...
+      // as the OAuth / Email Verification redirect bridge back to the Android app.
+      const isAppAuthBridge = typeof window !== 'undefined' && (
+        (window.location?.pathname || '').startsWith('/login') ||
+        /native_google=|oobCode=|google_id_token=|uid=|verified=|mode=/i.test((window.location?.search || '') + (window.location?.hash || ''))
+      )
+      if (!isAppAuthBridge) {
+        const curS = get().S
+        if (stripDemoSeed(curS)) persist(curS, false)
+        get().setUser(null)
         get().setGuest(true)
         set({ ready: true })
         return
-      }
-      // Guests never authenticate, so an instance that turned guest mode off has no request to
-      // refuse — the only way the switch reaches someone already inside is here, on their next
-      // boot. Ending the session needs a positive `allow_guest: false`; see lib/guest.js for why
-      // an unreachable server must not be allowed to lock anyone out (#42).
-      const cfg = await get().loadConfig()
-      const isProdFirebaseHost = typeof window !== 'undefined' && /smitrix\.web\.app|aniplex-b74b5\.(web\.app|firebaseapp\.com)/i.test(window.location?.hostname || '')
-      if (isProdFirebaseHost || !guestAllowed(cfg)) get().setGuest(false)
-      try {
-        const me = await api('/api/me')
-        if (me && Object.prototype.hasOwnProperty.call(me, 'user')) {
-          get().setUser(me.user)
-          await get().pullState()
-          // Re-stamp the reminder's timezone on every load — keeps it correct if you're travelling,
-          // without needing to revisit Settings.
-          const tz = localTZ()
-          if (get().S.reminder?.on && get().S.reminder.tz !== tz) {
-            get().update(s => { s.reminder = { ...s.reminder, tz } })
-          }
-        } else if (get().user?.firebase) {
-          get().pullState().catch(() => {})
-        }
-      } catch (e) {
-        if (e.status === 401 && !get().user?.firebase) get().setUser(null)
-        else if (get().user?.firebase) get().pullState().catch(() => {})
       }
       set({ ready: true })
     }

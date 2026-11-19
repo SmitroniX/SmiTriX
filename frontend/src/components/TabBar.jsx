@@ -15,9 +15,8 @@ export default function TabBar({ onStart }) {
   const cur = loc.pathname.split('/')[1] || 'home'
   const on = k =>
     cur === k ||
-    (cur === 'history' && k === 'stats') ||
-    ((cur === 'settings' || cur === 'checkin' || cur === 'admin') && k === 'home') ||
-    (cur === 'plans' && k === 'profile') ||
+    ((cur === 'settings' || cur === 'checkin' || cur === 'admin' || cur === 'plan') && k === 'home') ||
+    ((cur === 'stats' || cur === 'history' || cur === 'plans') && k === 'profile') ||
     (cur === 'muscles' && k === 'library')
 
   const startWorkout = () => {
@@ -36,12 +35,10 @@ export default function TabBar({ onStart }) {
   return (
     <nav id="tabbar">
       <Tab k="home" icon="house" to="/home" label={t('Home')} />
-      <Tab k="plan" icon="calendar" to="/plan" label={t('Plan')} />
       <button className={'start' + (S.active ? ' rec' : '') + (cur === 'workout' ? ' on' : '')} onClick={startWorkout}>
         <span className="cir"><Icon name="dumbbell" /></span>
         <span>{S.active ? t('Resume') : t('Workout')}</span>
       </button>
-      <Tab k="stats" icon="chart" to="/stats" label={t('Stats')} />
       <Tab k="library" icon="list" to="/library" label={t('Exercises')} />
       <Tab k="profile" icon="person" to="/profile" label={t('Profile')} />
     </nav>

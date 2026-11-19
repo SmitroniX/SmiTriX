@@ -96,6 +96,45 @@ export default function Profile() {
   const [expandedWorkouts, setExpandedWorkouts] = useState({})
   const [photoTargetWorkoutId, setPhotoTargetWorkoutId] = useState(null)
   const fileInputRef = useRef(null)
+  const avatarFileRef = useRef(null)
+  const avatarUrl = athlete.photoURL || user?.photoURL || ''
+
+  const handleAvatarUpload = async e => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const dataUrl = await compressWorkoutImage(file, 256, 0.85)
+      update(s => {
+        s.athleteProfile = { ...(s.athleteProfile || {}), photoURL: dataUrl }
+      })
+      if (user) {
+        setUser({ ...user, photoURL: dataUrl })
+      }
+      useUI.getState().toast(t('Profile photo updated!'))
+    } catch (err) {
+      useUI.getState().toast(err.message || t('Failed to upload profile photo'))
+    } finally {
+      e.target.value = ''
+    }
+  }
+
+  const handleClearWorkouts = () => {
+    confirmSheet({
+      title: t('Clear Workout History?'),
+      message: t('This will remove all workouts from your profile feed and reset exercise records.'),
+      confirmText: t('Clear All'),
+      danger: true,
+      onConfirm: () => {
+        update(s => {
+          s.workouts = []
+          s.exWeights = {}
+          s.workoutPosts = []
+          s.workoutLikes = {}
+        })
+        useUI.getState().toast(t('Workout history cleared'))
+      }
+    })
+  }
 
   const handleResendVerify = async () => {
     setVerifyBusy(true)
@@ -338,6 +377,13 @@ export default function Profile() {
         style={{ display: 'none' }}
         onChange={handlePhotoSelected}
       />
+      <input
+        ref={avatarFileRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handleAvatarUpload}
+      />
 
       {/* Top Header Bar: Handle on Left, Edit / Share / Settings on Right */}
       <div className="row between" style={{ padding: '6px 0 16px', alignItems: 'center' }}>
@@ -381,29 +427,51 @@ export default function Profile() {
       {/* Horizontal Profile Header Row (Avatar on Left, Name & Counts on Right) */}
       <div className="row" style={{ gap: 18, alignItems: 'center', marginBottom: 16 }}>
         <div
-          className="profile-avatar"
-          onClick={() => setShowEditProfile(true)}
-          style={{
-            width: 76,
-            height: 76,
-            borderRadius: '50%',
-            background: user?.photoURL
-              ? `url(${user.photoURL}) center/cover no-repeat`
-              : 'var(--surface-2)',
-            border: '2px solid var(--sep)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 26,
-            fontWeight: 700,
-            color: user?.photoURL ? 'transparent' : 'var(--label)',
-            margin: 0,
-            flexShrink: 0,
-            cursor: 'pointer',
-            boxShadow: 'none'
-          }}
+          style={{ position: 'relative', width: 76, height: 76, flexShrink: 0, cursor: 'pointer' }}
+          onClick={() => avatarFileRef.current?.click()}
+          title={t('Tap to upload profile photo')}
         >
-          {initials}
+          <div
+            className="profile-avatar"
+            style={{
+              width: 76,
+              height: 76,
+              borderRadius: '50%',
+              background: avatarUrl
+                ? `url(${avatarUrl}) center/cover no-repeat`
+                : 'var(--surface-2)',
+              border: '2px solid var(--sep)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 26,
+              fontWeight: 700,
+              color: avatarUrl ? 'transparent' : 'var(--label)',
+              margin: 0,
+              boxShadow: 'none'
+            }}
+          >
+            {initials}
+          </div>
+          <span
+            style={{
+              position: 'absolute',
+              right: -2,
+              bottom: -2,
+              width: 26,
+              height: 26,
+              borderRadius: '50%',
+              background: 'var(--acc)',
+              color: '#ffffff',
+              border: '2px solid var(--bg)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 13
+            }}
+          >
+            <Icon name="camera" />
+          </span>
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -760,14 +828,24 @@ export default function Profile() {
             {t('Workouts')}
           </div>
           {sortedWorkouts.length > 0 && (
-            <button
-              type="button"
-              onClick={() => handleAttachPhotoClick(sortedWorkouts[0]?.id)}
-              style={{ color: 'var(--acc)', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 5 }}
-            >
-              <Icon name="camera" style={{ fontSize: 15 }} />
-              <span>{t('Add Photo')}</span>
-            </button>
+            <div className="row" style={{ gap: 14, alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => handleAttachPhotoClick(sortedWorkouts[0]?.id)}
+                style={{ color: 'var(--acc)', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 5 }}
+              >
+                <Icon name="camera" style={{ fontSize: 15 }} />
+                <span>{t('Add Photo')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleClearWorkouts}
+                style={{ color: 'var(--red)', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+              >
+                <Icon name="trash" style={{ fontSize: 14 }} />
+                <span>{t('Clear')}</span>
+              </button>
+            </div>
           )}
         </div>
 
@@ -827,15 +905,15 @@ export default function Profile() {
                           width: 36,
                           height: 36,
                           borderRadius: '50%',
-                          background: user?.photoURL
-                            ? `url(${user.photoURL}) center/cover no-repeat`
+                          background: avatarUrl
+                            ? `url(${avatarUrl}) center/cover no-repeat`
                             : 'var(--surface-2)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           fontSize: 13,
                           fontWeight: 700,
-                          color: user?.photoURL ? 'transparent' : 'var(--label)',
+                          color: avatarUrl ? 'transparent' : 'var(--label)',
                           border: '1px solid var(--sep-op)'
                         }}
                       >
@@ -1068,31 +1146,33 @@ export default function Profile() {
         </div>
       )}
 
-      {/* Account Bar */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        {user ? (
-          <div className="row between" style={{ alignItems: 'center' }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--label)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {user.email || user.name}
+      {/* Account Bar (Android App Only — Website is Demo Only without Login/Signup) */}
+      {(import.meta.env.VITE_MOBILE === '1' || user) && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          {user ? (
+            <div className="row between" style={{ alignItems: 'center' }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--label)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {user.email || user.name}
+                </div>
+                <div className="small dim">{t('Cloud Sync Active')}</div>
               </div>
-              <div className="small dim">{t('Cloud Sync Active')}</div>
+              <Button
+                size="sm"
+                variant="ghost"
+                style={{ width: 'auto', fontSize: 13, color: 'var(--red)' }}
+                onClick={handleSignOut}
+              >
+                {t('Sign Out')}
+              </Button>
             </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              style={{ width: 'auto', fontSize: 13, color: 'var(--red)' }}
-              onClick={handleSignOut}
-            >
-              {t('Sign Out')}
+          ) : (
+            <Button variant="primary" icon="person" onClick={() => nav('/login')}>
+              {t('Sign In')}
             </Button>
-          </div>
-        ) : (
-          <Button variant="primary" icon="person" onClick={() => nav('/login')}>
-            {t('Sign In')}
-          </Button>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Modals */}
       {showAchievements && (
