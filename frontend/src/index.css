@@ -61,11 +61,18 @@
   --sat:env(safe-area-inset-top,0px);
 
   /* generic aliases & geometry */
-  --border:    var(--sep-op);
-  --line:      var(--sep-op);
-  --fg:        var(--label);
-  --dim:       var(--label-3);
-  --r-md:      10px;
+  --border:          var(--sep-op);
+  --border-hairline: var(--sep-op);
+  --line:            var(--sep-op);
+  --fg:              var(--label);
+  --label-1:         var(--label);
+  --sub:             var(--label-2);
+  --dim:             var(--label-3);
+  --surface-1:       var(--surface);
+  --card-subtle:     var(--surface-2);
+  --fill-3:          var(--surface-3);
+  --amber:           var(--orange);
+  --r-md:            10px;
 }
 
 :root[data-theme="light"] {
@@ -599,6 +606,11 @@ h4.sec{
 }
 .seg button .icn{font-size:16px}
 .seg button:not(.on){color:var(--label-2);font-weight:400}
+.seg:not(:has(.seg-sel)) button.on{
+  background:var(--surface);border-radius:7px;
+  box-shadow:0 3px 8px rgba(0,0,0,.12),0 1px 1px rgba(0,0,0,.06);
+}
+:root[data-theme="light"] .seg:not(:has(.seg-sel)) button.on{background:#fff}
 .seg button:active{opacity:.5}
 /* sitting in a list row: shrink to content instead of filling the row */
 .seg-inline{flex:none;min-width:132px}
@@ -804,29 +816,30 @@ h4.sec{
 .exmedia.compact .exmedia-x{height:120px}
 .exmedia.mini .exmedia-x{height:84px}
 
+.card.set-table-card{padding:10px 8px;overflow:hidden;max-width:100%}
 .sethead{
-  display:flex;align-items:center;gap:6px;padding:0 4px 6px;
-  font-size:11px;color:var(--label-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;
+  display:flex;align-items:center;gap:5px;padding:0 2px 6px;
+  font-size:10.5px;color:var(--label-3);font-weight:600;text-transform:uppercase;letter-spacing:.04em;
 }
-.sethead .n-sp{width:28px;flex:none;text-align:center}
-.sethead .prev-sp{flex:1.1;min-width:0;text-align:center}
-.sethead .w-sp{flex:1.3;min-width:0;text-align:center}
-.sethead .r-sp{flex:1.1;min-width:0;text-align:center}
+.sethead .n-sp{width:26px;flex:none;text-align:center}
+.sethead .prev-sp{flex:0.72;min-width:0;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sethead .w-sp{flex:1.35;min-width:0;text-align:center}
+.sethead .r-sp{flex:1.25;min-width:0;text-align:center}
 .sethead .eff-sp{flex:.8;min-width:0;text-align:center}
-.sethead .ck-sp{width:34px;flex:none;text-align:center}
+.sethead .ck-sp{width:32px;flex:none;text-align:center}
 .setrow{
-  display:flex;align-items:center;gap:6px;padding:5px 4px;position:relative;
-  border-radius:10px;
+  display:flex;align-items:center;gap:5px;padding:5px 2px;position:relative;
+  border-radius:10px;min-width:0;max-width:100%;
   transition:background var(--fast),opacity var(--med) var(--ease),transform var(--fast) ease;
 }
 .setrow+.setrow::before{
-  content:'';position:absolute;left:32px;right:0;top:0;height:var(--hair);background:var(--sep);
+  content:'';position:absolute;left:30px;right:0;top:0;height:var(--hair);background:var(--sep);
 }
 .setph{margin:8px 0 2px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:10px}
 .setph::after{content:'';flex:1;height:1px;background:var(--sep)}
 .setsep{height:1px;background:var(--sep);margin:9px 0}
 .setrow .n{
-  width:28px;height:28px;border-radius:8px;background:var(--surface-2);color:var(--label-2);
+  width:26px;height:26px;border-radius:8px;background:var(--surface-2);color:var(--label-2);
   border:1px solid var(--border);
   display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex:none;
   position:relative;padding:0;font-family:inherit;cursor:pointer;
@@ -838,19 +851,23 @@ h4.sec{
 .setrow .n.badge-drop{background:rgba(10,132,255,.16);color:#0a84ff;border-color:rgba(10,132,255,.4)}
 .setrow .n.badge-failure{background:rgba(255,69,58,.16);color:#ff453a;border-color:rgba(255,69,58,.4)}
 .setrow .prev-col{
-  flex:1.1;min-width:0;text-align:center;font-size:12px;font-variant-numeric:tabular-nums;
-  color:var(--label-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px;
+  flex:0.72;min-width:0;text-align:center;font-size:11.5px;font-variant-numeric:tabular-nums;
+  color:var(--label-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 1px;
 }
 .setrow .prev-col .prev-text{color:var(--label-2);font-weight:500}
 .setrow .prev-col .prev-dim{color:var(--label-4);font-weight:400}
 .setrow .prev-col .prev-pr-badge{
   display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:700;
   color:var(--yellow);background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.35);
-  padding:1px 5px;border-radius:6px;
+  padding:1px 4px;border-radius:6px;
 }
-.setrow .stp.w{flex:1.25;min-width:0}
-.setrow .stp.r{flex:1.2;min-width:0}
-.setrow .stp button{width:26px;height:38px;transition:transform .12s cubic-bezier(.2,.8,.2,1),background var(--fast)}
+.setrow .stp.w{flex:1.35;min-width:0}
+.setrow .stp.r{flex:1.25;min-width:0}
+.setrow .stp .val{padding:0}
+.setrow .stp .num{font-size:15.5px;font-weight:600;letter-spacing:-.02em}
+.setrow .stp .num.long-val{font-size:13.5px;letter-spacing:-.025em}
+.setrow .stp .num.xlong-val{font-size:12px;letter-spacing:-.03em}
+.setrow .stp button{width:21px;height:38px;font-size:14px;transition:transform .12s cubic-bezier(.2,.8,.2,1),background var(--fast)}
 .setrow .stp button:active{transform:scale(.86)}
 /* The effort column is a single tap-to-pick button, not a stepper. It is a direct flex child
    of the row (like the .stp cells), carrying its own column width via flex. `align-self` and
@@ -892,15 +909,15 @@ h4.sec{
    more of the row on narrow phones than they did when three steppers had to share it */
 .setrow .effcell-stp,.setrow.eff3 .effcell-stp{flex:.8 1 0;min-width:0}
 .setrow.eff3 .effcell-stp{flex:.7 1 0}
-.setrow.eff3,.sethead.eff3{gap:6px}
+.setrow.eff3,.sethead.eff3{gap:5px}
 .setrow.eff3 .stp.w,.sethead.eff3 .w-sp{flex:1.4}
-.setrow.eff3 .stp.r,.sethead.eff3 .r-sp{flex:1.1}
-.setrow.eff3 .effcell,.sethead.eff3 .eff-sp{flex:.7 1 0}
-.setrow.eff3 .stp.w button,.setrow.eff3 .stp.r button{width:26px}
-.setrow.eff3 .stp .num{font-size:14px}
+.setrow.eff3 .stp.r,.sethead.eff3 .r-sp{flex:1.25}
+.setrow.eff3 .effcell,.sethead.eff3 .eff-sp{flex:.68 1 0}
+.setrow.eff3 .stp.w button,.setrow.eff3 .stp.r button{width:20px}
+.setrow.eff3 .stp .num{font-size:14.5px}
 .setrow.eff3 .effcell-stp>button[aria-label="Decrease"],
-.setrow.eff3 .effcell-stp>button[aria-label="Increase"]{width:22px}
-.setrow.eff3 .effcell-stp .val{font-size:14px}
+.setrow.eff3 .effcell-stp>button[aria-label="Increase"]{width:20px}
+.setrow.eff3 .effcell-stp .val{font-size:13.5px}
 /* effort quick picker sheet: colour-coded preset buttons, hardest (purple) first */
 /* effort picker: the ⋯-menu list with the value in the icon square, tinted per band; the
    exact-value row carries the same stepper as the logged cell in the set row. */
@@ -917,7 +934,7 @@ h4.sec{
 .setrow.done .n{background:var(--acc);border-color:var(--acc);color:var(--on-acc);transform:scale(1.02)}
 .setrow.done{opacity:.82;background:color-mix(in srgb,var(--acc) 4%,transparent);transition:background var(--fast),opacity .32s var(--ease)}
 .setrow.done.is-pr{opacity:.95}
-.setrow .chk{width:34px;height:34px;border-radius:9px;background:var(--surface-2);border:1.5px solid var(--border);box-shadow:none}
+.setrow .chk{width:32px;height:32px;border-radius:9px;background:var(--surface-2);border:1.5px solid var(--border);box-shadow:none}
 .setrow .chk.on{background:var(--acc);border-color:var(--acc);color:var(--on-acc);box-shadow:0 0 10px color-mix(in srgb,var(--acc) 45%,transparent)}
 .setrow .n.pr-star{
   background:linear-gradient(135deg,#f59e0b,#eab308);
@@ -926,19 +943,19 @@ h4.sec{
   transform:scale(1.08);
 }
 /* --- SmiTriX Workout Screen & Top Bar --- */
-.workout-top-bar, .hevy-top-bar{display:grid;grid-template-columns:36px 1fr auto;align-items:center;gap:8px}
+.workout-top-bar, .hevy-top-bar{display:grid;grid-template-columns:36px minmax(0,1fr) auto;align-items:center;gap:6px;width:100%}
 .workout-top-bar > :first-child, .hevy-top-bar > :first-child{justify-self:start}
 .workout-top-bar > :last-child, .hevy-top-bar > :last-child{justify-self:end}
-.workout-title-center, .hevy-title-center{text-align:center;min-width:0;justify-self:center}
+.workout-title-center, .hevy-title-center{text-align:center;min-width:0;width:100%;max-width:100%;overflow:hidden;justify-self:center}
 .workout-workout-name, .workout-name-title, .hevy-workout-name{
   font-size:14px;font-weight:600;letter-spacing:-.012em;
   display:inline-flex;align-items:center;justify-content:center;gap:5px;
   max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 .workout-stats-chips, .hevy-stats-chips{
-  display:flex;align-items:center;justify-content:center;gap:4px;
+  display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:3px 4px;
   font-size:11px;color:var(--label-3);margin-top:1px;font-variant-numeric:tabular-nums;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
+  max-width:100%;overflow:hidden;line-height:1.25;
 }
 .workout-stats-chips .h-stat, .hevy-stats-chips .h-stat{display:inline-flex;align-items:center;gap:3px}
 .workout-stats-chips .h-stat-sep, .hevy-stats-chips .h-stat-sep{color:var(--label-4)}
@@ -1466,8 +1483,25 @@ h4.sec{
   box-shadow:0 20px 60px -12px rgba(0,0,0,.5);
   animation:pop .28s var(--ease);
 }
+.center:has(.aegis-hud-card){
+  width:min(92vw,420px);max-height:min(90vh,calc(100dvh - 24px));
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:0;background:transparent;box-shadow:none;
+}
 :root[data-theme="light"] .center{background:#fff}
+:root[data-theme="light"] .center:has(.aegis-hud-card){background:transparent}
 @keyframes pop{from{transform:translate(-50%,-50%) scale(.94);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
+.sheet-backdrop{
+  position:fixed;inset:0;z-index:110;
+  background:rgba(0,0,0,.52);
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+  display:flex;align-items:flex-end;justify-content:center;
+  animation:motionFadeIn .2s var(--ease);
+}
+.sheet-backdrop>.sheet{
+  position:relative;left:auto;right:auto;bottom:auto;
+  width:100%;max-width:640px;margin:0;
+}
 
 /* --- RIR/RPE conversion table (effort help sheet) ---
    The two scales only click when you see them side by side, so the numbers get fixed-width
@@ -1702,15 +1736,15 @@ body.resting #toast{bottom:calc(200px + var(--sab))}
 .ss-amp{text-align:center;font-size:15px;font-weight:600;color:var(--acc);margin:14px 0 8px}
 
 /* --- workout list view: every unit stacked, the current one outlined --- */
-.workout-list{display:grid;gap:14px}
+.workout-list{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;width:100%;max-width:100%}
 .wl-unit{
-  border-radius:var(--r-lg);padding:14px 14px 4px;
-  background:var(--surface-2);
+  border-radius:var(--r-lg);padding:12px 10px 6px;
+  background:var(--surface-2);min-width:0;max-width:100%;overflow:hidden;box-sizing:border-box;
 }
 .wl-unit.cur{box-shadow:inset 0 0 0 1.5px var(--acc-line)}
-.wl-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.wl-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;min-width:0}
 @media (max-width:400px){
-  .wl-unit{padding:10px 8px 2px}
+  .wl-unit{padding:10px 8px 4px}
 }
 
 /* --- home: today's session row --- */
@@ -2291,6 +2325,11 @@ body.resting #toast{bottom:calc(200px + var(--sab))}
   border-radius: 18px;
   overflow: hidden;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+}
+:root[data-theme="light"] .aegis-hud-card {
+  background: radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.08) 0%, var(--surface) 100%);
+  border: 1px solid var(--sep-op);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 .aegis-badge {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;

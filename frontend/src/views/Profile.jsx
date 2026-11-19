@@ -15,7 +15,7 @@ import AchievementsModal from '../components/AchievementsModal.jsx'
 import EditProfileModal from '../components/EditProfileModal.jsx'
 import SplitChooserModal from '../components/SplitChooserModal.jsx'
 import { useUI } from '../store/useUI.js'
-import { logoutUser } from '../lib/firebase.js'
+import { logoutUser, resendVerificationEmail, refreshCurrentUser } from '../lib/firebase.js'
 
 export default function Profile() {
   const nav = useNavigate()
@@ -29,6 +29,25 @@ export default function Profile() {
   const [showEditProfile, setShowEditProfile] = useState(false)
   const [showSplitChooser, setShowSplitChooser] = useState(false)
   const [splitChooserCategory, setSplitChooserCategory] = useState('legend')
+  const [verifyBusy, setVerifyBusy] = useState(false)
+
+  const handleResendVerify = async () => {
+    setVerifyBusy(true)
+    try {
+      const refreshed = await refreshCurrentUser()
+      if (refreshed?.emailVerified) {
+        setUser({ ...user, emailVerified: true, firebase: true })
+        useUI.getState().toast(t('Email verified!'))
+        return
+      }
+      await resendVerificationEmail()
+      useUI.getState().toast(t('Verification email sent! Check your inbox and spam folder.'))
+    } catch (e) {
+      useUI.getState().toast(e.message || t('Could not send verification email'))
+    } finally {
+      setVerifyBusy(false)
+    }
+  }
 
   const handleSignOut = () => {
     confirmSheet({
@@ -384,8 +403,8 @@ export default function Profile() {
       className="card"
       style={{
         background: user
-          ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, rgba(20, 20, 24, 0.95) 100%)'
-          : 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(20, 20, 24, 0.95) 100%)',
+          ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, var(--surface) 100%)'
+          : 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, var(--surface) 100%)',
         border: user ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(59, 130, 246, 0.3)',
         marginBottom: 16,
         padding: '16px 18px',
@@ -393,42 +412,64 @@ export default function Profile() {
       }}
     >
       {user ? (
-        <div className="row between" style={{ alignItems: 'center' }}>
-          <div className="row" style={{ gap: 10, alignItems: 'center' }}>
-            <span
-              className="lrow-i"
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 10,
-                background: 'rgba(34, 197, 94, 0.15)',
-                color: 'var(--acc)',
-                fontSize: 18,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <Icon name="cloud" />
-            </span>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 14, color: '#ffffff' }}>
-                {user.email || user.name}
-              </div>
-              <div className="small dim" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>☁️ {t('Cloud Sync Active')}</span>
-                {user.emailVerified && <span style={{ color: 'var(--acc)', fontWeight: 600 }}>· {t('Verified')}</span>}
+        <div>
+          <div className="row between" style={{ alignItems: 'center' }}>
+            <div className="row" style={{ gap: 10, alignItems: 'center', minWidth: 0 }}>
+              <span
+                className="lrow-i"
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  background: 'rgba(34, 197, 94, 0.15)',
+                  color: 'var(--acc)',
+                  fontSize: 18,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <Icon name="cloud" />
+              </span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--label)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {user.email || user.name}
+                </div>
+                <div className="small dim" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span>☁️ {t('Cloud Sync Active')}</span>
+                  {user.emailVerified ? (
+                    <span style={{ color: 'var(--acc)', fontWeight: 600 }}>· {t('Verified')}</span>
+                  ) : user.email ? (
+                    <span style={{ color: 'var(--orange)', fontWeight: 600 }}>· {t('Unverified')}</span>
+                  ) : null}
+                </div>
               </div>
             </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              style={{ fontSize: 12, color: 'var(--red)', flex: 'none' }}
+              onClick={handleSignOut}
+            >
+              {t('Sign Out')}
+            </Button>
           </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            style={{ fontSize: 12, color: 'var(--red)' }}
-            onClick={handleSignOut}
-          >
-            {t('Sign Out')}
-          </Button>
+          {user.email && !user.emailVerified && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border-hairline)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <span className="small dim" style={{ fontSize: 12 }}>
+                {t('Please verify your email address')}
+              </span>
+              <Button
+                size="sm"
+                variant="tinted"
+                disabled={verifyBusy}
+                onClick={handleResendVerify}
+                style={{ fontSize: 12, flex: 'none' }}
+              >
+                {verifyBusy ? t('Checking...') : t('Verify / Resend')}
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
         <div>
@@ -486,7 +527,7 @@ export default function Profile() {
     {/* Key Stats Row (Workouts, Streak, Days trained) */}
     <div className="profile-stats-row tiles" style={{ gridTemplateColumns: '1fr 1fr 1fr', marginBottom: 16 }}>
       <div className="tile profile-stat" style={{ textAlign: 'center' }}>
-        <div className="profile-stat-v v" style={{ fontSize: 24, fontWeight: 800, color: '#ffffff' }}>{workouts.length}</div>
+        <div className="profile-stat-v v" style={{ fontSize: 24, fontWeight: 800, color: 'var(--label)' }}>{workouts.length}</div>
         <div className="profile-stat-l l" style={{ fontSize: 12, justifyContent: 'center' }}>{t('Workouts')}</div>
       </div>
       <div className="tile profile-stat" style={{ textAlign: 'center' }}>
@@ -530,7 +571,7 @@ export default function Profile() {
       <div style={{ background: 'var(--surface-2)', borderRadius: 12, padding: '10px 12px', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
         <div className="row between">
           <span className="dim">{t('Nutrition Target:')}</span>
-          <span style={{ fontWeight: 600, color: '#ffffff' }}>{bodyTypeMeta.caloric}</span>
+          <span style={{ fontWeight: 600, color: 'var(--label)' }}>{bodyTypeMeta.caloric}</span>
         </div>
         <div className="row between">
           <span className="dim">{t('Macros:')}</span>
@@ -574,8 +615,8 @@ export default function Profile() {
     <div
       className="card"
       style={{
-        background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.08) 0%, rgba(28, 28, 30, 0.6) 100%)',
-        border: '1px solid rgba(255, 215, 0, 0.2)',
+        background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.08) 0%, var(--surface) 100%)',
+        border: '1px solid rgba(255, 215, 0, 0.25)',
         marginBottom: 16
       }}
     >

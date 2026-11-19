@@ -4,9 +4,12 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithCredential,
   GoogleAuthProvider,
   sendPasswordResetEmail,
   sendEmailVerification,
+  applyActionCode,
+  confirmPasswordReset,
   signOut,
   onAuthStateChanged,
   updateProfile
@@ -80,14 +83,10 @@ export async function syncUserProfile(firebaseUser, extra = {}) {
  * ActionCodeSettings for deep-linking back into SmiTriX mobile app and web
  */
 export function getActionCodeSettings(path = '/login') {
+  const hashPath = path.startsWith('/') ? path : `/${path}`
   return {
-    url: `https://smitrix.web.app${path}`,
-    handleCodeInApp: true,
-    android: {
-      packageName: 'com.smitrix.app',
-      installApp: true,
-      minimumVersion: '30'
-    }
+    url: `https://smitrix.web.app${hashPath}#${hashPath}`,
+    handleCodeInApp: false
   }
 }
 
@@ -129,9 +128,20 @@ export async function loginWithEmailPassword(email, password) {
 export async function signInWithGoogle() {
   if (typeof window !== 'undefined' && import.meta.env?.VITE_MOBILE === '1') {
     // In Android WebView (Capacitor), popups are blocked and Google disables WebView OAuth.
-    // Open system browser for safe Google sign-in.
-    window.open('https://smitrix.web.app/login', '_system')
-    const err = new Error('Google Sign-In opened in your browser. For direct in-app access, please sign in with Email & Password.')
+    // Open system browser (Chrome) to authenticate and redirect back via smitrix://login?google_id_token=...
+    const targetUrl = 'https://smitrix.web.app/login?native_google=1#/login?native_google=1'
+    try {
+      const a = document.createElement('a')
+      a.href = targetUrl
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    } catch {
+      window.open(targetUrl, '_system')
+    }
+    const err = new Error('Completing Google Sign-In in your browser...')
     err.code = 'auth/mobile-browser-redirect'
     throw err
   }
@@ -144,8 +154,93 @@ export async function signInWithGoogle() {
     }, 25000)
   })
   const cred = await Promise.race([popupTask, timeoutTask])
+  try {
+    const oauthCred = GoogleAuthProvider.credentialFromResult(cred)
+    if (oauthCred && cred.user) {
+      cred.user._oauthIdToken = oauthCred.idToken || ''
+      cred.user._oauthAccessToken = oauthCred.accessToken || ''
+    }
+  } catch {}
   syncUserProfile(cred.user).catch(() => {})
   return cred.user
+}
+
+/**
+ * Sign in to Firebase directly using Google OAuth tokens returned via deep-link bridge
+ */
+export async function signInWithGoogleTokens(idToken, accessToken) {
+  const credential = GoogleAuthProvider.credential(idToken || null, accessToken || null)
+  const cred = await signInWithCredential(auth, credential)
+  syncUserProfile(cred.user).catch(() => {})
+  return cred.user
+}
+
+/**
+ * Apply Firebase Email Verification oobCode directly
+ */
+export async function applyEmailVerificationCode(oobCode) {
+  await applyActionCode(auth, oobCode)
+  if (auth.currentUser) {
+    try { await auth.currentUser.reload() } catch {}
+  }
+  return auth.currentUser
+}
+
+/**
+ * Confirm Password Reset with oobCode and newPassword
+ */
+export async function completePasswordReset(oobCode, newPassword) {
+  return confirmPasswordReset(auth, oobCode, newPassword)
+}
+
+/**
+ * Reload current Firebase user to refresh emailVerified state
+ */
+export async function refreshCurrentUser() {
+  if (!auth.currentUser) return null
+  await auth.currentUser.reload()
+  await syncUserProfile(auth.currentUser)
+  return auth.currentUser
+}
+
+/**
+ * Push workout state S to Cloud Firestore (/users/{uid}/data/state)
+ */
+export async function pushCloudState(uid, state) {
+  if (!uid || !state) return false
+  const task = async () => {
+    const ref = doc(firestore, 'users', uid, 'data', 'state')
+    await setDoc(ref, {
+      stateJson: JSON.stringify(state),
+      updatedAt: Date.now()
+    }, { merge: true })
+    return true
+  }
+  return Promise.race([
+    task(),
+    new Promise(resolve => setTimeout(() => resolve(false), 3000))
+  ])
+}
+
+/**
+ * Pull workout state S from Cloud Firestore (/users/{uid}/data/state)
+ */
+export async function pullCloudState(uid) {
+  if (!uid) return null
+  const task = async () => {
+    const ref = doc(firestore, 'users', uid, 'data', 'state')
+    const snap = await getDoc(ref)
+    if (!snap.exists()) return null
+    const data = snap.data()
+    if (data?.stateJson) {
+      return JSON.parse(data.stateJson)
+    }
+    return data?.state || null
+  }
+  return Promise.race([
+    task(),
+    new Promise(resolve => setTimeout(() => resolve(null), 2500))
+  ])
 }
 
 /**

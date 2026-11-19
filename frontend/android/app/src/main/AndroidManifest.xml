@@ -27,13 +27,12 @@
                 <data android:scheme="smitrix" />
             </intent-filter>
 
-            <!-- Android App Links: https://smitrix.web.app and https://smitrix.firebaseapp.com -->
+            <!-- Android App Links: https://smitrix.web.app/open-app (leaves /__/auth and /login in Chrome for OAuth & email action processing) -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="smitrix.web.app" />
-                <data android:scheme="https" android:host="smitrix.firebaseapp.com" />
+                <data android:scheme="https" android:host="smitrix.web.app" android:pathPrefix="/open-app" />
             </intent-filter>
         </activity>
 

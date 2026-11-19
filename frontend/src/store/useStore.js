@@ -197,8 +197,19 @@ export const useStore = create((set, get) => {
     },
 
     async pushState() {
-      if (!get().user) return
+      const curUser = get().user
+      if (!curUser) return
       clearTimeout(pushTm)
+      if (curUser.firebase && curUser.id) {
+        try {
+          const { pushCloudState } = await import('../lib/firebase.js')
+          const ok = await pushCloudState(curUser.id, get().S)
+          if (ok) localStorage.removeItem('gym_dirty')
+        } catch {
+          localStorage.setItem('gym_dirty', '1')
+        }
+        return
+      }
       try {
         await api('/api/data', { method: 'PUT', body: JSON.stringify({ state: get().S }) })
         localStorage.removeItem('gym_dirty')
@@ -208,6 +219,22 @@ export const useStore = create((set, get) => {
       }
     },
     async pullState() {
+      const curUser = get().user
+      if (curUser?.firebase && curUser?.id) {
+        try {
+          const { pullCloudState } = await import('../lib/firebase.js')
+          const state = await pullCloudState(curUser.id)
+          const S = get().S
+          const dirty = localStorage.getItem('gym_dirty') === '1'
+          const restored = restoredStateFor(S, state, dirty)
+          if (restored) {
+            persist(restored, false)
+          } else if (hasData(S)) {
+            await get().pushState()
+          }
+        } catch { /* offline — keep local */ }
+        return
+      }
       try {
         const { state } = await api('/api/data')
         const S = get().S
@@ -343,16 +370,21 @@ export const useStore = create((set, get) => {
       if (!guestAllowed(cfg)) get().setGuest(false)
       try {
         const me = await api('/api/me')
-        get().setUser(me.user)
-        await get().pullState()
-        // Re-stamp the reminder's timezone on every load — keeps it correct if you're travelling,
-        // without needing to revisit Settings.
-        const tz = localTZ()
-        if (get().S.reminder?.on && get().S.reminder.tz !== tz) {
-          get().update(s => { s.reminder = { ...s.reminder, tz } })
+        if (me && Object.prototype.hasOwnProperty.call(me, 'user')) {
+          get().setUser(me.user)
+          await get().pullState()
+          // Re-stamp the reminder's timezone on every load — keeps it correct if you're travelling,
+          // without needing to revisit Settings.
+          const tz = localTZ()
+          if (get().S.reminder?.on && get().S.reminder.tz !== tz) {
+            get().update(s => { s.reminder = { ...s.reminder, tz } })
+          }
+        } else if (get().user?.firebase) {
+          get().pullState().catch(() => {})
         }
       } catch (e) {
-        if (e.status === 401) get().setUser(null)
+        if (e.status === 401 && !get().user?.firebase) get().setUser(null)
+        else if (get().user?.firebase) get().pullState().catch(() => {})
       }
       set({ ready: true })
     }

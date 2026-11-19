@@ -98,7 +98,7 @@ function fatigueLabel(value) {
   return t(state === 'ready' ? 'Ready' : state === 'recovering' ? 'Recovering' : 'Fatigued')
 }
 
-function MuscleBalance({ S }) {
+function MuscleBalance({ S, onExercise }) {
   const [view, setView] = useState('balance')
   const [win, setWin] = useState(7)
   const [hard, setHard] = useState(false)
@@ -496,7 +496,7 @@ export default function Stats() {
       <Heatmap S={S} onDay={iso => { const ws = workouts.filter(w => w.d === iso); if (ws.length === 1) workoutDetailSheet(ws[0]); else if (ws.length) calendarSheet(iso) }} />
     </div>
 
-    {workouts.length > 0 && <MuscleBalance S={S} />}
+    {workouts.length > 0 && <MuscleBalance S={S} onExercise={id => setExId(id)} />}
     {hasEffort(S) && <EffortCard S={S} />}
 
     <div className="cols">

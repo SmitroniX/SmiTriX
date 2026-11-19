@@ -101,35 +101,80 @@ function Shell() {
   // bound to the workout, not to the route — checking Stats mid-session keeps the screen on
   useWakeLock(!!S.active && S.keepAwake !== false)
 
+  // Sync direct path/search (e.g. /login?native_google=1 or ?oobCode=...) into HashRouter
+  useEffect(() => {
+    try {
+      const winPath = window.location.pathname || ''
+      const winSearch = window.location.search || ''
+      if (
+        winPath.startsWith('/login') ||
+        winSearch.includes('native_google=') ||
+        winSearch.includes('oobCode=') ||
+        winSearch.includes('google_id_token=') ||
+        winSearch.includes('verified=') ||
+        winSearch.includes('mode=')
+      ) {
+        if (!loc.pathname.startsWith('/login')) {
+          navigate('/login' + (winSearch || loc.search || ''), { replace: true })
+        }
+      }
+    } catch {}
+  }, [navigate, loc.pathname, loc.search])
+
   // Handle mobile deep links and app links (smitrix:// and https://smitrix.web.app)
   useEffect(() => {
     let removeListener = null
+    let lastHandledUrl = ''
+
+    const handleDeepLink = rawUrl => {
+      if (!rawUrl || rawUrl === lastHandledUrl) return
+      lastHandledUrl = rawUrl
+      try {
+        let target = rawUrl
+          .replace(/^smitrix:\/\//i, '/')
+          .replace(/^https?:\/\/(?:smitrix\.web\.app|smitrix\.firebaseapp\.com|aniplex-b74b5\.firebaseapp\.com)/i, '')
+
+        // If the URL includes a hash portion (#/login?...), prefer the query string with the most parameters
+        const hashIdx = target.indexOf('#')
+        if (hashIdx !== -1) {
+          const beforeHash = target.slice(0, hashIdx)
+          const afterHash = target.slice(hashIdx + 1)
+          target = afterHash.includes('?') ? afterHash : beforeHash
+        }
+
+        if (!target.startsWith('/')) target = '/' + target
+        const qIdx = target.indexOf('?')
+        const path = qIdx !== -1 ? target.slice(0, qIdx) : target
+        const q = qIdx !== -1 ? target.slice(qIdx) : ''
+
+        if (
+          path.includes('login') ||
+          rawUrl.includes('login') ||
+          q.includes('google_id_token') ||
+          q.includes('oobCode') ||
+          q.includes('verified') ||
+          q.includes('mode=')
+        ) {
+          navigate('/login' + q)
+          if (q.includes('verified=true')) {
+            useUI.getState().toast('Email verified! You can now sign in.')
+          }
+        } else if (path && path !== '/') {
+          navigate(path + q)
+        }
+      } catch (e) {
+        console.warn('Deep link routing error:', e)
+      }
+    }
+
     import('@capacitor/app').then(({ App: CapApp }) => {
       CapApp.addListener('appUrlOpen', data => {
-        if (!data?.url) return
-        try {
-          const rawUrl = data.url
-          let target = rawUrl
-            .replace(/^smitrix:\/\//i, '/')
-            .replace(/^https?:\/\/(?:smitrix\.web\.app|smitrix\.firebaseapp\.com|aniplex-b74b5\.firebaseapp\.com)/i, '')
-
-          if (!target.startsWith('/')) target = '/' + target
-          const [path, search] = target.split('?')
-          const q = search ? '?' + search : ''
-
-          if (path.includes('login') || rawUrl.includes('login') || q.includes('verified') || q.includes('mode=reset')) {
-            navigate('/login' + q)
-            if (q.includes('verified=true')) {
-              useUI.getState().toast('Email verified! You can now sign in.')
-            }
-          } else if (path && path !== '/') {
-            navigate(path + q)
-          }
-        } catch (e) {
-          console.warn('Deep link routing error:', e)
-        }
+        if (data?.url) handleDeepLink(data.url)
       }).then(handle => {
         removeListener = handle
+      }).catch(() => {})
+      CapApp.getLaunchUrl?.().then(res => {
+        if (res?.url) handleDeepLink(res.url)
       }).catch(() => {})
     }).catch(() => {})
 

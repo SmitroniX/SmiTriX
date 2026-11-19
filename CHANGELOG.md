@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.6.7 — 2026-11-19
+
+Complete UI/UX Polish, End-to-End Native & Web Auth Overhaul, Workout Layout & Stepper Precision Fix, and Full Component Audit.
+
+- 🔐 **End-to-End Login, Signup, Google OAuth & Deep-Link Architecture**:
+  - Disabled global `CapacitorHttp.enabled` monkey-patching in `capacitor.config.json` so Firebase Auth and Firestore WebChannel requests run over native browser `fetch` / `XMLHttpRequest` without stalling in Android WebView.
+  - Added seamless Google Sign-In token relay (`?native_google=1` → `smitrix://login?google_id_token=...&google_access_token=...` → `signInWithCredential`) so Google Sign-In authenticates in Chrome and logs directly into the native Android APK.
+  - Added inline `oobCode` handlers in `Login.jsx` for email verification (`applyEmailVerificationCode`) and password reset (`completePasswordReset`) alongside clean `smitrix.web.app` deep-link redirection.
+  - Fixed `boot()` in `useStore.js` so static hosting `/api/me` responses never overwrite authenticated Firebase users, and connected `pushState()` / `pullState()` to Cloud Firestore (`/users/{uid}/data/state`).
+  - Added direct **"Verify / Resend"** email verification button and status indicator to the Account Card in `Profile.jsx`.
+- 🏋️ **Workout Screen Layout, Top Bar & Set Table Stepper Overhaul**:
+  - Fixed horizontal grid expansion on `.workout-list` (`grid-template-columns: minmax(0, 1fr)`) and `.wl-unit` (`min-width: 0; max-width: 100%; overflow: hidden`) so opening the `BUMP` quick-weight bar never stretches workout cards off-screen.
+  - Fixed `.workout-top-bar` grid constraints and enabled wrapping on `.workout-stats-chips` so workout timer, volume, and HR badges never collide with `[X]` or `[✓ Finish]`.
+  - Rebalanced `.setrow` column flex proportions (`.prev-col`, `.stp.w`, `.stp.r`), reduced stepper button width to `21px`, and compacted `prevLabel` (`100×8`) so 3-digit and 4-digit weights/reps (`156`, `157`) have ~42px+ of text space and never clip.
+- 🎨 **Global Design System, Modals, Icons & Component Fixes**:
+  - Defined all missing CSS custom property aliases (`--label-1`, `--border-hairline`, `--amber`, `--sub`, `--surface-1`, `--fill-3`, `--card-subtle`) in `:root`.
+  - Added missing SVG icons and semantic aliases in `Icon.jsx` (`x`, `ellipsis`, `mic`, `table`, `trendingUp`, `up`, `deload`, `accepted`, `workout`).
+  - Added `.sheet-backdrop` modal styling for `Profile.jsx` modals (`AchievementsModal`, `EditProfileModal`, `SplitChooserModal`), active segmented control styling, and light-mode card contrast fixes across `Profile.jsx`, `PlansManager.jsx`, and `.aegis-hud-card`.
+  - Fixed `TutorialDialog.jsx` modal sizing (`.center:has(.aegis-hud-card)`) and `Stats.jsx` `onExercise` prop forwarding in `MuscleBalance`.
+- 🚀 **Release Build**:
+  - Android APK versionCode bumped to 33 (v1.6.7).
+
 ## v1.6.6 — 2026-11-18
 
 Authentication Hang Hotfix, Non-Blocking Profile Sync, Timeout Guardrails & Valid Key Injection.

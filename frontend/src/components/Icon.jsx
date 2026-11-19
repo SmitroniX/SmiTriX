@@ -138,6 +138,8 @@ const P = {
   cloud: <path d="M6.5 18a4.5 4.5 0 0 1-.5-8.97A6 6 0 0 1 17.5 8a5 5 0 0 1 1.5 9.77H6.5Z" />,
   cloudOff: <><path d="M2 2l20 20M8.5 8.5A6 6 0 0 1 17.5 8a5 5 0 0 1 1.5 9.77M15.5 15.5H6.5a4.5 4.5 0 0 1-.5-8.97" /></>,
   arrowRotate: <><path d="M20 12A8 8 0 1 1 18 6.5l2-2" /><path d="M20 2v4.5H15.5" /></>,
+  mic: <><rect x="9" y="3.6" width="6" height="10.8" rx="3" /><path d="M5.6 11.4a6.4 6.4 0 0 0 12.8 0M12 17.8v2.8M8.8 20.6h6.4" /></>,
+  table: <><rect x="3.6" y="4.8" width="16.8" height="14.4" rx="2.4" /><path d="M3.6 9.6h16.8M3.6 14.4h16.8M9.6 9.6v9.6" /></>,
 }
 
 // A few keys are aliases so call sites can say what they mean.
@@ -149,6 +151,13 @@ P.streak = P.flame
 P.done = P.check
 P.sync = P.arrowRotate
 P.offline = P.cloudOff
+P.x = P.xmark
+P.ellipsis = P.more
+P.trendingUp = P.chartLine
+P.up = P.arrowUp
+P.deload = P.arrowDown
+P.accepted = P.check
+P.workout = P.dumbbell
 
 export const ICON_NAMES = Object.keys(P)
 

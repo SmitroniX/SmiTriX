@@ -26,8 +26,8 @@ export default function PlansManager() {
     const isLegacy = plan.isLegacy
     const accentColor = isLegacy ? 'var(--amber, #f59e0b)' : 'var(--blue, #3b82f6)'
     const bgGradient = isLegacy
-      ? 'linear-gradient(180deg, rgba(245, 158, 11, 0.08) 0%, rgba(20, 20, 24, 0.95) 100%)'
-      : 'linear-gradient(180deg, rgba(59, 130, 246, 0.08) 0%, rgba(20, 20, 24, 0.95) 100%)'
+      ? 'linear-gradient(180deg, rgba(245, 158, 11, 0.08) 0%, var(--surface) 100%)'
+      : 'linear-gradient(180deg, rgba(59, 130, 246, 0.08) 0%, var(--surface) 100%)'
 
     return (
       <div
@@ -194,7 +194,7 @@ export default function PlansManager() {
   }
 
   return (
-    <div className="page-pad">
+    <div className="narrow">
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
@@ -203,9 +203,9 @@ export default function PlansManager() {
           </div>
           <h1 style={{ fontSize: 28, fontWeight: 800, margin: '2px 0 0' }}>{t('Plans & Features')}</h1>
         </div>
-        <Button variant="ghost" onClick={() => nav(-1)} style={{ padding: '8px 12px' }}>
-          <Icon name="x" size={18} />
-        </Button>
+        <button className="iconbtn" onClick={() => nav(-1)} aria-label={t('Back')}>
+          <Icon name="xmark" size={18} />
+        </button>
       </div>
 
       <p className="muted small" style={{ marginBottom: 20 }}>

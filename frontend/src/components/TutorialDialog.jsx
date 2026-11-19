@@ -458,7 +458,7 @@ export function TutorialDialog({ initialStep = 0, close }) {
   const isLast = step === steps.length - 1
 
   return (
-    <div className="aegis-hud-card" style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', minHeight: 490 }}>
+    <div className="aegis-hud-card" style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column' }}>
       {/* Top Telemetry Header Bar */}
       <div className="row between" style={{ marginBottom: 10 }}>
         <div className="row" style={{ gap: 8, alignItems: 'center' }}>

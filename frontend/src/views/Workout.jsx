@@ -542,7 +542,7 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
         const rDelta = prevSet ? ((Number(s.r) || 0) - (Number(prevSet.r) || 0)) : 0
 
         const prevLabel = activePrev ? (
-          mode === 'reps' ? (bw && !added ? `${activePrev.r} ${t('rep')}` : `${fmtNum(activePrev.w)} × ${activePrev.r}`)
+          mode === 'reps' ? (bw && !added ? `${activePrev.r} ${t('rep')}` : `${fmtNum(activePrev.w)}×${activePrev.r}`)
           : cardio ? `${activePrev.min || 0}m @ ${fmtNum(activePrev.speed || 0)}`
           : timed ? `${activePrev.sec || 0}s`
           : '—'
