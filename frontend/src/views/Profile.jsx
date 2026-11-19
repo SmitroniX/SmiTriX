@@ -1171,35 +1171,33 @@ export default function Profile() {
 
       {/* Support & Administration Section */}
       <div className="card" style={{ marginBottom: 14, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {isAdmin && (
-          <button
-            type="button"
-            onClick={() => nav('/admin')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(249, 115, 22, 0.08))',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              borderRadius: 10,
-              padding: '11px 14px',
-              color: '#f87171',
-              fontWeight: 600,
-              fontSize: 13.5,
-              cursor: 'pointer',
-              textAlign: 'left'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Icon name="shield" style={{ fontSize: 18 }} />
-              <div>
-                <div>{t('Cloud Admin Dashboard')}</div>
-                <div style={{ fontSize: 11, color: '#fca5a5', fontWeight: 400 }}>{user?.email || 'smitronix0826@gmail.com'}</div>
-              </div>
+        <button
+          type="button"
+          onClick={() => nav('/admin')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(249, 115, 22, 0.08))',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            borderRadius: 10,
+            padding: '11px 14px',
+            color: '#f87171',
+            fontWeight: 600,
+            fontSize: 13.5,
+            cursor: 'pointer',
+            textAlign: 'left'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Icon name="shield" style={{ fontSize: 18 }} />
+            <div>
+              <div>{t('Cloud Admin Dashboard')}</div>
+              <div style={{ fontSize: 11, color: '#fca5a5', fontWeight: 400 }}>{isAdmin ? (user?.email || 'smitronix0826@gmail.com') : 'smitronix0826@gmail.com'}</div>
             </div>
-            <span style={{ fontSize: 15, fontWeight: 700 }}>→</span>
-          </button>
-        )}
+          </div>
+          <span style={{ fontSize: 15, fontWeight: 700 }}>→</span>
+        </button>
 
         <button
           type="button"

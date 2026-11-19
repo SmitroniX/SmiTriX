@@ -220,16 +220,14 @@ export default function Settings() {
         }
         onClick={() => useUI.getState().openSheet(close => <ApiKeyManagerSheet close={close} onUpdate={refreshApiKeys} />)}
       />
-      {isAdmin && (
-        <Row
-          icon="shield"
-          iconTint="var(--red)"
-          title={t('Cloud Admin Dashboard')}
-          subtitle={t('App users, workout records, bug reports & KPIs')}
-          accessory="chevron"
-          onClick={() => nav('/admin')}
-        />
-      )}
+      <Row
+        icon="shield"
+        iconTint="var(--red)"
+        title={t('Cloud Admin Dashboard')}
+        subtitle={isAdmin ? 'smitronix0826@gmail.com' : t('App users, workout records, bug reports & KPIs')}
+        accessory="chevron"
+        onClick={() => nav('/admin')}
+      />
     </Section>
 
     {/* ---------- general ---------- */}
