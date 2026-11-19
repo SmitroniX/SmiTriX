@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.7.2 — 2026-11-19
+
+Instant Native Android App Handoff After Web Sign-In & Root Deep-Link Hydration.
+
+- 🔄 **Eliminated Website Fallback After Mobile Sign-In (`Login.jsx`, `App.jsx`, `useStore.js`)**:
+  - Removed the `nav('/profile')` call and `S.browser_fallback_url` on mobile browsers so signing in at `https://smitrix.web.app/login` never dumps the user into the web version.
+  - Removed the 1.8s cloud-sync delay before firing `smitrix://login?...` and Android `intent://login?...#Intent;scheme=smitrix;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end` so the browser's user-gesture token stays active.
+  - Added synchronous pre-mount hash synchronization in `App.jsx` so visiting `/login` when already authenticated never falls through to `/home` on the website.
+  - Added root-level `handleDeepLink` user hydration in `App.jsx` so the Android app immediately logs the user in and opens `/profile` the moment `smitrix://login?...` arrives.
+- 🚀 **Release Build**:
+  - Android APK versionCode bumped to 36 (v1.7.2).
+
 ## v1.7.1 — 2026-11-19
 
 SmiTriX Custom Design Identity (Electric Cobalt Blue & Obsidian), Hevy-Style Profile & Exercise Detail Overhaul, and Instant Native App Auto-Redirect After Sign-In.

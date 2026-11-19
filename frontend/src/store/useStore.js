@@ -358,7 +358,8 @@ export const useStore = create((set, get) => {
       // boot. Ending the session needs a positive `allow_guest: false`; see lib/guest.js for why
       // an unreachable server must not be allowed to lock anyone out (#42).
       const cfg = await get().loadConfig()
-      if (!guestAllowed(cfg)) get().setGuest(false)
+      const isProdFirebaseHost = typeof window !== 'undefined' && /smitrix\.web\.app|aniplex-b74b5\.(web\.app|firebaseapp\.com)/i.test(window.location?.hostname || '')
+      if (isProdFirebaseHost || !guestAllowed(cfg)) get().setGuest(false)
       try {
         const me = await api('/api/me')
         if (me && Object.prototype.hasOwnProperty.call(me, 'user')) {

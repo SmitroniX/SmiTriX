@@ -11,7 +11,7 @@ export default function TabBar({ onStart }) {
   const S = useStore(s => s.S)
   const user = useStore(s => s.user)
   const isGuest = useStore(s => s.isGuest())
-  if (!user && !isGuest) return null
+  if ((!user && !isGuest) || loc.pathname.startsWith('/login')) return null
   const cur = loc.pathname.split('/')[1] || 'home'
   const on = k =>
     cur === k ||

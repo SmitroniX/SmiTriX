@@ -180,27 +180,51 @@ export default function Login() {
 
   const isMobileBrowser = typeof navigator !== 'undefined' && /android|iphone|ipad|ipod/i.test(navigator.userAgent || '')
   const searchParams = getMergedSearchParams(loc.search)
-  const isNativeGoogleBridge = !MOBILE && searchParams.get('native_google') === '1'
+  if (!MOBILE && searchParams.get('native_google') === '1') {
+    try { sessionStorage.setItem('smitrix_native_bridge', '1') } catch {}
+  }
+  const isNativeGoogleBridge = !MOBILE && (
+    searchParams.get('native_google') === '1' ||
+    (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('smitrix_native_bridge') === '1')
+  )
+
+  const buildUserQuery = (u, extraTokens = {}) => {
+    const qsParams = new URLSearchParams()
+    if (extraTokens.idToken) qsParams.set('google_id_token', extraTokens.idToken)
+    if (extraTokens.accessToken) qsParams.set('google_access_token', extraTokens.accessToken)
+    if (u?.id) qsParams.set('uid', u.id)
+    if (u?.name) qsParams.set('name', u.name)
+    if (u?.email) qsParams.set('email', u.email)
+    if (u?.photoURL) qsParams.set('photo', u.photoURL)
+    qsParams.set('verified', u?.emailVerified ? '1' : '0')
+    return qsParams.toString()
+  }
+
+  const defaultNativeUrl = user?.id
+    ? `smitrix://login?${buildUserQuery(user)}`
+    : `smitrix://login${loc.search || window.location.search || ''}`
 
   const triggerNativeAppRedirect = qs => {
     const smitrixUrl = `smitrix://login?${qs}`
-    const intentUrl = `intent://login?${qs}#Intent;scheme=smitrix;package=com.smitrix.app;S.browser_fallback_url=${encodeURIComponent('https://smitrix.web.app/#/profile')};end`
+    const intentUrl = `intent://login?${qs}#Intent;scheme=smitrix;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`
     setNativeReturnUrl(smitrixUrl)
     try {
-      const a = document.createElement('a')
-      a.href = smitrixUrl
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-    } catch {}
-    try {
-      window.location.replace(smitrixUrl)
+      window.location.href = smitrixUrl
     } catch {}
     setTimeout(() => {
       try {
         window.location.href = intentUrl
       } catch {}
-    }, 300)
+    }, 250)
+    // If Chrome suppressed automatic external app navigation after a popup callback,
+    // fire the custom scheme on the very next tap anywhere on the screen
+    const onNextTap = () => {
+      window.removeEventListener('touchend', onNextTap)
+      window.removeEventListener('click', onNextTap)
+      try { window.location.href = smitrixUrl } catch {}
+    }
+    window.addEventListener('touchend', onNextTap, { once: true })
+    window.addEventListener('click', onNextTap, { once: true })
   }
 
   const applyFirebaseUser = async fbUser => {
@@ -214,50 +238,36 @@ export default function Login() {
       firebase: true
     }
 
-    const qsParams = new URLSearchParams()
-    if (fbUser?._oauthIdToken) qsParams.set('google_id_token', fbUser._oauthIdToken)
-    if (fbUser?._oauthAccessToken) qsParams.set('google_access_token', fbUser._oauthAccessToken)
-    if (userObj.id) qsParams.set('uid', userObj.id)
-    if (userObj.name) qsParams.set('name', userObj.name)
-    if (userObj.email) qsParams.set('email', userObj.email)
-    if (userObj.photoURL) qsParams.set('photo', userObj.photoURL)
-    qsParams.set('verified', userObj.emailVerified ? '1' : '0')
-    const qs = qsParams.toString()
+    const qs = buildUserQuery(userObj, {
+      idToken: fbUser?._oauthIdToken,
+      accessToken: fbUser?._oauthAccessToken,
+    })
 
-    // If we are running inside the browser as the OAuth bridge for the Android APK,
-    // immediately auto-redirect back to the SmiTriX Android app
-    if (isNativeGoogleBridge && qs) {
-      setUser(userObj)
+    setUser(userObj)
+    recordSecurityEvent('auth_success', { uid: fbUser.uid, email: fbUser.email })
+    trackEvent('login', { method: fbUser.providerData?.[0]?.providerId || 'password' })
+
+    // Run cloud sync in background without blocking or expiring the browser's user-gesture token
+    const syncJob = async () => {
+      if (hasData(useStore.getState().S)) {
+        await pushState()
+      }
+      await pullState()
+    }
+    syncJob().catch(() => {})
+
+    // When signing in on a mobile browser or via the Android OAuth bridge,
+    // NEVER call nav('/profile') on the website — immediately launch the SmiTriX Android app!
+    if (!MOBILE && (isNativeGoogleBridge || isMobileBrowser) && qs) {
       setStatusBanner({
         type: 'success',
-        text: t('Sign-In complete! Auto-redirecting to the SmiTriX Android app...')
+        text: t('Signed in as {0}! Opening the SmiTriX Android app...', userObj.name)
       })
       triggerNativeAppRedirect(qs)
       return
     }
 
-    setUser(userObj)
-    recordSecurityEvent('auth_success', { uid: fbUser.uid, email: fbUser.email })
-    trackEvent('login', { method: fbUser.providerData?.[0]?.providerId || 'password' })
-    try {
-      const syncJob = async () => {
-        if (hasData(useStore.getState().S)) {
-          await pushState()
-        }
-        await pullState()
-      }
-      await Promise.race([
-        syncJob(),
-        new Promise(res => setTimeout(res, 1800))
-      ])
-    } catch { /* offline or first time */ }
     useUI.getState().toast(t('Welcome, {0}', userObj.name))
-
-    // If the user signed in on a mobile browser (Google or Email), automatically launch the native Android app
-    if (!MOBILE && isMobileBrowser && qs) {
-      triggerNativeAppRedirect(qs)
-    }
-
     nav('/profile')
   }
 
@@ -355,6 +365,15 @@ export default function Login() {
     } else if (actionMode === 'reset') {
       setStatusBanner({ type: 'info', text: t('Password reset complete. Sign in with your updated password.') })
       useUI.getState().toast(t('Please sign in with your updated credentials.'))
+    } else if (!MOBILE && isMobileBrowser && user?.id) {
+      // If the user is already authenticated in this mobile browser when opening /login,
+      // immediately redirect their active session into the native SmiTriX Android app
+      const qs = buildUserQuery(user)
+      setStatusBanner({
+        type: 'success',
+        text: t('Signed in as {0}! Opening the SmiTriX Android app...', user.name || user.email || 'Athlete')
+      })
+      triggerNativeAppRedirect(qs)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loc.search])
@@ -577,19 +596,19 @@ export default function Login() {
             </div>
           </div>
           <a
-            href={nativeReturnUrl || `smitrix://login${loc.search || window.location.search || ''}`}
+            href={nativeReturnUrl || defaultNativeUrl}
             className="btn primary"
             style={{
               width: 'auto',
-              padding: '7px 14px',
-              fontSize: 12,
-              fontWeight: 600,
-              borderRadius: 8,
+              padding: '8px 16px',
+              fontSize: 13,
+              fontWeight: 700,
+              borderRadius: 10,
               textDecoration: 'none',
               whiteSpace: 'nowrap'
             }}
           >
-            {t('Open App')}
+            {user?.id ? t('Continue in App') : t('Open App')}
           </a>
         </div>
       )}
@@ -623,18 +642,23 @@ export default function Login() {
             {statusBanner.text}
           </div>
           {nativeReturnUrl && (
-            <div style={{ marginTop: 10 }}>
+            <div style={{ marginTop: 12 }}>
               <a
                 href={nativeReturnUrl}
                 className="btn primary"
                 style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   textDecoration: 'none',
-                  padding: '10px 14px',
-                  fontSize: 13,
-                  borderRadius: 10
+                  padding: '14px 18px',
+                  fontSize: 15,
+                  fontWeight: 800,
+                  borderRadius: 12,
+                  width: '100%'
                 }}
               >
-                {t('Return to SmiTriX App')}
+                {t('Open SmiTriX App Now →')}
               </a>
             </div>
           )}

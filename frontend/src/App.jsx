@@ -40,6 +40,32 @@ import CoachSetup from './views/CoachSetup.jsx'
 // last known scrollY per route, so back-navigation can put the page where it was
 const scrollPositions = new Map()
 
+// Synchronously align /login path or OAuth/deep-link query params into location.hash
+// BEFORE HashRouter mounts, so the initial render never falls through to <Route path="*" Navigate to="/home" />
+try {
+  if (typeof window !== 'undefined') {
+    const wp = window.location.pathname || ''
+    const ws = window.location.search || ''
+    const wh = window.location.hash || ''
+    if (
+      wp.startsWith('/login') ||
+      ws.includes('native_google=') ||
+      ws.includes('oobCode=') ||
+      ws.includes('google_id_token=') ||
+      ws.includes('uid=') ||
+      ws.includes('verified=') ||
+      ws.includes('mode=')
+    ) {
+      if (ws.includes('native_google=1') || wh.includes('native_google=1')) {
+        try { sessionStorage.setItem('smitrix_native_bridge', '1') } catch {}
+      }
+      if (!wh.startsWith('#/login')) {
+        window.location.hash = '#/login' + ws
+      }
+    }
+  }
+} catch {}
+
 bindUI(useUI)   // lets the shared controls open sheets without importing the store at module scope
 
 // theme === 'system' follows the OS/browser preference instead of a fixed choice.
@@ -157,6 +183,30 @@ function Shell() {
           q.includes('verified') ||
           q.includes('mode=')
         ) {
+          // Immediately hydrate authenticated user inside the native app if uid or tokens are present
+          const sp = new URLSearchParams(q.replace(/^\?/, ''))
+          const incomingUid = sp.get('uid') || ''
+          const idToken = sp.get('google_id_token') || ''
+          const accessToken = sp.get('google_access_token') || ''
+          if (incomingUid) {
+            const userObj = {
+              id: incomingUid,
+              name: sp.get('name') || (sp.get('email') ? sp.get('email').split('@')[0] : 'Athlete'),
+              email: sp.get('email') || '',
+              emailVerified: sp.get('verified') === '1' || sp.get('verified') === 'true',
+              photoURL: sp.get('photo') || '',
+              admin: false,
+              firebase: true,
+            }
+            useStore.getState().setUser(userObj)
+            if (idToken || accessToken) {
+              import('./lib/firebase.js').then(m => m.signInWithGoogleTokens(idToken, accessToken)).catch(() => {})
+            }
+            useStore.getState().pullState().catch(() => {})
+            useUI.getState().toast('Welcome, ' + userObj.name)
+            navigate('/profile', { replace: true })
+            return
+          }
           navigate('/login' + q)
           if (q.includes('verified=true')) {
             useUI.getState().toast('Email verified! You can now sign in.')
@@ -194,8 +244,47 @@ function Shell() {
     </div>
   )
 
+  const isMobileWeb = import.meta.env.VITE_MOBILE !== '1' && typeof navigator !== 'undefined' && /android|iphone|ipad|ipod/i.test(navigator.userAgent || '')
+  const appDeepLink = user?.id
+    ? `smitrix://login?uid=${encodeURIComponent(user.id)}&name=${encodeURIComponent(user.name || '')}&email=${encodeURIComponent(user.email || '')}&photo=${encodeURIComponent(user.photoURL || '')}&verified=${user.emailVerified ? '1' : '0'}`
+    : 'smitrix://login'
+
   return (
     <>
+      {/* Mobile Web → Native Android App Handoff Bar */}
+      {isMobileWeb && user?.id && !loc.pathname.startsWith('/login') && (
+        <div style={{
+          background: '#172331',
+          borderBottom: '1px solid #1d9bf0',
+          padding: '10px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 10,
+          position: 'sticky',
+          top: 0,
+          zIndex: 999,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#f5f6f8' }}>
+            Signed in as <b style={{ color: '#1d9bf0' }}>{user.name || user.email}</b>
+          </div>
+          <a
+            href={appDeepLink}
+            style={{
+              background: '#1d9bf0',
+              color: '#ffffff',
+              fontSize: 12,
+              fontWeight: 800,
+              padding: '7px 14px',
+              borderRadius: 999,
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Open SmiTriX App →
+          </a>
+        </div>
+      )}
       {/* keyed on the route: a view that throws is contained, and switching tabs
           re-mounts the boundary, so the tab bar is always a way out */}
       <div id="app" className="vfade" key={loc.pathname}>
