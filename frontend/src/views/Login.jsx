@@ -183,10 +183,14 @@ export default function Login() {
   const isNativeGoogleBridge = !MOBILE && searchParams.get('native_google') === '1'
 
   const applyFirebaseUser = async fbUser => {
-    // If we are running inside the browser purely as the OAuth bridge for the Android APK,
+    const hasOAuthTokens = !!(fbUser?._oauthIdToken || fbUser?._oauthAccessToken)
+    const deepLink = hasOAuthTokens
+      ? `smitrix://login?google_id_token=${encodeURIComponent(fbUser._oauthIdToken || '')}&google_access_token=${encodeURIComponent(fbUser._oauthAccessToken || '')}`
+      : ''
+
+    // If we are running inside the browser as the OAuth bridge for the Android APK,
     // send the Google OAuth tokens directly back to the SmiTriX Android app via smitrix://
-    if (isNativeGoogleBridge && (fbUser?._oauthIdToken || fbUser?._oauthAccessToken)) {
-      const deepLink = `smitrix://login?google_id_token=${encodeURIComponent(fbUser._oauthIdToken || '')}&google_access_token=${encodeURIComponent(fbUser._oauthAccessToken || '')}`
+    if (isNativeGoogleBridge && deepLink) {
       setNativeReturnUrl(deepLink)
       setStatusBanner({
         type: 'success',
@@ -223,6 +227,16 @@ export default function Login() {
       ])
     } catch { /* offline or first time */ }
     useUI.getState().toast(t('Welcome, {0}', userObj.name))
+
+    // If the user signed in with Google on a mobile browser (e.g. opened from the Android app),
+    // automatically trigger the smitrix:// deep link to sign the native app in as well
+    if (!MOBILE && isMobileBrowser && deepLink) {
+      setNativeReturnUrl(deepLink)
+      try {
+        window.location.href = deepLink
+      } catch {}
+    }
+
     nav('/profile')
   }
 

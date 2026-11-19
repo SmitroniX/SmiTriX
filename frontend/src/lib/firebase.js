@@ -35,7 +35,7 @@ const defaultKey = [
 
 export const firebaseConfig = {
   apiKey: (envKey && envKey.trim()) ? envKey.trim() : defaultKey,
-  authDomain: import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN || "smitrix.firebaseapp.com",
+  authDomain: import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN || "aniplex-b74b5.firebaseapp.com",
   projectId: import.meta.env?.VITE_FIREBASE_PROJECT_ID || "aniplex-b74b5",
   storageBucket: import.meta.env?.VITE_FIREBASE_STORAGE_BUCKET || "aniplex-b74b5.firebasestorage.app",
   messagingSenderId: import.meta.env?.VITE_FIREBASE_MESSAGING_SENDER_ID || "959848366624",
