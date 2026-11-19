@@ -129,7 +129,7 @@ export async function signInWithGoogle() {
   if (typeof window !== 'undefined' && import.meta.env?.VITE_MOBILE === '1') {
     // In Android WebView (Capacitor), popups are blocked and Google disables WebView OAuth.
     // Open system browser (Chrome) to authenticate and redirect back via smitrix://login?google_id_token=...
-    const targetUrl = 'https://smitrix.web.app/login?native_google=1#/login?native_google=1'
+    const targetUrl = 'https://smitrix.web.app/login?native_google=1&v=2#/login?native_google=1'
     try {
       const a = document.createElement('a')
       a.href = targetUrl
