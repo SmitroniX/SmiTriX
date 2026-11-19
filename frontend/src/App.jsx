@@ -50,7 +50,7 @@ const resolveTheme = theme => (theme === 'light' || theme === 'dark' || theme ==
 function applyPrefs(theme, accent) {
   const de = document.documentElement
   de.dataset.theme = resolveTheme(theme)
-  de.dataset.accent = ACCENTS[accent] ? accent : 'lime'
+  de.dataset.accent = ACCENTS[accent] ? accent : 'sky'
   const meta = document.querySelector('meta[name="theme-color"]')
   if (meta) meta.content = de.dataset.theme === 'light' ? '#f2f2f7' : '#000000'
 }
@@ -111,6 +111,7 @@ function Shell() {
         winSearch.includes('native_google=') ||
         winSearch.includes('oobCode=') ||
         winSearch.includes('google_id_token=') ||
+        winSearch.includes('uid=') ||
         winSearch.includes('verified=') ||
         winSearch.includes('mode=')
       ) {
@@ -151,6 +152,7 @@ function Shell() {
           path.includes('login') ||
           rawUrl.includes('login') ||
           q.includes('google_id_token') ||
+          q.includes('uid=') ||
           q.includes('oobCode') ||
           q.includes('verified') ||
           q.includes('mode=')

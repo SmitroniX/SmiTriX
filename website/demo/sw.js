@@ -1,6 +1,6 @@
 /* SmiTriX service worker — runtime caching (works with Vite's hashed asset names).
    Media (img/gif) cache-first; everything else network-first with offline fallback. */
-const CACHE = 'smitrix-rt-v2'
+const CACHE = 'smitrix-rt-v3'
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', e => {

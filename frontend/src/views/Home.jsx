@@ -144,9 +144,8 @@ export default function Home() {
       <div
         className="card active-workout-hero tappable"
         style={{
-          background: 'linear-gradient(145deg, var(--surface) 0%, color-mix(in srgb, var(--acc) 14%, var(--surface)) 100%)',
-          border: '1.5px solid color-mix(in srgb, var(--acc) 50%, var(--surface-3))',
-          boxShadow: '0 4px 20px color-mix(in srgb, var(--acc) 15%, transparent)',
+          background: 'var(--surface)',
+          border: '1.5px solid var(--acc)',
           marginBottom: 16,
           cursor: 'pointer',
         }}
@@ -196,9 +195,8 @@ export default function Home() {
       <div
         className="card home-hero-workout-card tappable"
         style={{
-          background: 'linear-gradient(145deg, var(--surface) 0%, color-mix(in srgb, var(--acc) 12%, var(--surface)) 100%)',
-          border: '1.5px solid color-mix(in srgb, var(--acc) 45%, var(--border))',
-          boxShadow: '0 6px 24px color-mix(in srgb, var(--acc) 14%, transparent)',
+          background: 'var(--surface)',
+          border: '1px solid var(--sep-op)',
           marginBottom: 16,
           cursor: 'pointer',
           position: 'relative',

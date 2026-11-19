@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.7.1 — 2026-11-19
+
+SmiTriX Custom Design Identity (Electric Cobalt Blue & Obsidian), Hevy-Style Profile & Exercise Detail Overhaul, and Instant Native App Auto-Redirect After Sign-In.
+
+- 🎨 **SmiTriX Custom Design System (`index.css`, `TabBar.jsx`, `Home.jsx`, `useStore.js`)**:
+  - Replaced the OpenGym lime-green palette and floating `+` bottom bar with SmiTriX's custom **Electric Cobalt Blue (`#1d9bf0`)** on deep obsidian black (`#000000`) and charcoal slate (`#15171c`, `#1f2229`).
+  - Replaced the floating capsule tab bar with a flush edge-to-edge bottom navigation dock including a dedicated **Profile** tab.
+  - Removed AI-style rainbow gradients, glowing borders, and sci-fi/RPG labels in favor of clean athletic typography and surgical dark surfaces.
+- 👤 **Profile Screen & Workout Activity Feed Overhaul (`Profile.jsx`)**:
+  - Top bar with user handle (`asmit0826`) and quick outline actions for Edit Profile, Share Profile, and Settings & Account drawer.
+  - Horizontal profile header with circular avatar, athlete name, member-since subtitle, and 3-column stat counters (`Workouts`, `Days trained`, `Streak`).
+  - Interactive weekly training bar chart (`X hours this week` + `Last 3 months ⌄`) with horizontal grid lines (`1 hrs`, `2 hrs`, `3 hrs`) and pill toggles (`Duration`, `Volume`, `Reps`).
+  - 2×2 **Dashboard** grid (`Statistics`, `Exercises`, `Measures`, `Calendar`) and full **Workouts** feed showing every completed session with `Time`, `Volume`, `Records (🥇 N)`, circular white exercise thumbnails (`3 sets Lat Pulldown (Cable)`), expandable `See X more exercises`, and social action bar.
+- 📈 **Exercise Detail Screen Overhaul (`sheets.jsx`)**:
+  - Added 3 underline tabs (`Summary`, `Logs`, `How to`), full-width white exercise illustration stage, `Primary` & `Secondary` muscle breakdown, interactive progression line chart with `Heaviest Weight` / `One Rep Max` / `Best Set Volume` pill selectors, and `🥇 Personal Records` breakdown.
+- 🔄 **Instant Auto-Redirect to Android App After Sign-In (`Login.jsx`, `firebase.js`, `App.jsx`)**:
+  - Automatically redirects from mobile browsers (`https://smitrix.web.app/login`) straight back into the native SmiTriX Android app (`com.smitrix.app`) via `smitrix://login` and Android `intent://login#Intent;scheme=smitrix;package=com.smitrix.app;end` immediately after Google OAuth or Email/Password sign-in.
+- 🚀 **Release Build**:
+  - Android APK versionCode bumped to 35 (v1.7.1).
+
 ## v1.7.0 — 2026-11-19
 
 Commercial Production Upgrade: Paid Plans & Payment Gateway, Biomechanical Exercise Recommendations, Hevy-Style Workout Photo Posts & Social Feed, Customer Insights Pipeline, Mandatory Auth, and Animated Onboarding.

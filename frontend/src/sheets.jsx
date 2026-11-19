@@ -681,41 +681,275 @@ function ExerciseDetail({ ex, close }) {
   const st = useStore(s => s.S)
   const last = lastEntryFor(st, ex.id)
   const best = bestWeightFor(st, ex.id)
+  const best1rm = best1RM(st, ex.id)
   const fav = isFav(st, ex.id)
+  const [detailTab, setDetailTab] = useState('summary')
+  const [chartMetric, setChartMetric] = useState('heaviest')
+  const [chartRange, setChartRange] = useState('year')
+  const h = useMemo(() => exerciseHistory(st, ex.id), [st.workouts, ex.id])
+
   const flipFav = () => {
     let on = false
     update(s => { on = toggleFav(s, ex.id) })
     toast(on ? t('Added to favourites') : t('Removed from favourites'))
   }
+
+  const primariesList = (ex.primaries?.length ? ex.primaries : (ex.tg ? [ex.tg] : [])).map(s => t(s))
+  const secondariesList = (ex.secondaries?.length ? ex.secondaries : smOf(ex)).slice(0, 4).map(s => t(s))
+  const unit = h.metric === 'weight' ? st.unit : h.metric === 'reps' ? t('reps') : h.metric === 'sec' ? 's' : t('min')
+
+  const volumePoints = useMemo(() => (h.sessions || []).slice().reverse().map(s => ({
+    label: fmtDate(s.d, true),
+    y: Math.round(s.volume || 0),
+  })), [h.sessions])
+
+  const activePoints = chartMetric === '1rm' && h.e1rmPoints?.length
+    ? h.e1rmPoints
+    : chartMetric === 'volume' && volumePoints.length
+      ? volumePoints
+      : h.points || []
+
+  const bestVol = useMemo(() => Math.max(0, ...(h.sessions || []).map(s => Math.round(s.volume || 0))), [h.sessions])
+  const latestPoint = activePoints.length ? activePoints[activePoints.length - 1] : null
+
   return <>
-    <div className="row between" style={{ gap: 8, alignItems: 'flex-start' }}>
-      <h3 className="capitalize">{exerciseNameFor(ex)}</h3>
-      <button className={'iconbtn fav-btn' + (fav ? ' on' : '')} aria-pressed={fav}
-        aria-label={fav ? t('Remove from favourites') : t('Add to favourites')} onClick={flipFav}>
-        <Icon name={fav ? 'starFill' : 'star'} />
-      </button>
+    {/* Top Bar: Back + Exercise Title + Share + Favourite Star */}
+    <div className="row between" style={{ gap: 8, alignItems: 'center', marginBottom: 6 }}>
+      <div className="row" style={{ gap: 10, alignItems: 'center', minWidth: 0, flex: 1 }}>
+        <button
+          type="button"
+          className="iconbtn"
+          aria-label={t('Back')}
+          onClick={close}
+          style={{ width: 32, height: 32, background: 'transparent', border: 0 }}
+        >
+          <Icon name="back" />
+        </button>
+        <h3 className="capitalize" style={{ margin: 0, fontSize: 18, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {exerciseNameFor(ex)}
+        </h3>
+      </div>
+      <div className="row" style={{ gap: 4, alignItems: 'center' }}>
+        <button className={'iconbtn fav-btn' + (fav ? ' on' : '')} aria-pressed={fav}
+          aria-label={fav ? t('Remove from favourites') : t('Add to favourites')} onClick={flipFav}>
+          <Icon name={fav ? 'starFill' : 'star'} />
+        </button>
+      </div>
     </div>
-    <Media ex={ex} />
-    <div className="row" style={{ gap: 6, flexWrap: 'wrap', margin: '10px 0' }}>
-      <span className="tag acc">{t(ex.bp)}</span>
-      {(ex.primaries?.length ? ex.primaries : (ex.tg ? [ex.tg] : [])).map((s, i) => <span key={i} className="tag"><Icon name="target" />{t(s)}</span>)}
-      <span className="tag"><Icon name="dumbbell" />{t(ex.eq)}</span>
-      {(ex.secondaries?.length ? ex.secondaries : smOf(ex)).slice(0, 3).map((s, i) => <span key={i} className="tag">{t(s)}</span>)}
+
+    {/* 3 Underline Tabs: Summary | Logs | How to */}
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      borderBottom: '1px solid #1f2229',
+      marginBottom: 12,
+    }}>
+      {[
+        { id: 'summary', label: t('Summary') },
+        { id: 'logs', label: t('Logs') },
+        { id: 'howto', label: t('How to') },
+      ].map(tb => {
+        const on = detailTab === tb.id
+        return (
+          <button
+            key={tb.id}
+            type="button"
+            onClick={() => setDetailTab(tb.id)}
+            style={{
+              background: 'transparent',
+              border: 0,
+              borderBottom: on ? '2.5px solid var(--acc)' : '2.5px solid transparent',
+              color: on ? 'var(--acc)' : '#8e939e',
+              fontSize: 14,
+              fontWeight: on ? 700 : 500,
+              padding: '10px 4px',
+              cursor: 'pointer',
+            }}
+          >
+            {tb.label}
+          </button>
+        )
+      })}
     </div>
-    {ex.desc && <div className="exnote">{ex.desc}</div>}
-    {best > 0 && <div className="small row" style={{ marginBottom: 6, gap: 5 }}><Icon name="trophy" style={{ fontSize: 14, color: 'var(--yellow)' }} />{t('Best:')} <b className="accent">{fmtNum(best)} {st.unit}</b>{last ? ` · ${t('last')} ${fmtDate(last.d)}: ${last.sets.map(s => setLabel(ex.id, s, last.target)).join(', ')}` : ''}</div>}
-    <Button variant="primary" icon="plus" style={{ margin: '10px 0 4px' }} onClick={() => addToRoutineSheet(ex)}>{t('Add to my plan')}</Button>
-    {last && <Button icon="history" style={{ marginTop: 4 }} onClick={() => exerciseHistorySheet(ex.id)}>{t('History')}</Button>}
-    {ex.custom && <div className="row" style={{ gap: 8, marginTop: 8 }}>
-      <Button icon="pencil" style={{ flex: 1 }} onClick={() => { close(); customExSheet(ex) }}>{t('Edit')}</Button>
-      <Button variant="danger" icon="trash" style={{ flex: 1 }} onClick={() => deleteCustomEx(ex, close)}>{t('Delete')}</Button>
-    </div>}
-    {usesBar(ex) && <>
-      <h4 className="sec">{t('Bar weight')}</h4>
-      <BarWeightEditor ex={ex} extra={t('You still log the total weight — the bar only feeds the per-side plate math.')} />
+
+    {detailTab === 'summary' && <>
+      {/* Full-width Clean White Media Stage */}
+      <div style={{
+        background: '#ffffff',
+        borderRadius: 12,
+        overflow: 'hidden',
+        marginBottom: 14,
+        border: '1px solid #1f2229',
+      }}>
+        <Media ex={ex} />
+      </div>
+
+      {/* Exercise Title & Primary / Secondary Muscle Readout */}
+      <div style={{ marginBottom: 14 }}>
+        <div className="capitalize" style={{ fontSize: 21, fontWeight: 800, color: '#f5f6f8', marginBottom: 6 }}>
+          {exerciseNameFor(ex)} {ex.eq && !String(exerciseNameFor(ex)).includes('(') ? `(${t(ex.eq)})` : ''}
+        </div>
+        <div style={{ fontSize: 14, color: '#9ca3af', marginBottom: 3, textTransform: 'capitalize' }}>
+          {t('Primary')}: <span style={{ color: '#d1d5db' }}>{primariesList.join(', ') || t(ex.bp)}</span>
+        </div>
+        {secondariesList.length > 0 && (
+          <div style={{ fontSize: 14, color: '#9ca3af', textTransform: 'capitalize' }}>
+            {t('Secondary')}: <span style={{ color: '#d1d5db' }}>{secondariesList.join(', ')}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Latest Metric Value + Range Selector + Line Chart */}
+      <div style={{
+        borderTop: '1px solid #1f2229',
+        paddingTop: 14,
+        marginBottom: 14,
+      }}>
+        <div className="row between" style={{ alignItems: 'center', marginBottom: 8 }}>
+          <div>
+            {latestPoint ? (
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#f5f6f8' }}>
+                {fmtNum(latestPoint.y)} {chartMetric === 'volume' ? st.unit : unit}{' '}
+                <span style={{ fontSize: 13, fontWeight: 500, color: '#8e939e' }}>{latestPoint.label}</span>
+              </div>
+            ) : (
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#8e939e' }}>
+                {best > 0 ? `${fmtNum(best)} ${st.unit}` : t('No sets logged yet')}
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setChartRange(r => r === 'year' ? '3m' : 'year')}
+            style={{
+              background: 'transparent',
+              border: 0,
+              color: 'var(--acc)',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            {chartRange === 'year' ? t('Year') : t('Last 3 months')} ⌄
+          </button>
+        </div>
+
+        {activePoints.length > 0 ? (
+          <div className="chart" style={{ marginBottom: 12 }}>
+            <LineChart points={activePoints} h={145} unit={unit} color="var(--acc)" />
+          </div>
+        ) : (
+          <div style={{
+            height: 110,
+            borderRadius: 12,
+            background: '#15171c',
+            border: '1px solid #1f2229',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#8e939e',
+            fontSize: 13,
+            marginBottom: 12,
+          }}>
+            {t('Log a session to see your progression curve')}
+          </div>
+        )}
+
+        {/* 3 Pill Toggle Buttons: Heaviest Weight | One Rep Max | Best Set Volume */}
+        <div className="row" style={{ gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+          {[
+            { id: 'heaviest', label: t('Heaviest Weight') },
+            { id: '1rm', label: t('One Rep Max') },
+            { id: 'volume', label: t('Best Set Volume') },
+          ].map(m => {
+            const on = chartMetric === m.id
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setChartMetric(m.id)}
+                style={{
+                  background: on ? 'var(--acc)' : '#1c1f26',
+                  color: on ? '#ffffff' : '#e5e7eb',
+                  border: 0,
+                  borderRadius: 999,
+                  padding: '8px 16px',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                }}
+              >
+                {m.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Personal Records Section */}
+      <div style={{
+        borderTop: '1px solid #1f2229',
+        paddingTop: 14,
+        marginBottom: 14,
+      }}>
+        <div className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 12 }}>
+          <span style={{ fontSize: 18 }}>🥇</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: '#f5f6f8' }}>{t('Personal Records')}</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="row between" style={{ fontSize: 14 }}>
+            <span style={{ color: '#d1d5db', fontWeight: 600 }}>{t('Heaviest Weight')}</span>
+            <b style={{ color: 'var(--acc)', fontSize: 15 }}>{best > 0 ? `${fmtNum(best)} ${st.unit}` : '—'}</b>
+          </div>
+          <div className="row between" style={{ fontSize: 14 }}>
+            <span style={{ color: '#d1d5db', fontWeight: 600 }}>{t('Best 1RM')}</span>
+            <b style={{ color: 'var(--acc)', fontSize: 15 }}>{best1rm ? `${fmtNum(best1rm.est)} ${st.unit}` : '—'}</b>
+          </div>
+          <div className="row between" style={{ fontSize: 14 }}>
+            <span style={{ color: '#d1d5db', fontWeight: 600 }}>{t('Best Session Volume')}</span>
+            <b style={{ color: 'var(--acc)', fontSize: 15 }}>{bestVol > 0 ? `${fmtNum(bestVol)} ${st.unit}` : '—'}</b>
+          </div>
+        </div>
+      </div>
+
+      {ex.desc && <div className="exnote">{ex.desc}</div>}
+      {best > 0 && <div className="small row" style={{ marginBottom: 6, gap: 5 }}><Icon name="trophy" style={{ fontSize: 14, color: 'var(--yellow)' }} />{t('Best:')} <b className="accent">{fmtNum(best)} {st.unit}</b>{last ? ` · ${t('last')} ${fmtDate(last.d)}: ${last.sets.map(s => setLabel(ex.id, s, last.target)).join(', ')}` : ''}</div>}
+      <Button variant="primary" icon="plus" style={{ margin: '10px 0 4px' }} onClick={() => addToRoutineSheet(ex)}>{t('Add to my plan')}</Button>
+      {last && <Button icon="history" style={{ marginTop: 4 }} onClick={() => exerciseHistorySheet(ex.id)}>{t('History')}</Button>}
+      {ex.custom && <div className="row" style={{ gap: 8, marginTop: 8 }}>
+        <Button icon="pencil" style={{ flex: 1 }} onClick={() => { close(); customExSheet(ex) }}>{t('Edit')}</Button>
+        <Button variant="danger" icon="trash" style={{ flex: 1 }} onClick={() => deleteCustomEx(ex, close)}>{t('Delete')}</Button>
+      </div>}
+      {usesBar(ex) && <>
+        <h4 className="sec">{t('Bar weight')}</h4>
+        <BarWeightEditor ex={ex} extra={t('You still log the total weight — the bar only feeds the per-side plate math.')} />
+      </>}
+      {!isCardio(ex) && <OneRM ex={ex} />}
     </>}
-    {!isCardio(ex) && <OneRM ex={ex} />}
-    {instrFor(ex).length > 0 &&<><h4 className="sec">{t('How to')}{!INSTR_LANGS.includes(getLang()) && <span className="dim" style={{ textTransform: 'none', letterSpacing: 0 }}> · {t('instructions in English')}</span>}</h4><ol className="steps-list">{instrFor(ex).map((s, i) => <li key={i}>{s}</li>)}</ol></>}
+
+    {detailTab === 'logs' && <>
+      {(!h.sessions || h.sessions.length === 0) ? (
+        <div className="empty"><div className="ico"><Icon name="history" /></div>{t('No sessions logged yet')}</div>
+      ) : (
+        <div className="list">
+          {h.sessions.map(s => (
+            <div key={s.id} className="item" style={{ alignItems: 'flex-start' }}>
+              <div className="grow">
+                <div className="tt">{fmtDate(s.d, true)} {s.pr && <span className="pr"><Icon name="trophy" />PR</span>}</div>
+                <div className="ss">{s.sets.map(x => setLabel(ex.id, x, s.target)).join('  ·  ')}</div>
+              </div>
+              {s.value != null && s.value > 0 && <b className="accent nocap" style={{ whiteSpace: 'nowrap' }}>{fmtNum(s.value)} {unit}</b>}
+            </div>
+          ))}
+        </div>
+      )}
+    </>}
+
+    {(detailTab === 'howto' || detailTab === 'summary') && instrFor(ex).length > 0 && <>
+      <h4 className="sec">{t('How to')}{!INSTR_LANGS.includes(getLang()) && <span className="dim" style={{ textTransform: 'none', letterSpacing: 0 }}> · {t('instructions in English')}</span>}</h4>
+      <ol className="steps-list">{instrFor(ex).map((s, i) => <li key={i}>{s}</li>)}</ol>
+    </>}
   </>
 }
 export const exerciseDetailSheet = ex => ui().openSheet(close => <ExerciseDetail ex={ex} close={close} />)

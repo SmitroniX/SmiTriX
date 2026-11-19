@@ -182,26 +182,28 @@ export default function Login() {
   const searchParams = getMergedSearchParams(loc.search)
   const isNativeGoogleBridge = !MOBILE && searchParams.get('native_google') === '1'
 
-  const applyFirebaseUser = async fbUser => {
-    const hasOAuthTokens = !!(fbUser?._oauthIdToken || fbUser?._oauthAccessToken)
-    const deepLink = hasOAuthTokens
-      ? `smitrix://login?google_id_token=${encodeURIComponent(fbUser._oauthIdToken || '')}&google_access_token=${encodeURIComponent(fbUser._oauthAccessToken || '')}`
-      : ''
-
-    // If we are running inside the browser as the OAuth bridge for the Android APK,
-    // send the Google OAuth tokens directly back to the SmiTriX Android app via smitrix://
-    if (isNativeGoogleBridge && deepLink) {
-      setNativeReturnUrl(deepLink)
-      setStatusBanner({
-        type: 'success',
-        text: t('Google Sign-In complete! Returning to the SmiTriX Android app...')
-      })
+  const triggerNativeAppRedirect = qs => {
+    const smitrixUrl = `smitrix://login?${qs}`
+    const intentUrl = `intent://login?${qs}#Intent;scheme=smitrix;package=com.smitrix.app;S.browser_fallback_url=${encodeURIComponent('https://smitrix.web.app/#/profile')};end`
+    setNativeReturnUrl(smitrixUrl)
+    try {
+      const a = document.createElement('a')
+      a.href = smitrixUrl
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    } catch {}
+    try {
+      window.location.replace(smitrixUrl)
+    } catch {}
+    setTimeout(() => {
       try {
-        window.location.href = deepLink
+        window.location.href = intentUrl
       } catch {}
-      return
-    }
+    }, 300)
+  }
 
+  const applyFirebaseUser = async fbUser => {
     const userObj = {
       id: fbUser.uid,
       name: fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'Athlete'),
@@ -211,6 +213,29 @@ export default function Login() {
       admin: false,
       firebase: true
     }
+
+    const qsParams = new URLSearchParams()
+    if (fbUser?._oauthIdToken) qsParams.set('google_id_token', fbUser._oauthIdToken)
+    if (fbUser?._oauthAccessToken) qsParams.set('google_access_token', fbUser._oauthAccessToken)
+    if (userObj.id) qsParams.set('uid', userObj.id)
+    if (userObj.name) qsParams.set('name', userObj.name)
+    if (userObj.email) qsParams.set('email', userObj.email)
+    if (userObj.photoURL) qsParams.set('photo', userObj.photoURL)
+    qsParams.set('verified', userObj.emailVerified ? '1' : '0')
+    const qs = qsParams.toString()
+
+    // If we are running inside the browser as the OAuth bridge for the Android APK,
+    // immediately auto-redirect back to the SmiTriX Android app
+    if (isNativeGoogleBridge && qs) {
+      setUser(userObj)
+      setStatusBanner({
+        type: 'success',
+        text: t('Sign-In complete! Auto-redirecting to the SmiTriX Android app...')
+      })
+      triggerNativeAppRedirect(qs)
+      return
+    }
+
     setUser(userObj)
     recordSecurityEvent('auth_success', { uid: fbUser.uid, email: fbUser.email })
     trackEvent('login', { method: fbUser.providerData?.[0]?.providerId || 'password' })
@@ -228,13 +253,9 @@ export default function Login() {
     } catch { /* offline or first time */ }
     useUI.getState().toast(t('Welcome, {0}', userObj.name))
 
-    // If the user signed in with Google on a mobile browser (e.g. opened from the Android app),
-    // automatically trigger the smitrix:// deep link to sign the native app in as well
-    if (!MOBILE && isMobileBrowser && deepLink) {
-      setNativeReturnUrl(deepLink)
-      try {
-        window.location.href = deepLink
-      } catch {}
+    // If the user signed in on a mobile browser (Google or Email), automatically launch the native Android app
+    if (!MOBILE && isMobileBrowser && qs) {
+      triggerNativeAppRedirect(qs)
     }
 
     nav('/profile')
@@ -244,21 +265,49 @@ export default function Login() {
     const params = getMergedSearchParams(loc.search)
     const idToken = params.get('google_id_token') || ''
     const accessToken = params.get('google_access_token') || ''
+    const incomingUid = params.get('uid') || ''
     const oobCode = params.get('oobCode') || ''
     const actionMode = params.get('mode') || ''
 
-    // 1. Handle Google OAuth token return from system browser into Android APK
-    if (idToken || accessToken) {
+    // 1. Handle Google OAuth or Authenticated Session return from system browser into Android APK
+    if (idToken || accessToken || incomingUid) {
       setBusy(true)
-      setStatusBanner({ type: 'info', text: t('Completing Google Sign-In...') })
-      signInWithGoogleTokens(idToken, accessToken)
-        .then(fbUser => applyFirebaseUser(fbUser))
-        .catch(err => {
-          const msg = err.message || t('Google sign-in failed')
-          setStatusBanner({ type: 'error', text: msg })
-          useUI.getState().toast(msg)
+      setStatusBanner({ type: 'info', text: t('Completing Sign-In...') })
+
+      const hydrateFromParams = () => {
+        if (!incomingUid) return false
+        const userObj = {
+          id: incomingUid,
+          name: params.get('name') || (params.get('email') ? params.get('email').split('@')[0] : 'Athlete'),
+          email: params.get('email') || '',
+          emailVerified: params.get('verified') === '1' || params.get('verified') === 'true',
+          photoURL: params.get('photo') || '',
+          admin: false,
+          firebase: true
+        }
+        setUser(userObj)
+        Promise.race([pullState(), new Promise(r => setTimeout(r, 1500))]).catch(() => {}).finally(() => {
+          useUI.getState().toast(t('Welcome, {0}', userObj.name))
+          nav('/profile')
         })
-        .finally(() => setBusy(false))
+        return true
+      }
+
+      if (idToken || accessToken) {
+        signInWithGoogleTokens(idToken, accessToken)
+          .then(fbUser => applyFirebaseUser(fbUser))
+          .catch(err => {
+            if (!hydrateFromParams()) {
+              const msg = err.message || t('Google sign-in failed')
+              setStatusBanner({ type: 'error', text: msg })
+              useUI.getState().toast(msg)
+            }
+          })
+          .finally(() => setBusy(false))
+      } else {
+        hydrateFromParams()
+        setBusy(false)
+      }
       return
     }
 

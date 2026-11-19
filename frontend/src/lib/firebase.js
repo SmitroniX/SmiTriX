@@ -156,9 +156,9 @@ export async function signInWithGoogle() {
   const cred = await Promise.race([popupTask, timeoutTask])
   try {
     const oauthCred = GoogleAuthProvider.credentialFromResult(cred)
-    if (oauthCred && cred.user) {
-      cred.user._oauthIdToken = oauthCred.idToken || ''
-      cred.user._oauthAccessToken = oauthCred.accessToken || ''
+    if (cred.user) {
+      cred.user._oauthIdToken = oauthCred?.idToken || cred?._tokenResponse?.oauthIdToken || ''
+      cred.user._oauthAccessToken = oauthCred?.accessToken || cred?._tokenResponse?.oauthAccessToken || ''
     }
   } catch {}
   syncUserProfile(cred.user).catch(() => {})
