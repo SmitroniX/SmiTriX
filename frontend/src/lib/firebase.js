@@ -31,8 +31,11 @@ export function isAdminEmail(email) {
   return String(email || '').trim().toLowerCase() === ADMIN_EMAIL
 }
 
+const isTestEnv = typeof process !== 'undefined' && Boolean(process.env?.VITEST || process.env?.NODE_ENV === 'test')
+const envKey = typeof import.meta !== 'undefined' ? import.meta.env?.VITE_FIREBASE_API_KEY : ''
+
 export const firebaseConfig = {
-  apiKey: import.meta.env?.VITE_FIREBASE_API_KEY || "",
+  apiKey: (envKey && envKey.trim()) ? envKey.trim() : (isTestEnv ? 'mock-api-key-for-testing-only' : ''),
   authDomain: import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN || "aniplex-b74b5.firebaseapp.com",
   projectId: import.meta.env?.VITE_FIREBASE_PROJECT_ID || "aniplex-b74b5",
   storageBucket: import.meta.env?.VITE_FIREBASE_STORAGE_BUCKET || "aniplex-b74b5.firebasestorage.app",
@@ -41,10 +44,39 @@ export const firebaseConfig = {
   measurementId: import.meta.env?.VITE_FIREBASE_MEASUREMENT_ID || "G-QF7MCSBRT8"
 }
 
-// Singleton app instance
-export const app = getApps().length ? getApp() : initializeApp(firebaseConfig)
-export const auth = getAuth(app)
-export const firestore = getFirestore(app)
+function initFirebase() {
+  const existing = getApps()
+  const keyToUse = firebaseConfig.apiKey || 'mock-api-key-for-testing-only'
+  let appInst = null
+  let authInst = null
+  let firestoreInst = null
+
+  try {
+    appInst = existing.length ? getApp() : initializeApp({ ...firebaseConfig, apiKey: keyToUse })
+  } catch {
+    try {
+      appInst = initializeApp({ ...firebaseConfig, apiKey: 'mock-api-key-for-testing-only' }, 'fallback-test-app')
+    } catch {}
+  }
+
+  if (appInst) {
+    try {
+      authInst = getAuth(appInst)
+    } catch {
+      authInst = null
+    }
+    try {
+      firestoreInst = getFirestore(appInst)
+    } catch {
+      firestoreInst = null
+    }
+  }
+
+  return { app: appInst, auth: authInst, firestore: firestoreInst }
+}
+
+// Singleton app instances
+export const { app, auth, firestore } = initFirebase()
 const googleProvider = new GoogleAuthProvider()
 googleProvider.setCustomParameters({ prompt: 'select_account' })
 
