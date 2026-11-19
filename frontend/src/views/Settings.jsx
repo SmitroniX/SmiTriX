@@ -24,6 +24,7 @@ import { getApiKey, setApiKey, clearApiKey, hasApiKey, getHevyApiKey, setHevyApi
 import { HTTP_PROVIDERS, HTTP_PROVIDER_IDS, validateBaseUrl } from '../../../api/coach/core/providers.js'
 import { testHevyApiKey } from '../lib/import-hevy.js'
 import { setAnalyticsConsent } from '../lib/analytics.js'
+import { isAdminEmail } from '../lib/firebase.js'
 
 export default function Settings() {
   const nav = useNavigate()
@@ -33,6 +34,7 @@ export default function Settings() {
   const coachLocal = useStore(s => s.coachLocal)
   const { update, replaceState, setUser, pullState, pushState, signOut, signOutAll, resetDemo, disconnectServer } = useStore()
   const toast = useUI(s => s.toast)
+  const isAdmin = Boolean(user?.admin || isAdminEmail(user?.email))
   const fileRef = useRef(null)
   const importRef = useRef(null)
   const wakeOK = wakeLockSupported()
@@ -152,7 +154,7 @@ export default function Settings() {
       <Row icon="personCircle" iconTint="var(--acc)" title={user ? user.name : t('Athlete Profile')} subtitle={user ? (user.email || t('Verified Cloud Athlete')) : t('View training stats, somatotype & achievements')} accessory="chevron" onClick={() => nav('/profile')} />
       {user ? <>
         <Row icon="cloud" iconTint="var(--blue)" title={t('Cloud Sync Active')} subtitle={user.email || user.name} />
-        {user.admin && <Row icon="wrench" iconTint="var(--indigo)" title={t('Admin dashboard')} accessory="chevron" onClick={() => nav('/admin')} />}
+        {isAdmin && <Row icon="shield" iconTint="var(--red)" title={t('Cloud Admin Dashboard')} subtitle="smitronix0826@gmail.com" accessory="chevron" onClick={() => nav('/admin')} />}
         <Row icon="signOut" iconTint="var(--red)" title={t('Sign out')} danger onClick={() => confirmSheet({
           title: t('Sign out?'),
           message: t('Your workouts remain saved on this device. You can sign back in anytime.'),
@@ -218,12 +220,12 @@ export default function Settings() {
         }
         onClick={() => useUI.getState().openSheet(close => <ApiKeyManagerSheet close={close} onUpdate={refreshApiKeys} />)}
       />
-      {user?.admin && (
+      {isAdmin && (
         <Row
-          icon="wrench"
-          iconTint="var(--indigo)"
-          title={t('Server AI Coach settings')}
-          subtitle={t('Instance provider, rate limits and server setup')}
+          icon="shield"
+          iconTint="var(--red)"
+          title={t('Cloud Admin Dashboard')}
+          subtitle={t('App users, workout records, bug reports & KPIs')}
           accessory="chevron"
           onClick={() => nav('/admin')}
         />

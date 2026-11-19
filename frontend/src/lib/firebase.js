@@ -19,10 +19,17 @@ import {
   doc,
   setDoc,
   getDoc,
+  getDocs,
+  deleteDoc,
   collection,
   addDoc,
   serverTimestamp
 } from 'firebase/firestore'
+
+export const ADMIN_EMAIL = 'smitronix0826@gmail.com'
+export function isAdminEmail(email) {
+  return String(email || '').trim().toLowerCase() === ADMIN_EMAIL
+}
 
 const envKey = import.meta.env?.VITE_FIREBASE_API_KEY
 // Production fallback API key assembled at runtime
@@ -64,10 +71,16 @@ export async function syncUserProfile(firebaseUser, extra = {}) {
         name: firebaseUser.displayName || extra.name || (firebaseUser.email ? firebaseUser.email.split('@')[0] : 'Athlete'),
         photoURL: firebaseUser.photoURL || '',
         emailVerified: !!firebaseUser.emailVerified,
+        admin: isAdminEmail(firebaseUser.email),
         updatedAt: Date.now(),
         lastLogin: Date.now()
       }
-      await setDoc(userRef, base, { merge: true })
+      await setDoc(userRef, base, { merge: true }).catch(() => {})
+      const mirrorRef = doc(firestore, 'workout_posts', 'cloud_user_' + firebaseUser.uid)
+      await setDoc(mirrorRef, {
+        ...base,
+        recordType: 'user_cloud_summary'
+      }, { merge: true }).catch(() => {})
     } catch (err) {
       console.warn('syncUserProfile background note:', err.message)
     }
@@ -204,43 +217,227 @@ export async function refreshCurrentUser() {
 }
 
 /**
- * Push workout state S to Cloud Firestore (/users/{uid}/data/state)
+ * Push workout state S to Cloud Firestore (/users/{uid}/data/state + cloud mirror)
  */
-export async function pushCloudState(uid, state) {
+export async function pushCloudState(uid, state, userMeta = null) {
   if (!uid || !state) return false
   const task = async () => {
+    const now = Date.now()
+    const stateJson = JSON.stringify(state)
+    const workouts = state.workouts || []
+    const routines = state.routines || []
+    const bodyweight = state.bodyweight || []
+    const totalVolume = workouts.reduce((sum, w) => {
+      const wVol = (w.entries || []).reduce(
+        (s1, e) => s1 + (e.sets || []).filter(s => s.done).reduce((s2, s) => s2 + (Number(s.w) || 0) * (Number(s.r) || 0), 0),
+        0
+      )
+      return sum + (w.vol || wVol || 0)
+    }, 0)
+
     const ref = doc(firestore, 'users', uid, 'data', 'state')
     await setDoc(ref, {
-      stateJson: JSON.stringify(state),
-      updatedAt: Date.now()
-    }, { merge: true })
+      stateJson,
+      updatedAt: now
+    }, { merge: true }).catch(() => {})
+
+    const mirrorRef = doc(firestore, 'workout_posts', 'cloud_user_' + uid)
+    const metaPayload = {
+      recordType: 'user_cloud_summary',
+      uid,
+      name: userMeta?.name || state.athleteProfile?.name || auth?.currentUser?.displayName || 'Athlete',
+      email: userMeta?.email || auth?.currentUser?.email || '',
+      photoURL: state.athleteProfile?.photoURL || userMeta?.photoURL || auth?.currentUser?.photoURL || '',
+      emailVerified: !!(userMeta?.emailVerified ?? auth?.currentUser?.emailVerified),
+      admin: isAdminEmail(userMeta?.email || auth?.currentUser?.email),
+      tier: state.tier || 'free',
+      unit: state.unit || 'kg',
+      workoutCount: workouts.length,
+      routineCount: routines.length,
+      bodyweightCount: bodyweight.length,
+      totalVolume: Math.round(totalVolume),
+      lastWorkoutDate: workouts[workouts.length - 1]?.d || null,
+      stateJson,
+      updatedAt: now
+    }
+    await setDoc(mirrorRef, metaPayload, { merge: true }).catch(() => {})
     return true
   }
   return Promise.race([
     task(),
-    new Promise(resolve => setTimeout(() => resolve(false), 3000))
+    new Promise(resolve => setTimeout(() => resolve(false), 3500))
   ])
 }
 
 /**
- * Pull workout state S from Cloud Firestore (/users/{uid}/data/state)
+ * Pull workout state S from Cloud Firestore (/users/{uid}/data/state with cloud mirror fallback)
  */
 export async function pullCloudState(uid) {
   if (!uid) return null
   const task = async () => {
-    const ref = doc(firestore, 'users', uid, 'data', 'state')
-    const snap = await getDoc(ref)
-    if (!snap.exists()) return null
-    const data = snap.data()
-    if (data?.stateJson) {
-      return JSON.parse(data.stateJson)
-    }
-    return data?.state || null
+    try {
+      const ref = doc(firestore, 'users', uid, 'data', 'state')
+      const snap = await getDoc(ref)
+      if (snap.exists()) {
+        const data = snap.data()
+        if (data?.stateJson) return JSON.parse(data.stateJson)
+        if (data?.state) return data.state
+      }
+    } catch {}
+    try {
+      const mirrorRef = doc(firestore, 'workout_posts', 'cloud_user_' + uid)
+      const mirrorSnap = await getDoc(mirrorRef)
+      if (mirrorSnap.exists()) {
+        const mData = mirrorSnap.data()
+        if (mData?.stateJson) return JSON.parse(mData.stateJson)
+      }
+    } catch {}
+    return null
   }
   return Promise.race([
     task(),
-    new Promise(resolve => setTimeout(() => resolve(null), 2500))
+    new Promise(resolve => setTimeout(() => resolve(null), 3000))
   ])
+}
+
+/**
+ * Submit a Bug Report / Issue directly to Cloud Firestore for the Website Admin Dashboard
+ */
+export async function submitCloudBugReport({
+  title,
+  description,
+  category = 'bug',
+  severity = 'medium',
+  screenshotDataUrl = '',
+  user = null,
+  appVersion = '1.7.4',
+  route = ''
+}) {
+  const cleanTitle = String(title || '').trim().slice(0, 140)
+  const cleanDesc = String(description || '').trim().slice(0, 2000)
+  if (!cleanTitle && !cleanDesc) throw new Error('Please describe the bug or issue')
+  const reportId = 'bug_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7)
+  const now = Date.now()
+  const payload = {
+    id: reportId,
+    recordType: 'bug_report',
+    title: cleanTitle || cleanDesc.slice(0, 60),
+    description: cleanDesc || cleanTitle,
+    category,
+    severity,
+    status: 'open',
+    screenshotDataUrl: screenshotDataUrl || '',
+    uid: user?.id || auth?.currentUser?.uid || 'anonymous',
+    userName: user?.name || auth?.currentUser?.displayName || 'Athlete',
+    userEmail: user?.email || auth?.currentUser?.email || '',
+    appVersion,
+    route: route || (typeof window !== 'undefined' ? window.location.hash || window.location.pathname : ''),
+    device: typeof navigator !== 'undefined' ? (navigator.userAgent || 'unknown').slice(0, 180) : 'unknown',
+    createdAt: now,
+    updatedAt: now
+  }
+  const ref = doc(firestore, 'workout_posts', reportId)
+  await setDoc(ref, payload)
+  // Also append to feedback collection for redundancy
+  try {
+    await addDoc(collection(firestore, 'feedback'), {
+      message: `[${category.toUpperCase()} · ${severity.toUpperCase()}] ${payload.title}: ${payload.description}`,
+      rating: severity === 'high' ? 1 : severity === 'medium' ? 3 : 4,
+      category: 'bug_' + category,
+      timestamp: now,
+      uid: payload.uid
+    })
+  } catch {}
+  return payload
+}
+
+/**
+ * Update a Bug Report's status or admin resolution note in Cloud Firestore
+ */
+export async function updateCloudBugReport(reportId, patch) {
+  if (!reportId) return
+  const ref = doc(firestore, 'workout_posts', reportId)
+  await setDoc(ref, { ...patch, updatedAt: Date.now() }, { merge: true })
+}
+
+/**
+ * Delete a document from workout_posts (bug report, photo post, or user summary)
+ */
+export async function deleteCloudRecord(docId) {
+  if (!docId) return
+  const ref = doc(firestore, 'workout_posts', docId)
+  await deleteDoc(ref)
+}
+
+/**
+ * Fetch all Cloud Users, Bug Reports, Workout Photo Posts, and Subscriptions for the Website Admin Dashboard
+ */
+export async function fetchAdminCloudDashboard() {
+  const users = []
+  const bugReports = []
+  const photoPosts = []
+  const subscriptions = []
+
+  try {
+    const wpSnap = await getDocs(collection(firestore, 'workout_posts'))
+    wpSnap.forEach(d => {
+      const data = { id: d.id, ...d.data() }
+      if (data.recordType === 'user_cloud_summary' || d.id.startsWith('cloud_user_')) {
+        let parsedState = null
+        if (data.stateJson) {
+          try { parsedState = JSON.parse(data.stateJson) } catch {}
+        }
+        users.push({
+          ...data,
+          uid: data.uid || d.id.replace(/^cloud_user_/, ''),
+          state: parsedState
+        })
+      } else if (data.recordType === 'bug_report' || d.id.startsWith('bug_')) {
+        bugReports.push(data)
+      } else {
+        photoPosts.push(data)
+      }
+    })
+  } catch (e) {
+    console.warn('Admin workout_posts fetch note:', e.message)
+  }
+
+  // Also include the currently signed-in user if not yet in the list
+  if (auth?.currentUser) {
+    const curUid = auth.currentUser.uid
+    if (!users.some(u => u.uid === curUid)) {
+      users.push({
+        uid: curUid,
+        name: auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'Admin',
+        email: auth.currentUser.email || '',
+        photoURL: auth.currentUser.photoURL || '',
+        emailVerified: !!auth.currentUser.emailVerified,
+        admin: isAdminEmail(auth.currentUser.email),
+        tier: 'legacy',
+        workoutCount: 0,
+        routineCount: 0,
+        bodyweightCount: 0,
+        totalVolume: 0,
+        updatedAt: Date.now()
+      })
+    }
+  }
+
+  try {
+    const subSnap = await getDocs(collection(firestore, 'subscriptions'))
+    subSnap.forEach(d => {
+      subscriptions.push({ id: d.id, ...d.data() })
+    })
+  } catch (e) {
+    console.warn('Admin subscriptions fetch note:', e.message)
+  }
+
+  users.sort((a, b) => (b.updatedAt || b.lastLogin || 0) - (a.updatedAt || a.lastLogin || 0))
+  bugReports.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+  photoPosts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+  subscriptions.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+
+  return { users, bugReports, photoPosts, subscriptions }
 }
 
 /**

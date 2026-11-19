@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.7.4 — 2026-11-19
+
+Cloud-First Data Storage, Dedicated Website Admin Dashboard for smitronix0826@gmail.com, and In-App Bug Reporting.
+
+- ☁️ **Cloud-First Data Architecture (`firebase.js`, `useStore.js`)**:
+  - Transitioned all training data (workouts, routines, measures, PRs) to 100% Cloud Firestore sync (`/users/{uid}/data/state`).
+  - Added real-time user cloud mirrors (`user_cloud_summary`) recording aggregate statistics (workout counts, total volume lifted, routine count, last active date).
+  - Ensured training data is never trapped locally on device; device cleans local storage on sign-out and pulls state from Cloud Firestore on login.
+- 🛡️ **Dedicated SmiTriX Cloud Admin Dashboard (`Admin.jsx`, `App.jsx`, `Settings.jsx`, `Profile.jsx`)**:
+  - Added dedicated website Admin console at `/#/admin` restricted exclusively to `smitronix0826@gmail.com`.
+  - Displays live cloud KPIs: Total App Users, Total Cloud Workouts Logged, Total Volume Lifted, Open Bug Reports, and Subscriptions.
+  - Interactive User Cloud Inspector modal allowing inspection of any user's cloud workouts, routines, weigh-ins, or raw cloud JSON.
+  - Bug report triage system to review user-submitted issues, filter by status, inspect screenshots, and update status.
+  - Management tabs for Workout Photos and Subscription receipts.
+- 🐞 **In-App Bug Reporting (`BugReportModal.jsx`, `Profile.jsx`, `firebase.js`)**:
+  - Embedded direct bug reporting into the Profile screen.
+  - Users can select category, severity, enter summary and reproduction steps, and attach screenshots with automatic client-side compression.
+  - Bug reports write directly to Cloud Firestore with app version, route, and athlete metadata.
+- 🚀 **Release Build**:
+  - Android APK versionCode bumped to 38 (v1.7.4).
+
 ## v1.7.3 — 2026-11-19
 
 Clean Zero-Preload Profiles, 4-Button Bottom Navigation, Profile Photo Upload, and App-Only Authentication.

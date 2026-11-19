@@ -14,9 +14,10 @@ import { evaluateAchievements } from '../lib/achievements.js'
 import AchievementsModal from '../components/AchievementsModal.jsx'
 import EditProfileModal from '../components/EditProfileModal.jsx'
 import SplitChooserModal from '../components/SplitChooserModal.jsx'
+import BugReportModal from '../components/BugReportModal.jsx'
 import { syncWorkoutPostToCloud, trackEvent } from '../lib/analytics.js'
 import { useUI } from '../store/useUI.js'
-import { logoutUser, resendVerificationEmail, refreshCurrentUser } from '../lib/firebase.js'
+import { logoutUser, resendVerificationEmail, refreshCurrentUser, isAdminEmail } from '../lib/firebase.js'
 
 function compressWorkoutImage(file, maxDim = 760, quality = 0.8) {
   return new Promise((resolve, reject) => {
@@ -87,8 +88,10 @@ export default function Profile() {
   const [showAchievements, setShowAchievements] = useState(false)
   const [showEditProfile, setShowEditProfile] = useState(false)
   const [showSplitChooser, setShowSplitChooser] = useState(false)
+  const [showBugReport, setShowBugReport] = useState(false)
   const [splitChooserCategory, setSplitChooserCategory] = useState('legend')
   const [verifyBusy, setVerifyBusy] = useState(false)
+  const isAdmin = Boolean(user?.admin || isAdminEmail(user?.email))
 
   // Chart state: 'duration' | 'volume' | 'reps'
   const [chartMetric, setChartMetric] = useState('duration')
@@ -390,7 +393,27 @@ export default function Profile() {
         <div style={{ fontSize: 21, fontWeight: 700, letterSpacing: '-.02em', color: 'var(--label)' }}>
           {handleName}
         </div>
-        <div className="row" style={{ gap: 14, alignItems: 'center' }}>
+        <div className="row" style={{ gap: 12, alignItems: 'center' }}>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => nav('/admin')}
+              aria-label={t('Admin Dashboard')}
+              title={t('Admin Dashboard')}
+              style={{ color: '#ef4444', padding: 4, fontSize: 20, display: 'flex' }}
+            >
+              <Icon name="shield" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowBugReport(true)}
+            aria-label={t('Report an Issue')}
+            title={t('Report an Issue')}
+            style={{ color: 'var(--label-2)', padding: 4, fontSize: 19, display: 'flex' }}
+          >
+            <Icon name="warning" />
+          </button>
           <button
             type="button"
             onClick={() => setShowEditProfile(true)}
@@ -1146,6 +1169,66 @@ export default function Profile() {
         </div>
       )}
 
+      {/* Support & Administration Section */}
+      <div className="card" style={{ marginBottom: 14, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => nav('/admin')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(249, 115, 22, 0.08))',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: 10,
+              padding: '11px 14px',
+              color: '#f87171',
+              fontWeight: 600,
+              fontSize: 13.5,
+              cursor: 'pointer',
+              textAlign: 'left'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Icon name="shield" style={{ fontSize: 18 }} />
+              <div>
+                <div>{t('Cloud Admin Dashboard')}</div>
+                <div style={{ fontSize: 11, color: '#fca5a5', fontWeight: 400 }}>{user?.email || 'smitronix0826@gmail.com'}</div>
+              </div>
+            </div>
+            <span style={{ fontSize: 15, fontWeight: 700 }}>→</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setShowBugReport(true)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'var(--surface-2)',
+            border: '1px solid var(--sep-op)',
+            borderRadius: 10,
+            padding: '11px 14px',
+            color: 'var(--label)',
+            fontWeight: 500,
+            fontSize: 13.5,
+            cursor: 'pointer',
+            textAlign: 'left'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Icon name="warning" style={{ fontSize: 17, color: '#f59e0b' }} />
+            <span>{t('Report a Bug or Feedback')}</span>
+          </div>
+          <span style={{ fontSize: 11.5, color: 'var(--label-2)', background: 'var(--surface)', padding: '2px 8px', borderRadius: 6 }}>
+            {t('Cloud')}
+          </span>
+        </button>
+      </div>
+
       {/* Account Bar (Android App Only — Website is Demo Only without Login/Signup) */}
       {(import.meta.env.VITE_MOBILE === '1' || user) && (
         <div className="card" style={{ marginBottom: 16 }}>
@@ -1195,6 +1278,14 @@ export default function Profile() {
         <div className="sheet-backdrop" onClick={() => setShowSplitChooser(false)} style={{ zIndex: 100 }}>
           <div className="sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: 540, margin: 'auto', maxHeight: '88vh', overflowY: 'auto' }}>
             <SplitChooserModal initialCategory={splitChooserCategory} close={() => setShowSplitChooser(false)} />
+          </div>
+        </div>
+      )}
+
+      {showBugReport && (
+        <div className="sheet-backdrop" onClick={() => setShowBugReport(false)} style={{ zIndex: 100 }}>
+          <div className="sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: 480, margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
+            <BugReportModal user={user} close={() => setShowBugReport(false)} />
           </div>
         </div>
       )}

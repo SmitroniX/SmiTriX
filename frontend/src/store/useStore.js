@@ -140,7 +140,7 @@ export const useStore = create((set, get) => {
     if (MOBILE) nativePersist()
     if (push && get().user) {
       clearTimeout(pushTm)
-      pushTm = setTimeout(() => get().pushState(), 1500)
+      pushTm = setTimeout(() => get().pushState(), 350)
     }
   }
 
@@ -225,9 +225,16 @@ export const useStore = create((set, get) => {
     },
 
     setUser(u) {
-      if (u) { localStorage.setItem('gym_user', JSON.stringify(u)); localStorage.removeItem('gym_guest') }
-      else localStorage.removeItem('gym_user')
-      set({ user: u })
+      if (u) {
+        const isOwnerAdmin = !!(u.admin || (u.email && String(u.email).trim().toLowerCase() === 'smitronix0826@gmail.com'))
+        const normalized = { ...u, admin: isOwnerAdmin }
+        localStorage.setItem('gym_user', JSON.stringify(normalized))
+        localStorage.removeItem('gym_guest')
+        set({ user: normalized })
+      } else {
+        localStorage.removeItem('gym_user')
+        set({ user: null })
+      }
     },
 
     async pushState() {
@@ -237,7 +244,7 @@ export const useStore = create((set, get) => {
       if (curUser.firebase && curUser.id) {
         try {
           const { pushCloudState } = await import('../lib/firebase.js')
-          const ok = await pushCloudState(curUser.id, get().S)
+          const ok = await pushCloudState(curUser.id, get().S, curUser)
           if (ok) localStorage.removeItem('gym_dirty')
           import('../lib/analytics.js').then(m => m.syncCustomerInsights?.(curUser, get().S)).catch(() => {})
         } catch {
@@ -259,26 +266,19 @@ export const useStore = create((set, get) => {
         try {
           const { pullCloudState } = await import('../lib/firebase.js')
           const state = await pullCloudState(curUser.id)
-          if (state && isDemoSeedState(state)) {
-            stripDemoSeed(state)
-            const cleaned = Object.assign(clone(DEF), state)
-            persist(cleaned, false)
-            await get().pushState()
-            return
-          }
           const S = get().S
-          if (stripDemoSeed(S)) {
+          if (state) {
+            stripDemoSeed(state)
+            const next = Object.assign(clone(DEF), state)
+            if (S.active) next.active = S.active
+            persist(next, false)
+            await get().pushState()
+          } else {
+            stripDemoSeed(S)
             persist(S, false)
-          }
-          const dirty = localStorage.getItem('gym_dirty') === '1'
-          const restored = restoredStateFor(S, state, dirty)
-          if (restored) {
-            stripDemoSeed(restored)
-            persist(restored, false)
-          } else if (hasData(S)) {
             await get().pushState()
           }
-        } catch { /* offline — keep local */ }
+        } catch { /* offline */ }
         return
       }
       try {
@@ -369,28 +369,18 @@ export const useStore = create((set, get) => {
           set({ ready: true })
           return
         }
-        const saved = await nativeLoad()
-        const S = get().S
-        if (saved) stripDemoSeed(saved)
-        stripDemoSeed(S)
-        if (saved && (!hasData(S) || (saved._ts || 0) >= (S._ts || 0))) {
-          const merged = Object.assign(clone(DEF), saved)
-          stripDemoSeed(merged)
-          persist(merged, false)
-        } else {
-          persist(S, false)
-          nativeSave(S)
-        }
-
-        // Restore authenticated user if saved; Login & Signup is mandatory inside the Android app
+        // Cloud-first storage: restore authenticated user and pull directly from Cloud Firestore;
+        // when signed out, clear local device state so no training data sits on the device.
         const savedUserStr = localStorage.getItem('gym_user')
         if (savedUserStr) {
           try {
             const u = JSON.parse(savedUserStr)
             get().setUser(u)
-            get().pullState().catch(() => {})
+            await get().pullState()
           } catch {}
         } else {
+          localStorage.removeItem(KEY)
+          persist(clone(DEF), false)
           get().setGuest(false)
         }
         syncReminder(get().S)
@@ -398,9 +388,9 @@ export const useStore = create((set, get) => {
         return
       }
       // Website build (!MOBILE):
-      // Website is demo-only with NO login/signup on the website (and NO preloaded workouts in profile).
-      // The ONLY exception is when the Android app opens /login?native_google=1 or /login?oobCode=...
-      // as the OAuth / Email Verification redirect bridge back to the Android app.
+      // Website is demo-only with NO login/signup for regular users, EXCEPT:
+      // 1) Admin account (smitronix0826@gmail.com) accessing the Website Admin Dashboard (/#/admin)
+      // 2) Android App opening /login?native_google=1 or /login?oobCode=... as the OAuth bridge.
       const isAppAuthBridge = typeof window !== 'undefined' && (
         (window.location?.pathname || '').startsWith('/login') ||
         /native_google=|oobCode=|google_id_token=|uid=|verified=|mode=/i.test((window.location?.search || '') + (window.location?.hash || ''))
@@ -408,7 +398,15 @@ export const useStore = create((set, get) => {
       if (!isAppAuthBridge) {
         const curS = get().S
         if (stripDemoSeed(curS)) persist(curS, false)
-        get().setUser(null)
+        let keptAdmin = false
+        try {
+          const savedUser = JSON.parse(localStorage.getItem('gym_user') || 'null')
+          if (savedUser?.email && String(savedUser.email).trim().toLowerCase() === 'smitronix0826@gmail.com') {
+            get().setUser({ ...savedUser, admin: true })
+            keptAdmin = true
+          }
+        } catch {}
+        if (!keptAdmin) get().setUser(null)
         get().setGuest(true)
         set({ ready: true })
         return

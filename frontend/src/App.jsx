@@ -47,7 +47,9 @@ try {
     const wp = window.location.pathname || ''
     const ws = window.location.search || ''
     const wh = window.location.hash || ''
-    if (
+    if (wp.startsWith('/admin') && !wh.startsWith('#/admin')) {
+      window.location.hash = '#/admin' + ws
+    } else if (
       wp.startsWith('/login') ||
       ws.includes('native_google=') ||
       ws.includes('oobCode=') ||
@@ -313,7 +315,7 @@ function Shell() {
               <Route path="/coach/intake" element={<CoachIntake />} />
               <Route path="/coach/proposal" element={<Navigate to="/coach" replace />} />
               <Route path="/coach/setup" element={<CoachSetup />} />
-              <Route path="/admin" element={user?.admin ? <Admin /> : <Navigate to="/home" replace />} />
+              <Route path="/admin" element={<Admin />} />
               <Route path="*" element={<Navigate to="/home" replace />} />
             </Routes>
           )}
