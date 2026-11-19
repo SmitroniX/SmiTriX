@@ -18,4 +18,9 @@ cd ..
 rm -rf website/demo
 cp -r frontend/dist website/demo
 
+echo "=== Rebuilding frontend/dist for Production (Firebase Hosting) ==="
+cd frontend
+npm run build
+cd ..
+
 echo "=== Build Complete ==="
