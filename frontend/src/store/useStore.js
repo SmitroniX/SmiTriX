@@ -205,6 +205,7 @@ export const useStore = create((set, get) => {
           const { pushCloudState } = await import('../lib/firebase.js')
           const ok = await pushCloudState(curUser.id, get().S)
           if (ok) localStorage.removeItem('gym_dirty')
+          import('../lib/analytics.js').then(m => m.syncCustomerInsights?.(curUser, get().S)).catch(() => {})
         } catch {
           localStorage.setItem('gym_dirty', '1')
         }
@@ -331,22 +332,12 @@ export const useStore = create((set, get) => {
           nativeSave(S)   // first run after an update from a file-less version: seed the mirror
         }
 
-        // Restore authenticated user if saved
+        // Restore authenticated user if saved; Login & Signup is mandatory on production builds
         const savedUserStr = localStorage.getItem('gym_user')
         if (savedUserStr) {
           try { get().setUser(JSON.parse(savedUserStr)) } catch {}
-        }
-
-        // Check if user explicitly used guest mode or is returning
-        const isExplicitGuest = localStorage.getItem('gym_guest') === '1'
-        if (!savedUserStr && !isExplicitGuest && !hasData(get().S)) {
-          // Fresh install: do not force guest mode, let user authenticate or choose guest on Login screen
-          set({ ready: true, needsMobileOnboarding: false })
-          return
-        }
-
-        if (!savedUserStr) {
-          get().setGuest(true)
+        } else {
+          get().setGuest(false)
         }
         syncReminder(get().S)
         set({ ready: true, needsMobileOnboarding: false })

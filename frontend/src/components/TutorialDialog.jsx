@@ -331,75 +331,76 @@ export function TutorialDialog({ initialStep = 0, close }) {
       title: t('Step 3: 1,300+ Exercise Library'),
       subtitle: t('Form instructions, muscle activation maps, and equipment filters at your fingertips.'),
       renderIllustration: () => (
-        <div style={{ position: 'relative', width: '100%', height: 85, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="220" height="85" viewBox="0 0 220 85">
-            <rect x="15" y="10" width="190" height="65" rx="10" fill="rgba(20,184,166,0.08)" stroke="var(--teal)" strokeWidth="1.5" strokeDasharray="6 3" />
-            <circle cx="50" cy="42" r="18" fill="rgba(20,184,166,0.2)" />
-            <circle cx="50" cy="42" r="6" fill="var(--teal)" />
-            <line x1="30" y1="42" x2="70" y2="42" stroke="var(--teal)" strokeWidth="1" />
-            <line x1="50" y1="22" x2="50" y2="62" stroke="var(--teal)" strokeWidth="1" />
-            <text x="82" y="38" fill="var(--label-1)" fontSize="13" fontWeight="700">1,324 EXERCISES</text>
-            <text x="82" y="52" fill="var(--teal)" fontSize="9" fontFamily="monospace">ANATOMICAL ACTIVATION MAPS</text>
+        <div style={{ position: 'relative', width: '100%', height: 95, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="240" height="95" viewBox="0 0 240 95">
+            <rect x="12" y="8" width="216" height="78" rx="12" fill="rgba(20,184,166,0.08)" stroke="var(--teal)" strokeWidth="1.5" strokeDasharray="6 3" />
+            <circle cx="46" cy="47" r="20" fill="rgba(20,184,166,0.18)" style={{ animation: 'aegisPulse 2.2s infinite ease-in-out' }} />
+            <circle cx="46" cy="47" r="7" fill="var(--teal)" />
+            <line x1="26" y1="47" x2="66" y2="47" stroke="var(--teal)" strokeWidth="1" />
+            <line x1="46" y1="27" x2="46" y2="67" stroke="var(--teal)" strokeWidth="1" />
+            <text x="78" y="34" fill="var(--acc)" fontSize="8" fontFamily="monospace" fontWeight="700">AI RECOVERY PICK · 100% FRESH</text>
+            <text x="78" y="50" fill="var(--label-1)" fontSize="13" fontWeight="800">1,324 EXERCISES</text>
+            <text x="78" y="64" fill="var(--teal)" fontSize="8.5" fontFamily="monospace">SMART RECOMMENDATIONS &amp; PR TAGS</text>
           </svg>
         </div>
       ),
       renderContent: () => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--label-2)' }}>
-            {t('Explore a comprehensive catalog of exercises with animated guides and targeted anatomical charts.')}
+            {t('Explore 1,324+ animated exercises with smart biomechanical recommendations tailored to your muscle recovery and PRs.')}
           </div>
 
           <div className="card" style={{ padding: '10px 14px', background: 'var(--surface-2)', margin: 0, border: '1px solid var(--border-hairline)' }}>
             <div className="row between" style={{ marginBottom: 4 }}>
               <span style={{ fontWeight: 600, fontSize: 14 }}>Incline Dumbbell Press</span>
-              <span className="tag acc" style={{ fontSize: 10 }}>Chest</span>
+              <span className="tag acc" style={{ fontSize: 10 }}>PR Opportunity</span>
             </div>
             <div className="dim small" style={{ marginBottom: 6, fontSize: 11 }}>Primary: Upper Chest · Secondary: Triceps, Front Delts</div>
             <div style={{ display: 'flex', gap: 6 }}>
               <span className="tag" style={{ fontSize: 10 }}>Dumbbell</span>
-              <span className="tag" style={{ fontSize: 10 }}>Push</span>
+              <span className="tag" style={{ fontSize: 10 }}>100% Recovered</span>
             </div>
           </div>
 
           <ul style={{ paddingLeft: 18, fontSize: 12, lineHeight: 1.6, color: 'var(--label-2)', margin: 0 }}>
-            <li><b>{t('Muscle Heatmaps')}:</b> {t('See exactly which muscles each exercise engages.')}</li>
-            <li><b>{t('Equipment Filters')}:</b> {t('Filter by Barbell, Dumbbell, Cables, Machines, or Bodyweight to match your gym.')}</li>
-            <li><b>{t('Custom Exercises')}:</b> {t('Easily add your own custom exercises if your gym has specialized equipment.')}</li>
+            <li><b>{t('Smart Exercise Picks')}:</b> {t('Recommends fresh muscles and progressive overload PR targets automatically.')}</li>
+            <li><b>{t('Muscle Heatmaps & Filters')}:</b> {t('Filter by Barbell, Dumbbell, Cables, Machines, or Bodyweight in one tap.')}</li>
+            <li><b>{t('1-Tap Live Injection')}:</b> {t('Add recommended exercises straight into an active workout or routine.')}</li>
           </ul>
         </div>
       )
     },
 
-    // Step 4: Stats & Analytics
+    // Step 4: Stats, Analytics & Workout Photo Feed
     {
-      badge: t('Stats Tab'),
+      badge: t('Stats & Profile'),
       badgeColor: 'var(--purple)',
       icon: 'chart',
       iconTint: 'var(--purple)',
-      title: t('Step 4: Streaks & Analytics'),
-      subtitle: t('Every logged set automatically powers your personal analytics.'),
+      title: t('Step 4: Streaks, Photo Feed & Analytics'),
+      subtitle: t('Post Hevy-style workout photos alongside your sets, volume, and 1RM curves.'),
       renderIllustration: () => <AegisStatsSignalSvg />,
       renderContent: () => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--label-2)' }}>
-            {t('Track your long-term consistency, strength milestones, and training volume without complex spreadsheets.')}
+            {t('Track your long-term consistency, post workout photos with telemetry overlays in your Profile feed, and watch your 1RMs climb.')}
           </div>
 
           <div className="card" style={{ padding: '10px 14px', background: 'var(--surface-2)', margin: 0, border: '1px solid var(--border-hairline)' }}>
             <div className="row between" style={{ marginBottom: 4 }}>
-              <div className="row" style={{ gap: 8, fontSize: 16, fontWeight: 700 }}>
-                <Icon name="flame" style={{ color: 'var(--orange)' }} />
-                <span>{t('Workout Streaks')}</span>
+              <div className="row" style={{ gap: 8, fontSize: 15, fontWeight: 700 }}>
+                <Icon name="camera" style={{ color: 'var(--acc)' }} />
+                <span>{t('Workout Photo Posts & Streaks')}</span>
               </div>
-              <span className="tag" style={{ color: 'var(--orange)', fontSize: 11 }}>Active</span>
+              <span className="tag" style={{ color: 'var(--orange)', fontSize: 11 }}>🔥 Live Feed</span>
             </div>
-            <div className="muted small">{t('Stay consistent week over week to keep your workout streak growing.')}</div>
+            <div className="muted small">{t('Attach gym photos to your logged workouts in Profile to build your visual training timeline.')}</div>
           </div>
 
           <ul style={{ paddingLeft: 18, fontSize: 12, lineHeight: 1.6, color: 'var(--label-2)', margin: 0 }}>
-            <li><b>{t('Estimated 1RM')}:</b> {t('Calculates your One-Rep Max trends on compound lifts safely from your rep sets.')}</li>
-            <li><b>{t('Volume & Muscle Balance')}:</b> {t('See total lifted tonnage per week and muscle group distribution.')}</li>
-            <li><b>{t('History & Calendar')}:</b> {t('Review past workouts, view set history, and repeat previous sessions.')}</li>
+            <li><b>{t('Workout Photo Feed')}:</b> {t('Share photos paired with your workout duration, volume lifted, and best sets.')}</li>
+            <li><b>{t('Estimated 1RM & Fatigue')}:</b> {t('Calculates your One-Rep Max trends and muscle recovery hours automatically.')}</li>
+            <li><b>{t('Cloud Sync & Pro Vault')}:</b> {t('Backed up in real time to your authenticated athlete account.')}</li>
           </ul>
         </div>
       )

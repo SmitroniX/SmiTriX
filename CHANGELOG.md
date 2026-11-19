@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.7.0 — 2026-11-19
+
+Commercial Production Upgrade: Paid Plans & Payment Gateway, Biomechanical Exercise Recommendations, Hevy-Style Workout Photo Posts & Social Feed, Customer Insights Pipeline, Mandatory Auth, and Animated Onboarding.
+
+- 💳 **Paid Plans & Encrypted Payment Gateway (`src/lib/payment-gateway.js`, `PlansManager.jsx`)**:
+  - Added the **Pro Athlete Plan (`$4.99/mo` or `₹299/mo`)** alongside the **Free Plan** and **Golden Era Legacy Vault (`$49.99` / `₹2,499` Lifetime)** with INR/USD currency switching and Monthly/Annual (-17%) billing cycles.
+  - Built an interactive Payment Gateway Checkout modal supporting **UPI (Google Pay, PhonePe, Paytm, BHIM)**, **Credit & Debit Cards**, and **Razorpay / Stripe Express Checkout**, complete with verified transaction receipts (`tx_...`) synced to Cloud Firestore (`subscriptions` collection).
+- 🧠 **Smart Biomechanical & Recovery-Driven Exercise Recommendations (`src/lib/recommendations.js`)**:
+  - Analyzes 14-day muscle volume load, somatotype (`ectomorph`, `mesomorph`, `endomorph`), active equipment profiles, and prior PR weights to recommend fresh muscles and progressive overload PR targets.
+  - Integrated a Hevy-style **"Recommended For Your Recovery & PRs"** carousel at the top of `Library.jsx` (Exercises tab) and a personalized recommendation card in `Profile.jsx`, with 1-tap injection into active workouts.
+- 📸 **Hevy-Style Workout Photo Posts & Activity Feed (`src/components/WorkoutPhotoFeed.jsx`)**:
+  - Athletes can upload or capture workout photos (automatically compressed via HTML5 Canvas) paired with any logged workout's title, duration, total volume lifted, working sets, and best-set breakdown (`3× Bench Press · 100 kg × 8`).
+  - Added Feed View (with telemetry watermark overlay and `🔥 Pump Kudos`) and 3-column Photo Grid View directly inside `Profile.jsx`, synced to Cloud Firestore (`workout_posts`).
+- 📊 **Customer Data & Telemetry Pipeline (`src/lib/analytics.js`)**:
+  - Added `syncCustomerInsights(user, S)` to sync customer tier, somatotype, workout frequency, top exercises, and volume metrics to Cloud Firestore (`customer_insights/{uid}`).
+  - Added an in-app **Help Us Improve SmiTriX** rating and feature request card in `Profile.jsx` wired to the Firestore `feedback` collection.
+- 🔒 **Mandatory Login & Signup + Animated Tutorial**:
+  - Enforced mandatory authentication on production builds (`!DEMO`) so every athlete has an authenticated cloud-backed account.
+  - Upgraded `TutorialDialog.jsx` with animated SVG telemetry illustrations covering Smart Exercise Recommendations and the Workout Photo Feed.
+- 🚀 **Release Build**:
+  - Android APK versionCode bumped to 34 (v1.7.0).
+
 ## v1.6.7 — 2026-11-19
 
 Complete UI/UX Polish, End-to-End Native & Web Auth Overhaul, Workout Layout & Stepper Precision Fix, and Full Component Audit.

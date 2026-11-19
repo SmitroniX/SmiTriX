@@ -1,4 +1,4 @@
-import { collection, addDoc } from 'firebase/firestore'
+import { collection, addDoc, doc, setDoc } from 'firebase/firestore'
 import { firestore, auth } from './firebase.js'
 
 const CONSENT_STORAGE_KEY = 'smitrix_analytics_consent'
@@ -159,5 +159,82 @@ export async function submitUserFeedback({ message, rating = 5, category = 'gene
 export function measurePerformance(metricName, durationMs, metadata = {}) {
   if (durationMs > 100) { // Only log significant durations to avoid noise
     trackEvent('perf_metric', { metric: metricName, durationMs: Math.round(durationMs), ...metadata })
+  }
+}
+
+/**
+ * Sync structured customer telemetry & product usage insights to Cloud Firestore
+ * (`customer_insights/{uid}`) so product usage, exercise frequency, and plan metrics
+ * can be queried to continuously improve the application.
+ */
+export async function syncCustomerInsights(user, S) {
+  if (!hasAnalyticsConsent()) return false
+  const uid = user?.id || auth?.currentUser?.uid
+  if (!uid || !S) return false
+  try {
+    const workouts = S.workouts || []
+    const exCounts = {}
+    let totalSets = 0
+    let totalVolume = 0
+    for (const w of workouts) {
+      for (const e of w.entries || []) {
+        if (e.id) exCounts[e.id] = (exCounts[e.id] || 0) + 1
+        for (const s of e.sets || []) {
+          if (s.done) {
+            totalSets += 1
+            totalVolume += (Number(s.w) || 0) * (Number(s.r) || 0)
+          }
+        }
+      }
+    }
+    const topExercises = Object.entries(exCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([id, count]) => ({ id, count }))
+
+    const ref = doc(firestore, 'customer_insights', String(uid))
+    await setDoc(ref, {
+      uid: String(uid),
+      email: user?.email || auth?.currentUser?.email || '',
+      name: user?.name || auth?.currentUser?.displayName || 'Athlete',
+      tier: S.tier || 'free',
+      bodyType: S.athleteProfile?.bodyType || 'mesomorph',
+      goal: S.athleteProfile?.goal || 'Hypertrophy',
+      unit: S.unit || 'kg',
+      workoutCount: workouts.length,
+      totalSets,
+      totalVolume: Math.round(totalVolume),
+      routineCount: (S.routines || []).length,
+      favCount: (S.favEx || []).length,
+      photoPostCount: (S.workoutPosts || []).length,
+      topExercises,
+      appVersion: '1.7.0',
+      updatedAt: Date.now()
+    }, { merge: true })
+    return true
+  } catch (err) {
+    console.debug('syncCustomerInsights note:', err.message)
+    return false
+  }
+}
+
+/**
+ * Sync a Hevy-style workout photo post to Cloud Firestore (`workout_posts/{postId}`).
+ */
+export async function syncWorkoutPostToCloud(user, post) {
+  const uid = user?.id || auth?.currentUser?.uid
+  if (!uid || !post?.id) return false
+  try {
+    const ref = doc(firestore, 'workout_posts', String(post.id))
+    await setDoc(ref, {
+      ...post,
+      uid: String(uid),
+      athleteName: user?.name || post.athleteName || 'Athlete',
+      syncedAt: Date.now()
+    }, { merge: true })
+    return true
+  } catch (err) {
+    console.debug('syncWorkoutPostToCloud note:', err.message)
+    return false
   }
 }

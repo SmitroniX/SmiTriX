@@ -834,12 +834,25 @@ export default function Login() {
         </>
       )}
 
-      {/* Guest Mode Fallback */}
-      {canGuest && !isNativeGoogleBridge && !resetOobCode && (
-        <div style={{ marginTop: 14 }}>
-          <Button variant="ghost" className="dim" onClick={() => { setGuest(true); nav('/home') }} style={{ fontSize: 13 }}>
-            {t('Continue without account (Guest Mode)')}
-          </Button>
+      {/* Mandatory Account Assurance Badge */}
+      {!isNativeGoogleBridge && !resetOobCode && (
+        <div
+          style={{
+            marginTop: 14,
+            padding: '10px 14px',
+            borderRadius: 12,
+            background: 'var(--surface)',
+            border: '1px solid var(--border-hairline)',
+            fontSize: 12,
+            color: 'var(--label-2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8
+          }}
+        >
+          <Icon name="shield" size={15} style={{ color: 'var(--acc)', flex: 'none' }} />
+          <span>{t('Mandatory Athlete Account · Automatic Cloud Sync & PR Backup')}</span>
         </div>
       )}
 

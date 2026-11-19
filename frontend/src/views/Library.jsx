@@ -1,9 +1,11 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
+import { useUI } from '../store/useUI.js'
 import { EXDB, BODYPARTS, allExercises, equipmentOf, matchExercise, scoreExercise, usageMap, QUICK_EQ_PRESETS, matchesMuscleGroup } from '../lib/exercises.js'
 import { activeProfile, exAvailable } from '../lib/equipment.js'
 import { bestWeightFor } from '../lib/history.js'
+import { getExerciseRecommendations } from '../lib/recommendations.js'
 import { fmtNum } from '../lib/format.js'
 import { t, exerciseNameFor } from '../lib/i18n.js'
 import { Thumb } from '../components/Media.jsx'
@@ -16,6 +18,7 @@ import { isFav, sortFavouritesFirst } from '../lib/favourites.js'
 export default function Library() {
   const nav = useNavigate()
   const S = useStore(s => s.S)
+  const update = useStore(s => s.update)
   const usage = usageMap(S)
   const [q, setQ] = useState('')
   const [bp, setBp] = useState('')           // '' = all, '★' = chosen, '☆' = favourites, or muscle group
@@ -56,6 +59,31 @@ export default function Library() {
   }) : sortFavouritesFirst(eqOn ? eqFiltered.filter(e => e.eq === eqOn) : eqFiltered, S)
 
   const favCount = (S.favEx || []).length
+  const recommendations = useMemo(() => getExerciseRecommendations(S, { bp, limit: 6 }), [S, bp])
+
+  const handleAddToActiveWorkout = (ev, ex) => {
+    ev.stopPropagation()
+    if (!S.active) {
+      addToRoutineSheet(ex)
+      return
+    }
+    update(s => {
+      if (!s.active) return
+      s.active.entries = s.active.entries || []
+      const prevW = s.exWeights?.[ex.id]?.w || ''
+      s.active.entries.push({
+        id: ex.id,
+        sets: [
+          { w: prevW, r: 10, done: false },
+          { w: prevW, r: 10, done: false },
+          { w: prevW, r: 10, done: false }
+        ]
+      })
+    })
+    useUI.getState().toast(t('Added {0} to active workout', exerciseNameFor(ex)))
+    nav('/workout')
+  }
+
   useRevealActiveChip(bpStrip, bp)
   useRevealActiveChip(eqStrip, eqOn)
 
@@ -133,6 +161,83 @@ export default function Library() {
       {eqOpts.map(x => <button key={x} type="button" className={'chip' + (eqOn === x ? ' on' : '')} onClick={() => { setEq(x); setShown(40) }}>{t(x)}</button>)}
     </div>}
 
+    {/* Smart Biomechanical & Recovery-Driven Exercise Recommendations Carousel */}
+    {!q && recommendations.length > 0 && (
+      <div style={{ marginBottom: 14 }}>
+        <div className="row between" style={{ margin: '2px 2px 8px' }}>
+          <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+            <Icon name="sparkles" style={{ color: 'var(--acc)', fontSize: 15 }} />
+            <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--label-2)' }}>
+              {t('Recommended For Your Recovery & PRs')}
+            </span>
+          </div>
+          <span className="dim small" style={{ fontSize: 11 }}>{t('Smart AI Picks')}</span>
+        </div>
+        <div style={{ display: 'flex', gap: 10, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }}>
+          {recommendations.map(rec => (
+            <div
+              key={rec.id}
+              className="rec-card"
+              onClick={() => exerciseDetailSheet(rec.ex)}
+              style={{
+                flex: '0 0 210px',
+                background: 'var(--surface)',
+                border: '1px solid var(--border-hairline)',
+                borderRadius: 14,
+                padding: '10px 12px',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                gap: 8
+              }}
+            >
+              <div className="row between" style={{ gap: 6 }}>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: '2px 7px',
+                    borderRadius: 8,
+                    background: `color-mix(in srgb, ${rec.badgeColor} 16%, transparent)`,
+                    color: rec.badgeColor
+                  }}
+                >
+                  {rec.tag}
+                </span>
+                {rec.bestWeight > 0 && (
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--amber)' }}>
+                    🏆 {fmtNum(rec.bestWeight)} {S.unit}
+                  </span>
+                )}
+              </div>
+              <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+                <Thumb ex={rec.ex} />
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div className="rec-title capitalize" style={{ fontWeight: 700, fontSize: 13, lineHeight: 1.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {exerciseNameFor(rec.ex)}
+                  </div>
+                  <div className="dim small" style={{ fontSize: 11, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {rec.reason}
+                  </div>
+                </div>
+              </div>
+              <div className="row" style={{ gap: 6 }}>
+                {S.active && (
+                  <Button size="sm" variant="primary" icon="plus" style={{ flex: 1, padding: '5px 8px', fontSize: 11 }} onClick={ev => handleAddToActiveWorkout(ev, rec.ex)}>
+                    {t('Workout')}
+                  </Button>
+                )}
+                <Button size="sm" variant="tinted" icon="plus" style={{ flex: 1, padding: '5px 8px', fontSize: 11 }} onClick={ev => { ev.stopPropagation(); addToRoutineSheet(rec.ex) }}>
+                  {t('Plan')}
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
     <div className="list">
       <div className="item" {...tappable(() => customExSheet(null, ex => exerciseDetailSheet(ex), q.trim()))}>
         <div className="thumb thumb-x"><Icon name="sparkles" /></div>
@@ -140,13 +245,14 @@ export default function Library() {
       </div>
       {f.slice(0, shown).map(e => {
         const best = bestWeightFor(S, e.id)
+        const timesLogged = usage[e.id] || 0
         const isMachine = (e.eq || '').includes('machine') || e.eq === 'assisted'
         const isCable = e.eq === 'cable'
         return <div key={e.id} className="item" {...tappable(() => exerciseDetailSheet(e))}>
           <Thumb ex={e} />
           <div className="grow">
             <div className="tt capitalize">{isFav(S, e.id) && <Icon name="starFill" className="fav-star" />}{exerciseNameFor(e)}</div>
-            <div className="ss capitalize row" style={{ gap: 5, alignItems: 'center', marginTop: 2 }}>
+            <div className="ss capitalize row" style={{ gap: 5, alignItems: 'center', marginTop: 2, flexWrap: 'wrap' }}>
               <span>{t(e.tg || e.bp)}</span>
               <span style={{ opacity: 0.35 }}>•</span>
               <span style={{
@@ -155,9 +261,20 @@ export default function Library() {
               }}>
                 {isMachine && '⚙️ '}{isCable && '🔗 '}{t(e.eq)}
               </span>
+              {timesLogged > 0 && (
+                <>
+                  <span style={{ opacity: 0.35 }}>•</span>
+                  <span style={{ color: 'var(--acc)', fontWeight: 600 }}>{timesLogged}×</span>
+                </>
+              )}
             </div>
           </div>
           {best > 0 && <span className="tag acc">{fmtNum(best)}</span>}
+          {S.active && (
+            <Button size="sm" variant="primary" icon="bolt" style={{ width: 'auto', padding: '6px 10px', fontSize: 12 }} onClick={ev => handleAddToActiveWorkout(ev, e)}>
+              {t('Add')}
+            </Button>
+          )}
           <Button size="sm" variant="tinted" icon="plus" onClick={ev => { ev.stopPropagation(); addToRoutineSheet(e) }}>{t('Plan')}</Button>
         </div>
       })}

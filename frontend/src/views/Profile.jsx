@@ -14,6 +14,9 @@ import { evaluateAchievements } from '../lib/achievements.js'
 import AchievementsModal from '../components/AchievementsModal.jsx'
 import EditProfileModal from '../components/EditProfileModal.jsx'
 import SplitChooserModal from '../components/SplitChooserModal.jsx'
+import WorkoutPhotoFeed from '../components/WorkoutPhotoFeed.jsx'
+import { getExerciseRecommendations } from '../lib/recommendations.js'
+import { submitUserFeedback, syncCustomerInsights } from '../lib/analytics.js'
 import { useUI } from '../store/useUI.js'
 import { logoutUser, resendVerificationEmail, refreshCurrentUser } from '../lib/firebase.js'
 
@@ -30,6 +33,31 @@ export default function Profile() {
   const [showSplitChooser, setShowSplitChooser] = useState(false)
   const [splitChooserCategory, setSplitChooserCategory] = useState('legend')
   const [verifyBusy, setVerifyBusy] = useState(false)
+  const [feedbackMsg, setFeedbackMsg] = useState('')
+  const [feedbackRating, setFeedbackRating] = useState(5)
+  const [feedbackBusy, setFeedbackBusy] = useState(false)
+
+  const recommendedExercises = useMemo(() => getExerciseRecommendations(S, { limit: 3 }), [S])
+
+  const handleSendFeedback = async e => {
+    e?.preventDefault?.()
+    if (!feedbackMsg.trim()) {
+      useUI.getState().toast(t('Enter your feedback or feature request'))
+      return
+    }
+    setFeedbackBusy(true)
+    try {
+      await submitUserFeedback({ message: feedbackMsg.trim(), rating: feedbackRating, category: 'athlete_profile' })
+      await syncCustomerInsights(user, S)
+      setFeedbackMsg('')
+      useUI.getState().toast(t('Thank you! Your feedback and telemetry were sent to the SmiTriX team.'))
+    } catch (err) {
+      useUI.getState().toast(err.message || t('Saved feedback locally'))
+      setFeedbackMsg('')
+    } finally {
+      setFeedbackBusy(false)
+    }
+  }
 
   const handleResendVerify = async () => {
     setVerifyBusy(true)
@@ -58,8 +86,9 @@ export default function Profile() {
       onConfirm: async () => {
         try { await logoutUser() } catch {}
         setUser(null)
-        setGuest(true)
+        setGuest(false)
         useUI.getState().toast(t('Signed out'))
+        nav('/login')
       }
     })
   }
@@ -808,12 +837,113 @@ export default function Profile() {
     )}
 
     {/* Monthly Summary */}
-    <div className="card" style={{ marginBottom: 24 }}>
+    <div className="card" style={{ marginBottom: 16 }}>
       <h2>{t('This month')}</h2>
       <div className="row between">
         <span className="dim small">{t('Workouts')}</span>
         <span style={{ fontWeight: 600, fontSize: 20 }}>{monthW}</span>
       </div>
+    </div>
+
+    {/* Hevy-Style Workout Photo Posts & Social Activity Feed */}
+    <WorkoutPhotoFeed />
+
+    {/* Smart Exercise Recommendations Card */}
+    {recommendedExercises.length > 0 && (
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="row between" style={{ marginBottom: 10 }}>
+          <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+            <Icon name="sparkles" style={{ color: 'var(--acc)', fontSize: 18 }} />
+            <h2 style={{ margin: 0, fontSize: 16 }}>{t('Recommended Exercises For You')}</h2>
+          </div>
+          <Button size="sm" variant="ghost" style={{ width: 'auto', padding: '4px 10px', fontSize: 12 }} onClick={() => nav('/library')}>
+            {t('Explore All')} →
+          </Button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {recommendedExercises.map(rec => (
+            <div
+              key={rec.id}
+              onClick={() => nav('/library')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 12px',
+                borderRadius: 12,
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border-hairline)',
+                cursor: 'pointer'
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 13.5, textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {exerciseNameFor(rec.ex)}
+                </div>
+                <div className="dim small" style={{ fontSize: 11 }}>{rec.reason}</div>
+              </div>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: '3px 8px',
+                  borderRadius: 10,
+                  background: `color-mix(in srgb, ${rec.badgeColor} 15%, transparent)`,
+                  color: rec.badgeColor,
+                  flex: 'none'
+                }}
+              >
+                {rec.tag}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+    {/* Customer Feedback & App Improvement Telemetry Card */}
+    <div className="card" style={{ marginBottom: 24 }}>
+      <div className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 8 }}>
+        <Icon name="rocket" style={{ color: 'var(--blue)', fontSize: 18 }} />
+        <div>
+          <h2 style={{ margin: 0, fontSize: 15 }}>{t('Help Us Improve SmiTriX')}</h2>
+          <div className="dim small" style={{ fontSize: 11 }}>{t('Request exercises, features, or report feedback directly to our cloud telemetry')}</div>
+        </div>
+      </div>
+      <form onSubmit={handleSendFeedback} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="row" style={{ gap: 6 }}>
+          {[1, 2, 3, 4, 5].map(star => (
+            <button
+              key={star}
+              type="button"
+              onClick={() => setFeedbackRating(star)}
+              className="chip"
+              style={{
+                padding: '4px 10px',
+                fontSize: 12,
+                background: feedbackRating >= star ? 'rgba(255, 214, 10, 0.18)' : 'var(--surface-2)',
+                color: feedbackRating >= star ? 'var(--yellow)' : 'var(--label-3)',
+                border: feedbackRating >= star ? '1px solid var(--yellow)' : '1px solid transparent'
+              }}
+            >
+              ★ {star}
+            </button>
+          ))}
+        </div>
+        <div className="row" style={{ gap: 8 }}>
+          <input
+            className="input"
+            type="text"
+            placeholder={t('What can we improve or add next?')}
+            value={feedbackMsg}
+            onChange={e => setFeedbackMsg(e.target.value)}
+            style={{ flex: 1, fontSize: 13, padding: '10px 12px' }}
+          />
+          <Button variant="primary" type="submit" disabled={feedbackBusy} style={{ width: 'auto', padding: '10px 16px', fontSize: 13 }}>
+            {feedbackBusy ? '...' : t('Send')}
+          </Button>
+        </div>
+      </form>
     </div>
 
     {/* Modals */}

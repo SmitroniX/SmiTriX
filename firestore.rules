@@ -18,16 +18,34 @@ service cloud.firestore {
     // User profile document: only the authenticated owner can read or write
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create, update: if isOwner(userId) 
-        && request.resource.data.keys().hasAll(['updatedAt'])
-        && request.resource.data.name is string
-        && request.resource.data.name.size() <= 60;
+      allow create, update: if isOwner(userId)
+        && request.resource.data.keys().hasAll(['updatedAt']);
       allow delete: if isOwner(userId) || isAdmin();
     }
 
     // User sync state / private fitness data backup
     match /users/{userId}/data/{docId} {
       allow read, write: if isOwner(userId) || isAdmin();
+    }
+
+    // Customer product usage insights for improving the app
+    match /customer_insights/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if isOwner(userId) || isAuthenticated();
+    }
+
+    // Hevy-style workout photo posts
+    match /workout_posts/{postId} {
+      allow read: if isAuthenticated() || isAdmin();
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Paid plan subscription receipts
+    match /subscriptions/{subId} {
+      allow read: if isAuthenticated() || isAdmin();
+      allow create: if isAuthenticated()
+        && request.resource.data.keys().hasAll(['transactionId', 'planId']);
+      allow update, delete: if isAdmin();
     }
 
     // Analytics events: allow append-only write from clients with consent; no client-side read
