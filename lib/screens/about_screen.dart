@@ -11,7 +11,7 @@ import '../theme/app_theme.dart';
 import '../widgets/entrance.dart';
 import '../widgets/ui_kit.dart';
 
-const kAppVersion = '3.0.1';
+const kAppVersion = '3.0.2';
 const _kAuthor = 'Asmit Jogdand (SmitroniX)';
 const _kAuthorUrl = 'https://github.com/SmitroniX';
 const _kRepoUrl = 'https://github.com/SmitroniX/SmiTriX';

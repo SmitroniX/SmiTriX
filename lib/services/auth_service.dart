@@ -452,7 +452,7 @@ class AuthService extends ChangeNotifier {
           'fields': {
             'payload': {'stringValue': payload},
             'updatedAt': {'stringValue': now.toIso8601String()},
-            'appVersion': {'stringValue': '3.0.1'},
+            'appVersion': {'stringValue': '3.0.2'},
           },
         }),
       );
