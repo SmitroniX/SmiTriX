@@ -352,9 +352,15 @@ class _LoginScreenState extends State<LoginScreen> {
                             children: [
                               Icon(PhosphorIconsRegular.wifiSlash, size: 16, color: gc.textSecondary),
                               const SizedBox(width: 8),
-                              Text(
-                                t.authContinueOffline,
-                                style: AppTheme.f(14, weight: FontWeight.w700, color: gc.textSecondary),
+                              Flexible(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    t.authContinueOffline,
+                                    maxLines: 1,
+                                    style: AppTheme.f(14, weight: FontWeight.w700, color: gc.textSecondary),
+                                  ),
+                                ),
                               ),
                             ],
                           ),
