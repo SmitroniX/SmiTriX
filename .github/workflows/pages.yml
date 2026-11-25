@@ -4,6 +4,10 @@ name: Deploy website to GitHub Pages
 on:
   push:
     branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'website/**'
+      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:
@@ -14,9 +18,6 @@ permissions:
 concurrency:
   group: pages
   cancel-in-progress: true
-
-env:
-  DATASET: https://cdn.jsdelivr.net/gh/hasaneyldrm/exercises-dataset@7455efae41b330c265e7cd4b78dfa848e7ce5ebd
 
 jobs:
   build:
@@ -32,15 +33,13 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Build demo
+      - name: Build live demo
         working-directory: frontend
+        env:
+          VITE_DEMO: '1'
         run: |
           npm ci --ignore-scripts
           npm run build
-        env:
-          VITE_DEMO: '1'
-          VITE_IMG_BASE: ${{ env.DATASET }}/images/
-          VITE_GIF_BASE: ${{ env.DATASET }}/videos/
 
       - name: Stage website with latest demo
         run: |
