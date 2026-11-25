@@ -358,6 +358,9 @@ extension AuthL10n on AppLocalizations {
   String get authContinueOffline =>
       _es ? 'Continuar sin conexión (solo dispositivo)' : 'Continue Offline (Device Only)';
   String get authFooterLicense => 'SmiTriX by Asmit Jogdand (SmitroniX) · GNU GPL-3.0';
+  String get authOrContinueWith => _es ? 'o continúa con' : 'or continue with';
+  String get authGoogle => 'Google';
+  String get authApple => 'Apple';
   String get aboutLicenseFooter =>
       '© 2026 Asmit Jogdand (SmitroniX) · GNU GPL v3.0\nBased on GymMane by InlitX (GPL v3.0)';
 

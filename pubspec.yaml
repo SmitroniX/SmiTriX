@@ -1,7 +1,7 @@
 name: smitrix
 description: "SmiTriX — a free, open-source gym tracker by Asmit Jogdand (SmitroniX)."
 publish_to: 'none'
-version: 3.0.0+40
+version: 3.0.1+41
 
 environment:
   sdk: ^3.11.5
@@ -33,6 +33,9 @@ dependencies:
   zxing2: ^0.2.4
   app_settings: ^8.0.3
   web: ^1.1.1
+  crypto: ^3.0.6
+  google_sign_in: ^7.2.0
+  sign_in_with_apple: ^7.0.1
 
 dev_dependencies:
   flutter_test:

@@ -88,7 +88,7 @@ void main() {
   });
 
   group('LoginScreen widget', () {
-    testWidgets('switches modes, validates input, and allows offline continuation', (tester) async {
+    testWidgets('shows Google/Apple buttons, animates sliding tabs on tap and drag, and allows offline', (tester) async {
       tester.view.physicalSize = const Size(430, 932);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -102,10 +102,19 @@ void main() {
       expect(find.text('SmiTriX'), findsOneWidget);
       expect(find.text('Sign In'), findsNWidgets(2));
       expect(find.text('Create Account'), findsOneWidget);
+      expect(find.text('Google'), findsOneWidget);
+      expect(find.text('Apple'), findsOneWidget);
 
       await tester.tap(find.text('Create Account'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 220));
       await tester.pumpAndSettle();
       expect(find.text('DISPLAY NAME'), findsOneWidget);
+
+      // Swipe back left on the sliding bar to switch back to Sign In mode.
+      await tester.drag(find.text('Create Account'), const Offset(-180, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('DISPLAY NAME'), findsNothing);
 
       final offlineBtn = find.text('Continue Offline (Device Only)');
       await tester.ensureVisible(offlineBtn);

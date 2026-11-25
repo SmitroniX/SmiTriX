@@ -62,18 +62,34 @@ jobs:
       - name: Build signed universal Android APK
         env:
           FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          GOOGLE_SERVER_CLIENT_ID: ${{ secrets.GOOGLE_SERVER_CLIENT_ID }}
+          GOOGLE_IOS_CLIENT_ID: ${{ secrets.GOOGLE_IOS_CLIENT_ID }}
+          APPLE_SERVICE_ID: ${{ secrets.APPLE_SERVICE_ID }}
+          APPLE_REDIRECT_URI: ${{ secrets.APPLE_REDIRECT_URI }}
         run: |
           mkdir -p dist
           flutter build apk --release \
-            --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY"
+            --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY" \
+            --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID" \
+            --dart-define=GOOGLE_IOS_CLIENT_ID="$GOOGLE_IOS_CLIENT_ID" \
+            --dart-define=APPLE_SERVICE_ID="$APPLE_SERVICE_ID" \
+            --dart-define=APPLE_REDIRECT_URI="$APPLE_REDIRECT_URI"
           cp build/app/outputs/flutter-apk/app-release.apk dist/SmiTriX.apk
 
       - name: Build signed ABI-split Android APKs
         env:
           FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          GOOGLE_SERVER_CLIENT_ID: ${{ secrets.GOOGLE_SERVER_CLIENT_ID }}
+          GOOGLE_IOS_CLIENT_ID: ${{ secrets.GOOGLE_IOS_CLIENT_ID }}
+          APPLE_SERVICE_ID: ${{ secrets.APPLE_SERVICE_ID }}
+          APPLE_REDIRECT_URI: ${{ secrets.APPLE_REDIRECT_URI }}
         run: |
           flutter build apk --release --split-per-abi \
-            --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY"
+            --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY" \
+            --dart-define=GOOGLE_SERVER_CLIENT_ID="$GOOGLE_SERVER_CLIENT_ID" \
+            --dart-define=GOOGLE_IOS_CLIENT_ID="$GOOGLE_IOS_CLIENT_ID" \
+            --dart-define=APPLE_SERVICE_ID="$APPLE_SERVICE_ID" \
+            --dart-define=APPLE_REDIRECT_URI="$APPLE_REDIRECT_URI"
 
       - name: Package release APKs & SHA-256 checksums
         run: |

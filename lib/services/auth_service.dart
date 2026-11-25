@@ -6,6 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'auth_http.dart';
 import 'local_store.dart';
+import 'social_sign_in.dart';
+
+export 'social_sign_in.dart' show kAuthCancelled, SocialToken, googleSignInConfigured, appleSignInConfigured;
 
 const kFirebaseApiKey = String.fromEnvironment('FIREBASE_API_KEY');
 const kFirebaseProjectId = String.fromEnvironment(
@@ -312,6 +315,75 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  /// Which social provider is currently in flight ('google.com' / 'apple.com'), for button spinners.
+  String? _socialBusy;
+  String? get socialBusy => _socialBusy;
+
+  Future<String?> signInWithGoogle() => _signInWithProvider('google.com', fetchGoogleToken);
+
+  Future<String?> signInWithApple() => _signInWithProvider('apple.com', fetchAppleToken);
+
+  Future<String?> _signInWithProvider(String providerId, Future<SocialResult> Function() fetch) async {
+    if (_busy) return null;
+    if (!isConfigured) {
+      return 'Cloud authentication is not configured in this build. Use offline mode to continue.';
+    }
+    _socialBusy = providerId;
+    _setBusy(true);
+    try {
+      final res = await fetch();
+      final token = res.token;
+      if (token == null) return res.error ?? kAuthCancelled;
+      return await signInWithIdp(token);
+    } finally {
+      _socialBusy = null;
+      _setBusy(false);
+    }
+  }
+
+  /// Exchanges a Google / Apple identity token for a Firebase session.
+  Future<String?> signInWithIdp(SocialToken token) async {
+    final post = StringBuffer('id_token=${Uri.encodeQueryComponent(token.idToken)}'
+        '&providerId=${Uri.encodeQueryComponent(token.providerId)}');
+    if (token.rawNonce != null) post.write('&nonce=${Uri.encodeQueryComponent(token.rawNonce!)}');
+    final reply = await authHttpRequest(
+      'POST',
+      'https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=$kFirebaseApiKey',
+      headers: const {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'postBody': post.toString(),
+        'requestUri': 'https://$kFirebaseProjectId.firebaseapp.com/__/auth/handler',
+        'returnIdpCredential': true,
+        'returnSecureToken': true,
+      }),
+    );
+    final body = _decodeMap(reply.body);
+    if (!reply.ok) return friendlyError(_extractErrorCode(body, reply.status));
+    if (body['needConfirmation'] == true) return friendlyError('NEED_CONFIRMATION');
+
+    final idToken = '${body['idToken'] ?? ''}';
+    var displayName = '${body['displayName'] ?? ''}'.trim();
+    if (displayName.isEmpty && token.displayName.isNotEmpty) {
+      displayName = token.displayName;
+      await authHttpRequest(
+        'POST',
+        'https://identitytoolkit.googleapis.com/v1/accounts:update?key=$kFirebaseApiKey',
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode({'idToken': idToken, 'displayName': displayName, 'returnSecureToken': false}),
+      );
+    }
+    final expiresSec = int.tryParse('${body['expiresIn'] ?? '3600'}') ?? 3600;
+    await _saveUser(AuthUser(
+      uid: '${body['localId'] ?? ''}',
+      email: '${body['email'] ?? ''}',
+      displayName: displayName,
+      idToken: idToken,
+      refreshToken: '${body['refreshToken'] ?? ''}',
+      expiresAtMs: DateTime.now().millisecondsSinceEpoch + expiresSec * 1000,
+    ));
+    return null;
+  }
+
   Future<void> continueOffline({String name = ''}) async {
     await _saveUser(AuthUser(
       uid: 'offline',
@@ -325,6 +397,7 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    if (!kIsWeb) await signOutSocial();
     await _saveUser(null);
   }
 
@@ -379,7 +452,7 @@ class AuthService extends ChangeNotifier {
           'fields': {
             'payload': {'stringValue': payload},
             'updatedAt': {'stringValue': now.toIso8601String()},
-            'appVersion': {'stringValue': '3.0.0'},
+            'appVersion': {'stringValue': '3.0.1'},
           },
         }),
       );
@@ -487,7 +560,12 @@ class AuthService extends ChangeNotifier {
       case 'USER_DISABLED':
         return 'This account has been disabled.';
       case 'OPERATION_NOT_ALLOWED':
-        return 'Email sign-in is disabled for this project.';
+        return 'This sign-in method is disabled for this project.';
+      case 'INVALID_IDP_RESPONSE':
+        return 'The sign-in provider rejected the request. Please try again.';
+      case 'NEED_CONFIRMATION':
+      case 'FEDERATED_USER_ID_ALREADY_LINKED':
+        return 'This email is already linked to another sign-in method. Use that method instead.';
       case 'NETWORK':
         return 'Could not reach server. Check your internet connection or continue offline.';
       default:
