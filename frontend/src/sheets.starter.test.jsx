@@ -61,10 +61,10 @@ describe('starter plan chooser', () => {
     choose('Upper / Lower')
 
     expect(useUI.getState().sheets).toHaveLength(0)   // no confirmation was raised
-    expect(nameOn(1)).toBe('Upper A')
-    expect(nameOn(2)).toBe('Lower A')
-    expect(nameOn(4)).toBe('Upper B')
-    expect(nameOn(5)).toBe('Lower B')
+    expect(nameOn(1)).toBe('Upper')
+    expect(nameOn(2)).toBe('Lower')
+    expect(nameOn(4)).toBe('Upper')
+    expect(nameOn(5)).toBe('Lower')
     expect(S().week[0]).toBe('mine')                  // untouched weekdays stay put
     expect(S().week[6]).toBe('mine')
     expect(S().routines[0].name).toBe('My routine')   // and nothing is deleted
@@ -82,9 +82,9 @@ describe('starter plan chooser', () => {
     expect(S().routines).toHaveLength(1)
 
     act(() => { buttonFor(confirm, 'Load plan').click() })
-    expect(nameOn(1)).toBe('Full Body A')
-    expect(nameOn(3)).toBe('Full Body B')
-    expect(nameOn(5)).toBe('Full Body C')
+    expect(nameOn(1)).toBe('Full Body')
+    expect(nameOn(3)).toBe('Full Body')
+    expect(nameOn(5)).toBe('Full Body')
   })
 
   it('leaves everything alone when the confirmation is cancelled', () => {
@@ -100,9 +100,10 @@ describe('starter plan chooser', () => {
 
   it('does not ask when only weekdays outside the plan are occupied', () => {
     useStore.setState(s => ({ S: { ...s.S, week: { 2: 'mine', 4: 'mine' } } }))   // Tue + Thu
-    choose('5×5')                                                                // wants Mon/Wed/Fri
+    choose('5×5')                                                                // wants Mon/Wed
     expect(useUI.getState().sheets).toHaveLength(0)
-    expect(nameOn(1)).toBe('5×5 A')
+    expect(nameOn(1)).toBe('Workout A')
+    expect(nameOn(3)).toBe('Workout B')
   })
 })
 

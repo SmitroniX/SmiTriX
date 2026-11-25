@@ -1,28 +1,28 @@
 import { useNavigate, useParams } from 'react-router-dom'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
-import { exOr } from '../lib/exercises.js'
+import { allExercises, exOr, matchExercise, scoreExercise } from '../lib/exercises.js'
 import { activeProfile, exAvailable } from '../lib/equipment.js'
-import { uid } from '../lib/format.js'
+import { uid, weekOrder, weekStartOf, DAYS } from '../lib/format.js'
 import { t, exerciseNameFor } from '../lib/i18n.js'
 import { supersetUnits, moveSupersetUnit, cleanupSg, exLine, defaultConfig } from '../lib/history.js'
 import { Thumb } from '../components/Media.jsx'
-import { glyphPicker, exercisePicker, exConfigSheet, confirmSheet, shareRoutineSheet } from '../sheets.jsx'
+import { exercisePicker, exConfigSheet, confirmSheet, shareRoutineSheet, startFlow } from '../sheets.jsx'
 import Icon from '../components/Icon.jsx'
-import { glyphOf } from '../lib/glyphs.js'
-import { Button, Row, SelectRow, Switch } from '../components/ui.jsx'
+import { Button } from '../components/ui.jsx'
 import { copyRoutine } from '../lib/routines.js'
-import { POLICIES_FOR, POLICY_NAME, POLICY_DESC } from '../lib/progression.js'
 import BodyMap from '../components/BodyMap.jsx'
 import { loadOfRoutine, rankOf, MUSCLE_NAME } from '../lib/muscles.js'
+import { FOLDER_HUES, folderHueFor } from '../components/GymManeMotion.jsx'
 
 export const ROUTINE_LONG_PRESS_MS = 380
 export const ROUTINE_DRAG_SLOP = 8
 
+const ROUTINE_GROUPS = ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full Body', 'Cardio']
+
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value))
 
-// Slots are defined after removing the source unit, so a grouped run can never be split.
 export function reorderRoutineUnit(exercises, sourceIndex, targetSlot) {
   if (!Array.isArray(exercises) || !exercises.length) return false
   const units = supersetUnits(exercises)
@@ -120,7 +120,7 @@ function useRoutineReorder(routineIdentity, exercises, onDrop) {
     const releaseCapture = gesture => {
       const target = gesture?.captureTarget
       if (!target?.releasePointerCapture) return
-      try { target.releasePointerCapture(gesture.pointerId) } catch { /* already released */ }
+      try { target.releasePointerCapture(gesture.pointerId) } catch {}
     }
     const finish = (gesture, commit, x = gesture?.lastX, y = gesture?.lastY) => {
       if (!gesture || gestureRef.current !== gesture) return
@@ -131,8 +131,6 @@ function useRoutineReorder(routineIdentity, exercises, onDrop) {
       releaseCapture(gesture)
       suppressClickRef.current = true
       window.clearTimeout(suppressTimerRef.current)
-      // The compatibility click lands synchronously after pointerup; anything
-      // later is a real tap, so the guard only needs to outlive that one event.
       suppressTimerRef.current = window.setTimeout(() => { suppressClickRef.current = false }, 150)
       setDrag(null)
       const rect = list.getBoundingClientRect()
@@ -192,13 +190,12 @@ function useRoutineReorder(routineIdentity, exercises, onDrop) {
       gesture.grabOffset = gesture.lastY - source.top; gesture.targetSlot = source.position
       gesture.scrollHost = scrollHostFor(list)
       gesture.captureTarget = gesture.downTarget
-      try { gesture.captureTarget.setPointerCapture?.(gesture.pointerId) } catch { /* unsupported */ }
+      try { gesture.captureTarget.setPointerCapture?.(gesture.pointerId) } catch {}
       suppressClickRef.current = true
       window.clearTimeout(suppressTimerRef.current)
       updateDrag(gesture, gesture.lastX, gesture.lastY)
     }
     const onPointerDown = event => {
-      // a new touch is intentional — never let the post-drop guard eat its click
       suppressClickRef.current = false
       window.clearTimeout(suppressTimerRef.current)
       const current = gestureRef.current
@@ -257,11 +254,6 @@ function useRoutineReorder(routineIdentity, exercises, onDrop) {
     const onVisibility = () => { if (document.visibilityState === 'hidden') cancelActive() }
     const onContextMenu = event => { if (gestureRef.current?.active && event.target.closest?.('[data-routine-row]')) event.preventDefault() }
     const onDragStart = event => { if (event.target.closest?.('[data-routine-row]')) event.preventDefault() }
-
-    // Touch: the rows keep `touch-action: pan-y` so the list still scrolls with a finger, but once
-    // a long-press has lifted a row the browser must not claim the vertical drag as a pan — it
-    // would fire pointercancel and scroll instead. preventDefault on a pointer event cannot stop
-    // that; only a non-passive touchmove listener can, and only while a drag is actually active.
     const onTouchMove = event => { if (gestureRef.current?.active) event.preventDefault() }
 
     document.addEventListener('pointerdown', onPointerDown)
@@ -308,19 +300,28 @@ export default function RoutineEdit() {
   const S = useStore(s => s.S)
   const update = useStore(s => s.update)
   const toast = useUI(s => s.toast)
+  const [search, setSearch] = useState('')
   const r = S.routines.find(x => x.id === id)
   useEffect(() => { if (!r) nav('/plan') }, [!!r])
-  // Editing here has no explicit "save" — every field change persists immediately. A single
-  // auto-backup on the way out (not per keystroke) covers the whole editing session, deletion
-  // included: this still unmounts after the delete button navigates away.
   useEffect(() => () => useStore.getState().autoBackupNow(), [])
   const edit = fn => update(s => { fn(s.routines.find(x => x.id === id).ex) })
   const reorder = useRoutineReorder(r, r?.ex || [], (sourceIndex, targetSlot) => {
     edit(exercises => { reorderRoutineUnit(exercises, sourceIndex, targetSlot) })
   })
+
+  const inlineResults = useMemo(() => {
+    const q = search.trim()
+    if (!q) return []
+    const existing = new Set((r?.ex || []).map(x => x.id))
+    return allExercises(S)
+      .filter(ex => !existing.has(ex.id) && matchExercise(ex, q))
+      .sort((a, b) => scoreExercise(b, q) - scoreExercise(a, q))
+      .slice(0, 12)
+  }, [S, search, r?.ex])
+
   if (!r) return null
+
   const move = (i, dir) => {
-    // Guard before update so a stale/boundary activation cannot trigger persistence or cleanup.
     if (!moveSupersetUnit(r.ex, i, dir)) return
     edit(ex => {
       const reordered = moveSupersetUnit(ex, i, dir)
@@ -329,6 +330,7 @@ export default function RoutineEdit() {
       cleanupSg(ex)
     })
   }
+
   const toggleLink = i => edit(ex => {
     if (i < 1) return
     const cur = ex[i], prev = ex[i - 1]
@@ -337,128 +339,307 @@ export default function RoutineEdit() {
     cleanupSg(ex)
   })
 
+  const toggleDay = dow => {
+    update(s => {
+      if (s.week[dow] === id) delete s.week[dow]
+      else s.week[dow] = id
+    })
+  }
+
   const units = supersetUnits(r.ex)
   const unitIndex = new Map(units.flatMap((unit, index) => unit.map(i => [i, index])))
   const unitFirst = new Set(units.filter(u => u.length > 1).map(u => u[0]))
   const inSS = new Set(units.filter(u => u.length > 1).flat())
   const profile = activeProfile(S)
   const missingCount = profile ? r.ex.filter(e => !exAvailable(S, exOr(e.id))).length : 0
+  const activeHue = folderHueFor(r)
+  const orderDays = weekOrder(weekStartOf(S))
 
-  return <div className="narrow">
-    <div className="hdr">
-      <button className="iconbtn" onClick={() => nav('/plan')} aria-label={t('Plan')}><Icon name="chevronLeft" /></button>
-      <div style={{ flex: 1, margin: '0 12px' }}>
-        <input className="input" defaultValue={r.name} style={{ fontWeight: 600, fontSize: 20, letterSpacing: '-.021em' }}
-          onChange={e => update(s => { s.routines.find(x => x.id === id).name = e.target.value.trim() || t('Routine') })} />
+  return (
+    <div className="narrow" style={{ paddingBottom: r.ex.length > 0 ? 110 : 32 }}>
+      {/* GymMane RoutineEdit Header: Back, Borderless Title, Share / Copy / Delete */}
+      <div className="hdr" style={{ alignItems: 'center', gap: 8 }}>
+        <button type="button" className="iconbtn" onClick={() => nav('/plan')} aria-label={t('Plan')}>
+          <Icon name="chevronLeft" />
+        </button>
+        <input
+          className="input"
+          defaultValue={r.name}
+          placeholder={t('Routine name')}
+          style={{
+            flex: 1, background: 'transparent', border: 'none', padding: '4px 2px',
+            fontWeight: 800, fontSize: 22, letterSpacing: '-0.02em', color: 'var(--label)',
+          }}
+          onChange={e => update(s => { s.routines.find(x => x.id === id).name = e.target.value.trim() || t('Routine') })}
+        />
+        {r.ex.length > 0 && (
+          <button type="button" className="iconbtn" aria-label={t('Share routine')} onClick={() => shareRoutineSheet(r)}>
+            <Icon name="share" />
+          </button>
+        )}
+        <button
+          type="button"
+          className="iconbtn"
+          aria-label={t('Copy routine')}
+          onClick={() => {
+            const copy = copyRoutine(r, t('Copy'))
+            update(s => { s.routines.push(copy) })
+            nav('/plan/r/' + copy.id)
+          }}
+        >
+          <Icon name="copy" />
+        </button>
+        <button
+          type="button"
+          className="iconbtn"
+          style={{ color: 'var(--red)' }}
+          aria-label={t('Delete routine')}
+          onClick={() => confirmSheet({
+            title: t('Delete routine?'),
+            message: t('“{0}” and its exercises will be removed.', r.name),
+            confirmText: t('Delete'),
+            danger: true,
+            onConfirm: () => {
+              update(s => {
+                s.routines = s.routines.filter(x => x.id !== id)
+                Object.keys(s.week).forEach(k => { if (s.week[k] === id) delete s.week[k] })
+                Object.keys(s.dayPlan).forEach(k => { if (s.dayPlan[k] === id) delete s.dayPlan[k] })
+              })
+              nav('/plan')
+            },
+          })}
+        >
+          <Icon name="trash" />
+        </button>
       </div>
-      <button className="iconbtn" aria-label={t('Pick an icon')} onClick={() => glyphPicker(r.emoji, g => update(s => { s.routines.find(x => x.id === id).emoji = g }))}><Icon name={glyphOf(r.emoji)} /></button>
-    </div>
 
-    <div className="sect-b" style={{ marginBottom: 16 }}>
-      <SelectRow icon="chartLine" title={t('Progression')} sheetTitle={t('Progression')}
-        value={r.prog || 'linear'} onChange={v => update(s => { s.routines.find(x => x.id === id).prog = v })}
-        options={POLICIES_FOR.reps.map(p => ({ value: p, label: t(POLICY_NAME[p]), subtitle: t(POLICY_DESC[p]) }))} />
-      <Row icon="pause" iconTint="var(--orange)" title={t('Exclude from automatic progression')}
-        subtitle={t('Use for planned deloads. Workouts stay in history and statistics.')}>
-        <Switch checked={r.excludeFromProgression === true} onChange={v => update(s => {
-          const routine = s.routines.find(x => x.id === id)
-          if (v) routine.excludeFromProgression = true
-          else delete routine.excludeFromProgression
-        })} />
-      </Row>
-    </div>
-    <div className="small dim" style={{ margin: '-10px 2px 16px' }}>
-      {r.excludeFromProgression
-        ? t('The next regular target continues from the last included workout.')
-        : t('Applies to every exercise in this routine that does not set its own rule.')}
-    </div>
-
-    {missingCount > 0 && <div className="card" style={{ marginBottom: 16, borderColor: 'var(--orange)' }}>
-      <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-        <Icon name="warning" style={{ color: 'var(--orange)' }} />
-        <div className="small">{t('{0} of {1} exercises need equipment outside "{2}"', missingCount, r.ex.length, profile.name)}</div>
+      {/* 6 GymMane Folder Color Swatches */}
+      <div className="gm-swatch-row" role="radiogroup" aria-label={t('Folder color')}>
+        {FOLDER_HUES.map((hue, idx) => {
+          const on = hue === activeHue
+          return (
+            <button
+              key={hue}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              aria-label={`Color ${idx + 1}`}
+              className={'gm-swatch-btn' + (on ? ' on' : '')}
+              onClick={() => update(s => { s.routines.find(x => x.id === id).color = idx })}
+            >
+              <span className="gm-swatch-dot" style={{ background: hue }} />
+            </button>
+          )
+        })}
       </div>
-    </div>}
 
-    {r.ex.length ? <div ref={reorder.listRef} onClickCapture={reorder.onClickCapture}
-      className={'list routine-list' + (reorder.drag ? ' is-reordering' : '')}>{r.ex.map((e, i) => {
-      // An unresolvable id is shown rather than skipped — hiding it left an entry you
-      // could neither see nor delete, but that still turned up in the workout.
-      const ex = exOr(e.id)
-      const noEquip = profile && !exAvailable(S, ex)
-      const linkedPrev = i > 0 && e.sg && r.ex[i - 1].sg === e.sg
-      const isDragging = reorder.drag && i >= reorder.drag.first && i <= reorder.drag.last
-      return <div key={i} data-routine-row data-ex-index={i}
-        className={'routine-drag-row' + (isDragging ? ' is-dragging' : '')}
-        style={isDragging ? { transform: `translate3d(0, ${reorder.drag.deltaY}px, 0)` } : undefined}>
-        {unitFirst.has(i) && <div className="ss-label"><Icon name="link" />{t('Superset')}</div>}
-        <div className={'item' + (inSS.has(i) ? ' in-ss' : '')} onClick={() => {
-          exConfigSheet(ex, e, cfg => edit(x => { x[i] = { id: x[i].id, sg: x[i].sg, ...cfg } }), () => edit(x => { x.splice(i, 1); cleanupSg(x) }), r)
-        }}>
-          <Thumb ex={ex} />
-          <div className="grow">
-            <div className="row" style={{ gap: 6, alignItems: 'center' }}>
-              <div className="tt capitalize">{exerciseNameFor(ex)}</div>
-              {inSS.has(i) && <span className="tag acc" style={{ fontSize: 10, padding: '1px 6px', fontWeight: 700 }}><Icon name="link" style={{ fontSize: 9, marginRight: 3 }} />SS</span>}
-            </div>
-            <div className="ss">{exLine(e, S.unit)}</div>
-            {e.note && <div className="small dim" style={{ marginTop: 2 }}>{e.note}</div>}
-          </div>
-          {noEquip && <span className="tag" style={{ color: 'var(--orange)', borderColor: 'var(--orange)' }} title={t('Needs {0} — not in your active profile', t(ex.eq))}><Icon name="warning" /></span>}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 'none', alignItems: 'center' }}>
-            {i > 0 && <button type="button" className={'iconbtn' + (linkedPrev ? ' on-ss' : '')} aria-label={linkedPrev ? t('Unlink superset') : t('Superset with exercise above')} title={linkedPrev ? t('Unlink superset') : t('Superset with exercise above')} style={{ width: 32, height: 28, borderRadius: 8, fontSize: 15 }} onClick={ev => { ev.stopPropagation(); toggleLink(i) }}><Icon name="link" /></button>}
-            <div style={{ display: 'flex', gap: 2 }}>
-              <button className="iconbtn" aria-label={t('Move up')} title={t('Move up')} disabled={unitIndex.get(i) === 0} style={{ width: 28, height: 24, borderRadius: 7, fontSize: 12 }} onClick={ev => { ev.stopPropagation(); move(i, -1) }}><Icon name="chevronUp" /></button>
-              <button className="iconbtn" aria-label={t('Move down')} title={t('Move down')} disabled={unitIndex.get(i) === units.length - 1} style={{ width: 28, height: 24, borderRadius: 7, fontSize: 12 }} onClick={ev => { ev.stopPropagation(); move(i, 1) }}><Icon name="chevronDown" /></button>
-            </div>
+      {/* 7 Weekday Schedule Toggles */}
+      <div className="gm-micro" style={{ marginBottom: 8 }}>{t('SCHEDULE DAYS')}</div>
+      <div className="gm-day-strip">
+        {orderDays.map(dow => {
+          const on = S.week?.[dow] === id
+          return (
+            <button
+              key={dow}
+              type="button"
+              className={'gm-day-pill' + (on ? ' on' : '')}
+              aria-pressed={on}
+              onClick={() => toggleDay(dow)}
+            >
+              {t(DAYS[dow]).slice(0, 1).toUpperCase()}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Routine Group Pills */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+        {ROUTINE_GROUPS.map(grp => {
+          const on = r.group === grp
+          return (
+            <button
+              key={grp}
+              type="button"
+              onClick={() => update(s => {
+                const rt = s.routines.find(x => x.id === id)
+                rt.group = rt.group === grp ? '' : grp
+              })}
+              style={{
+                padding: '6px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+                background: on ? 'var(--acc-soft)' : 'var(--surface)',
+                color: on ? 'var(--acc)' : 'var(--label-2)',
+                border: on ? '1px solid var(--acc)' : '1px solid color-mix(in srgb, var(--sep) 45%, transparent)',
+              }}
+            >
+              {t(grp)}
+            </button>
+          )
+        })}
+      </div>
+
+      {missingCount > 0 && (
+        <div className="card" style={{ marginBottom: 14, borderColor: 'var(--orange)' }}>
+          <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+            <Icon name="warning" style={{ color: 'var(--orange)' }} />
+            <div className="small">{t('{0} of {1} exercises need equipment outside "{2}"', missingCount, r.ex.length, profile.name)}</div>
           </div>
         </div>
-      </div>
-    })}{reorder.drag && <div className="routine-drop-indicator" data-testid="routine-drop-indicator"
-      aria-hidden="true" style={{ top: `${reorder.drag.indicatorTop}px` }} />}</div> : <div className="empty"><div className="ico"><Icon name="dumbbell" /></div>{t('No exercises yet — add your first one.')}</div>}
+      )}
 
-    {/* Coverage of the routine as planned, so a gap shows up while you're building it
-        rather than after a month of training around it. */}
-    {r.ex.length > 0 && (() => {
-      const load = loadOfRoutine(r)
-      const { worked } = rankOf(load)
-      return <div className="card" style={{ marginTop: 12 }}>
-        <h2>{t('What this session hits')}</h2>
-        <BodyMap load={load} body={S.body} />
-        <div className="mchips">
-          {worked.slice(0, 6).map(m => <span key={m} className="mchip">{t(MUSCLE_NAME[m])}</span>)}
+      {/* Chosen Exercises Draggable List */}
+      <div className="row between" style={{ marginBottom: 8 }}>
+        <span className="gm-micro">{t('EXERCISES')} ({r.ex.length})</span>
+        <button
+          type="button"
+          className="gm-see-all"
+          onClick={() => exercisePicker((ex, quick) => {
+            if (quick) {
+              edit(x => x.push({ id: ex.id, ...defaultConfig(ex.id) }))
+              toast(t('“{0}” added to {1}', exerciseNameFor(ex), r.name))
+            } else {
+              exConfigSheet(ex, null, cfg => edit(x => { x.push({ id: ex.id, ...cfg }) }), null, r)
+            }
+          })}
+        >
+          <Icon name="plus" style={{ fontSize: 12 }} /> {t('Browse all')}
+        </button>
+      </div>
+
+      {r.ex.length ? (
+        <div
+          ref={reorder.listRef}
+          onClickCapture={reorder.onClickCapture}
+          className={'list routine-list' + (reorder.drag ? ' is-reordering' : '')}
+        >
+          {r.ex.map((e, i) => {
+            const ex = exOr(e.id)
+            const noEquip = profile && !exAvailable(S, ex)
+            const linkedPrev = i > 0 && e.sg && r.ex[i - 1].sg === e.sg
+            const isDragging = reorder.drag && i >= reorder.drag.first && i <= reorder.drag.last
+            return (
+              <div
+                key={i}
+                data-routine-row
+                data-ex-index={i}
+                className={'routine-drag-row' + (isDragging ? ' is-dragging' : '')}
+                style={isDragging ? { transform: `translate3d(0, ${reorder.drag.deltaY}px, 0)` } : undefined}
+              >
+                {unitFirst.has(i) && <div className="ss-label"><Icon name="link" />{t('Superset')}</div>}
+                <div
+                  className={'item' + (inSS.has(i) ? ' in-ss' : '')}
+                  onClick={() => {
+                    exConfigSheet(ex, e, cfg => edit(x => { x[i] = { id: x[i].id, sg: x[i].sg, ...cfg } }), () => edit(x => { x.splice(i, 1); cleanupSg(x) }), r)
+                  }}
+                >
+                  <Thumb ex={ex} />
+                  <div className="grow">
+                    <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+                      <div className="tt capitalize">{exerciseNameFor(ex)}</div>
+                      {inSS.has(i) && <span className="tag acc" style={{ fontSize: 10, padding: '1px 6px', fontWeight: 700 }}><Icon name="link" style={{ fontSize: 9, marginRight: 3 }} />SS</span>}
+                    </div>
+                    <div className="ss">{exLine(e, S.unit)}</div>
+                    {e.note && <div className="small dim" style={{ marginTop: 2 }}>{e.note}</div>}
+                  </div>
+                  {noEquip && <span className="tag" style={{ color: 'var(--orange)', borderColor: 'var(--orange)' }} title={t('Needs {0} — not in your active profile', t(ex.eq))}><Icon name="warning" /></span>}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 'none', alignItems: 'center' }}>
+                    {i > 0 && (
+                      <button
+                        type="button"
+                        className={'iconbtn' + (linkedPrev ? ' on-ss' : '')}
+                        aria-label={linkedPrev ? t('Unlink superset') : t('Superset with exercise above')}
+                        title={linkedPrev ? t('Unlink superset') : t('Superset with exercise above')}
+                        style={{ width: 32, height: 28, borderRadius: 8, fontSize: 15 }}
+                        onClick={ev => { ev.stopPropagation(); toggleLink(i) }}
+                      >
+                        <Icon name="link" />
+                      </button>
+                    )}
+                    <div style={{ display: 'flex', gap: 2 }}>
+                      <button type="button" className="iconbtn" aria-label={t('Move up')} title={t('Move up')} disabled={unitIndex.get(i) === 0} style={{ width: 28, height: 24, borderRadius: 7, fontSize: 12 }} onClick={ev => { ev.stopPropagation(); move(i, -1) }}><Icon name="chevronUp" /></button>
+                      <button type="button" className="iconbtn" aria-label={t('Move down')} title={t('Move down')} disabled={unitIndex.get(i) === units.length - 1} style={{ width: 28, height: 24, borderRadius: 7, fontSize: 12 }} onClick={ev => { ev.stopPropagation(); move(i, 1) }}><Icon name="chevronDown" /></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+          {reorder.drag && (
+            <div className="routine-drop-indicator" data-testid="routine-drop-indicator" aria-hidden="true" style={{ top: `${reorder.drag.indicatorTop}px` }} />
+          )}
         </div>
-      </div>
-    })()}
+      ) : (
+        <div className="empty" style={{ padding: '24px 16px' }}>
+          <div className="ico"><Icon name="dumbbell" /></div>
+          {t('No exercises yet — search below to add your first one.')}
+        </div>
+      )}
 
-    <div className="small dim row" style={{ margin: '10px 2px', gap: 5 }}><Icon name="link" style={{ fontSize: 13 }} />{t('Tap the link button on an exercise to superset it with the one above — you’ll do them back-to-back.')}</div>
-    <Button variant="primary" onClick={() => exercisePicker((ex, quick) => {
-      if (quick) {
-        edit(x => x.push({ id: ex.id, ...defaultConfig(ex.id) }))
-        toast(t('“{0}” added to {1}', exerciseNameFor(ex), r.name))
-      } else {
-        exConfigSheet(ex, null, cfg => edit(x => { x.push({ id: ex.id, ...cfg }) }), null, r)
-      }
-    })} icon="plus">{t('Add exercise')}</Button>
-    <div style={{ height: 10 }} />
-    <Button variant="tinted" icon="share" onClick={() => shareRoutineSheet(r)}>{t('Share routine')}</Button>
-    <div style={{ height: 10 }} />
-    <Button onClick={() => {
-      const copy = copyRoutine(r, t('Copy'))
-      update(s => { s.routines.push(copy) })
-      nav('/plan/r/' + copy.id)
-    }}>{t('Copy routine')}</Button>
-    <div style={{ height: 10 }} />
-    <Button variant="danger" onClick={() => confirmSheet({
-      title: t('Delete routine?'), message: t('“{0}” and its exercises will be removed.', r.name), confirmText: t('Delete'), danger: true,
-      onConfirm: () => {
-        update(s => {
-          s.routines = s.routines.filter(x => x.id !== id)
-          Object.keys(s.week).forEach(k => { if (s.week[k] === id) delete s.week[k] })
-          Object.keys(s.dayPlan).forEach(k => { if (s.dayPlan[k] === id) delete s.dayPlan[k] })
-        })
-        nav('/plan')
-      }
-    })}>{t('Delete routine')}</Button>
-  </div>
+      {/* Inline Search & Quick-Add Exercises (GymMane exact flow) */}
+      <div style={{ marginTop: 16 }}>
+        <div className="search-wrap" style={{ position: 'relative' }}>
+          <input
+            type="search"
+            className="input"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={t('Search 470+ exercises to add…')}
+            aria-label={t('Search exercises')}
+            style={{ borderRadius: 999, paddingLeft: 16 }}
+          />
+        </div>
+        {inlineResults.length > 0 && (
+          <div className="list" style={{ marginTop: 8 }}>
+            {inlineResults.map(ex => (
+              <button
+                key={ex.id}
+                type="button"
+                className="item"
+                style={{ width: '100%', textAlign: 'left' }}
+                onClick={() => {
+                  edit(x => x.push({ id: ex.id, ...defaultConfig(ex.id) }))
+                  toast(t('“{0}” added to {1}', exerciseNameFor(ex), r.name))
+                }}
+              >
+                <Thumb ex={ex} />
+                <div className="grow">
+                  <div className="tt capitalize">{exerciseNameFor(ex)}</div>
+                  <div className="ss">{[t(ex.tg), t(ex.eq)].filter(Boolean).join(' · ')}</div>
+                </div>
+                <span className="iconbtn" style={{ width: 32, height: 32, background: 'var(--acc-soft)', color: 'var(--acc)' }}>
+                  <Icon name="plus" />
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Muscle Coverage Preview */}
+      {r.ex.length > 0 && (() => {
+        const load = loadOfRoutine(r)
+        const { worked } = rankOf(load)
+        return (
+          <div className="card" style={{ marginTop: 16 }}>
+            <div className="gm-micro" style={{ marginBottom: 8 }}>{t('WHAT THIS SESSION HITS')}</div>
+            <BodyMap load={load} body={S.body} />
+            <div className="mchips" style={{ marginTop: 8 }}>
+              {worked.slice(0, 6).map(m => <span key={m} className="mchip">{t(MUSCLE_NAME[m])}</span>)}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* GymMane Floating Bottom Action Bar: Save + Start Workout */}
+      {r.ex.length > 0 && (
+        <div className="gm-routine-floatbar">
+          <Button variant="tinted" style={{ flex: 2, borderRadius: 999, height: 48 }} onClick={() => nav('/plan')}>
+            {t('Save')}
+          </Button>
+          <Button variant="primary" icon="playFill" style={{ flex: 3, borderRadius: 999, height: 48 }} onClick={() => startFlow(r.id)}>
+            {t('Start Workout')}
+          </Button>
+        </div>
+      )}
+    </div>
+  )
 }

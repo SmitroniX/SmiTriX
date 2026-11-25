@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { imgSrc, gifSrc, mediaUrlsFor } from '../lib/exercises.js'
 import { resolveExerciseArtSlug, getCachedExerciseArt, loadExerciseArt } from '../lib/exercise-art.js'
 import { useStore } from '../store/useStore.js'
 import { t, exerciseNameFor } from '../lib/i18n.js'
@@ -10,6 +9,18 @@ const CYCLE_MS = 1560
 
 function easeInOutCubic(x) {
   return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2
+}
+
+// Map GymMane sport icon tags to clean SmiTriX icon names
+export function sportIconFor(ex) {
+  const key = String(ex?.sportIcon || '').toLowerCase()
+  if (key.includes('run') || key.includes('walk') || key.includes('sprint')) return 'figureRun'
+  if (key.includes('bike') || key.includes('cycl')) return 'bolt'
+  if (key.includes('swim') || key.includes('row')) return 'water'
+  if (key.includes('box') || key.includes('fight') || key.includes('martial')) return 'flame'
+  if (key.includes('yoga') || key.includes('stretch') || key.includes('medit')) return 'leaf'
+  if (key.includes('ball') || key.includes('soccer') || key.includes('basket') || key.includes('tennis')) return 'trophy'
+  return ex?.bp === 'cardio' ? 'figureRun' : 'dumbbell'
 }
 
 // Crisp GymMane-exact vector line-art animation engine:
@@ -90,28 +101,26 @@ export function ExerciseArtSvg({ art, playing = true, speed = 1, stillFrame = fa
   )
 }
 
-// High-fidelity autoplaying GymMane vector animation with resilient multi-CDN image fallback & HD Guide.
-// Custom exercises have no media — the animation stays blank by design (issue #11).
-// `minimizable` (workout view) adds a persistent minimize/expand control; settings can also turn
-// workout media off entirely (gifSize 'off') — then nothing renders here.
+// Pure GymMane vector exercise animation view — zero external ExerciseDB GIF/JPG requests.
+// Custom exercises without art stay blank by design; workout view respects gifSize ('full' | 'mini' | 'off').
 export default function Media({ ex, id, compact, minimizable }) {
-  const slug = useMemo(() => (ex?.gif ? resolveExerciseArtSlug(ex) : null), [ex?.id, ex?.n, ex?.eq, ex?.bp, ex?.tg, ex?.gif])
+  const hasVisual = !!(ex?.art || ex?.gif || ex?.sportIcon)
+  const slug = useMemo(
+    () => (hasVisual ? resolveExerciseArtSlug(ex) : null),
+    [ex?.id, ex?.art, ex?.n, ex?.eq, ex?.bp, ex?.tg, ex?.sportIcon, hasVisual],
+  )
   const [art, setArt] = useState(() => (slug ? getCachedExerciseArt(slug) : null))
   const [playing, setPlaying] = useState(true)
-  const [cdnIndex, setCdnIndex] = useState(0)
-  const [failed, setFailed] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !!(slug && !getCachedExerciseArt(slug)))
   const [showGuide, setShowGuide] = useState(false)
   const gifSize = useStore(s => s.S.gifSize)
   const update = useStore(s => s.update)
 
   useEffect(() => {
     setPlaying(true)
-    setCdnIndex(0)
-    setFailed(null)
-    setLoading(true)
     if (!slug) {
       setArt(null)
+      setLoading(false)
       return
     }
     const cached = getCachedExerciseArt(slug)
@@ -121,84 +130,44 @@ export default function Media({ ex, id, compact, minimizable }) {
       return
     }
     setArt(null)
+    setLoading(true)
     let cancelled = false
     loadExerciseArt(slug).then(data => {
-      if (!cancelled && data) {
-        setArt(data)
+      if (!cancelled) {
+        setArt(data || null)
         setLoading(false)
       }
     })
     return () => { cancelled = true }
   }, [ex?.id, slug])
 
-  if (!ex?.gif) return null
+  if (!hasVisual) return null
   if (minimizable && gifSize === 'off') return null
   const mini = minimizable && gifSize === 'mini'
   const toggleSize = e => { e.stopPropagation(); update(s => { s.gifSize = mini ? 'full' : 'mini' }) }
-
-  const gifUrls = mediaUrlsFor(ex, 'gif')
-  const imgUrls = mediaUrlsFor(ex, 'img')
-
-  const currentGifUrl = gifUrls[cdnIndex] || gifUrls[0] || gifSrc(ex)
-  const currentImgUrl = imgUrls[cdnIndex] || imgUrls[0] || imgSrc(ex)
-
-  const showGif = playing && failed == null
-  const activeSrc = showGif ? currentGifUrl : currentImgUrl
-
-  const onError = () => {
-    if (showGif && cdnIndex < gifUrls.length - 1) {
-      setCdnIndex(i => i + 1)
-      return
-    }
-    if (showGif) {
-      setCdnIndex(0)
-      setFailed('gif')
-      return
-    }
-    if (cdnIndex < imgUrls.length - 1) {
-      setCdnIndex(i => i + 1)
-      return
-    }
-    setLoading(false)
-    setFailed('all')
-  }
-
-  const onTap = () => {
-    if (!art && failed) { setFailed(null); setCdnIndex(0); setPlaying(true); return }
-    setPlaying(p => !p)
-  }
 
   const usingVector = !!art
 
   return (
     <>
       <div
-        className={'exmedia gm-exmedia' + (usingVector ? ' gm-vector' : '') + (compact ? ' compact' : '') + (mini ? ' mini' : '') + (!usingVector && failed === 'all' ? ' broken' : '')}
+        className={'exmedia gm-exmedia gm-vector' + (compact ? ' compact' : '') + (mini ? ' mini' : '')}
         id={id}
-        onClick={onTap}
+        role="img"
+        aria-label={exerciseNameFor(ex)}
+        onClick={() => setPlaying(p => !p)}
       >
         {usingVector ? (
           <ExerciseArtSvg art={art} playing={playing} stillFrame={mini} />
+        ) : loading ? (
+          <div className="exmedia-skeleton">
+            <div className="exmedia-shimmer" />
+            <Icon name={sportIconFor(ex)} className="exmedia-skeleton-icon" />
+          </div>
         ) : (
-          <>
-            {loading && !failed && (
-              <div className="exmedia-skeleton">
-                <div className="exmedia-shimmer" />
-                <Icon name="dumbbell" className="exmedia-skeleton-icon" />
-              </div>
-            )}
-            {failed === 'all'
-              ? <div className="exmedia-x"><Icon name="dumbbell" /></div>
-              : <img
-                  decoding="async"
-                  draggable={false}
-                  className={loading ? 'img-loading' : 'img-loaded'}
-                  src={activeSrc}
-                  alt={exerciseNameFor(ex)}
-                  onLoad={() => setLoading(false)}
-                  onError={onError}
-                />}
-          </>
+          <div className="exmedia-x gm-sport-art">
+            <Icon name={sportIconFor(ex)} />
+          </div>
         )}
 
         {minimizable && (
@@ -207,14 +176,14 @@ export default function Media({ ex, id, compact, minimizable }) {
           </button>
         )}
 
-        {!mini && (usingVector || !failed) && (
+        {!mini && usingVector && (
           <span className="motion-live-pill" title={playing ? t('Motion Active') : t('Motion Paused')}>
             <span className={'motion-live-dot' + (playing ? ' active' : ' paused')} />
             <span>{playing ? t('Motion HD') : t('Paused')}</span>
           </span>
         )}
 
-        {!mini && (usingVector || !failed) && (
+        {!mini && (
           <button
             type="button"
             className="motion-guide-badge"
@@ -225,7 +194,7 @@ export default function Media({ ex, id, compact, minimizable }) {
           </button>
         )}
 
-        {!mini && (usingVector || !failed) && (
+        {!mini && usingVector && (
           <span className="gifhint">
             <Icon name={playing ? 'pause' : 'play'} />{playing ? t('tap to pause') : t('tap to play')}
           </span>
@@ -237,13 +206,15 @@ export default function Media({ ex, id, compact, minimizable }) {
 }
 
 export function Thumb({ ex }) {
-  const slug = useMemo(() => (ex?.img || ex?.gif ? resolveExerciseArtSlug(ex) : null), [ex?.id, ex?.n, ex?.eq, ex?.bp, ex?.tg, ex?.img, ex?.gif])
+  const hasVisual = !!(ex?.art || ex?.img || ex?.gif || ex?.sportIcon)
+  const slug = useMemo(
+    () => (hasVisual ? resolveExerciseArtSlug(ex) : null),
+    [ex?.id, ex?.art, ex?.n, ex?.eq, ex?.bp, ex?.tg, ex?.sportIcon, hasVisual],
+  )
   const [art, setArt] = useState(() => (slug ? getCachedExerciseArt(slug, true) : null))
-  const [srcIdx, setSrcIdx] = useState(0)
   const hostRef = useRef(null)
 
   useEffect(() => {
-    setSrcIdx(0)
     if (!slug) { setArt(null); return }
     const cached = getCachedExerciseArt(slug, true)
     if (cached) { setArt(cached); return }
@@ -270,8 +241,6 @@ export function Thumb({ ex }) {
     return () => { cancelled = true }
   }, [slug])
 
-  if (!ex?.img && !ex?.gif) return <div className="thumb thumb-x"><Icon name="dumbbell" /></div>
-
   if (art) {
     return (
       <div className="thumb gm-thumb-art" ref={hostRef} aria-hidden="true">
@@ -280,19 +249,9 @@ export function Thumb({ ex }) {
     )
   }
 
-  const urls = mediaUrlsFor(ex, 'img')
-  if (srcIdx >= urls.length) return <div className="thumb thumb-x" ref={hostRef}><Icon name="dumbbell" /></div>
   return (
-    <div className="thumb gm-thumb-wrap" ref={hostRef}>
-      <img
-        className="thumb"
-        loading="lazy"
-        decoding="async"
-        draggable={false}
-        src={urls[srcIdx]}
-        alt=""
-        onError={() => setSrcIdx(i => i + 1)}
-      />
+    <div className="thumb thumb-x gm-thumb-art" ref={hostRef} aria-hidden="true">
+      <Icon name={sportIconFor(ex)} />
     </div>
   )
 }

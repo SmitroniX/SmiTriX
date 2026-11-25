@@ -7,7 +7,6 @@ import { useStore, DEF } from './store/useStore.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
-// Mock matchMedia and fetch for happy-dom
 if (!window.matchMedia) {
   window.matchMedia = vi.fn().mockImplementation(query => ({
     matches: false,
@@ -36,9 +35,8 @@ beforeEach(() => {
   useStore.setState({
     boot: vi.fn(),
     user: { id: 'test_user', name: 'Test User' },
-    S: { ...DEF, active: null },
+    S: { ...DEF, active: null, heatTone: 'green' },
     ready: true,
-    needsMobileOnboarding: false,
     isGuest: () => false,
   })
 })
@@ -49,31 +47,12 @@ afterEach(() => {
 })
 
 describe('App shell and component placement', () => {
-  it('does not render TabBar when mobile onboarding is active', async () => {
-    useStore.setState({
-      user: { id: 'test_user', name: 'Test User' },
-      needsMobileOnboarding: true,
-      ready: true,
-    })
-
-    await act(async () => {
-      root.render(<App />)
-    })
-
-    expect(container.querySelector('#tabbar')).toBeNull()
-  })
-
-  it('renders TabBar when authenticated and onboarding is completed', async () => {
-    useStore.setState({
-      user: { id: 'test_user', name: 'Test User' },
-      needsMobileOnboarding: false,
-      ready: true,
-    })
-
+  it('renders TabBar and syncs heatTone dataset attribute on documentElement', async () => {
     await act(async () => {
       root.render(<App />)
     })
 
     expect(container.querySelector('#tabbar')).not.toBeNull()
+    expect(document.documentElement.dataset.heatTone).toBe('green')
   })
 })

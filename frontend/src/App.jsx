@@ -22,7 +22,6 @@ import { UpdateChecker } from './components/UpdateDialog.jsx'
 import { TutorialPromptChecker } from './components/TutorialDialog.jsx'
 import { AppBackground, RestGlow, StartCountdown, AwardCelebration } from './components/GymManeMotion.jsx'
 import Login from './views/Login.jsx'
-import MobileOnboarding from './views/MobileOnboarding.jsx'
 import Home from './views/Home.jsx'
 import CheckIn from './views/CheckIn.jsx'
 import Plan from './views/Plan.jsx'
@@ -44,11 +43,7 @@ import Library from './views/Library.jsx'
 import Muscles from './views/Muscles.jsx'
 import Profile from './views/Profile.jsx'
 import Settings from './views/Settings.jsx'
-import PlansManager from './views/PlansManager.jsx'
 import Admin from './views/Admin.jsx'
-import CoachChat from './views/CoachChat.jsx'
-import CoachIntake from './views/CoachIntake.jsx'
-import CoachSetup from './views/CoachSetup.jsx'
 
 // last known scrollY per route, so back-navigation can put the page where it was
 const scrollPositions = new Map()
@@ -94,10 +89,11 @@ const resolveTheme = theme => (theme === 'light' || theme === 'dark' || theme ==
   ? theme
   : (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
 
-function applyPrefs(theme, accent) {
+function applyPrefs(theme, accent, heatTone) {
   const de = document.documentElement
   de.dataset.theme = resolveTheme(theme)
   de.dataset.accent = ACCENTS[accent] ? accent : 'peach'
+  de.dataset.heatTone = heatTone || 'ember'
   const meta = document.querySelector('meta[name="theme-color"]')
   if (meta) meta.content = de.dataset.theme === 'light' ? '#f7f4f0' : '#0a0a0a'
 }
@@ -108,22 +104,21 @@ function Shell() {
   const navType = useNavigationType()
   const { S, user, ready } = useStore()
   const isGuest = useStore(s => s.isGuest())
-  const needsMobileOnboarding = useStore(s => s.needsMobileOnboarding)
   const awardCelebration = useUI(s => s.awardCelebration)
   const closeAwardCelebration = useUI(s => s.closeAwardCelebration)
   const langV = useLang()   // re-renders the whole shell when the language (pack) changes
   useEffect(() => { setNav(navigate) }, [navigate])
-  useEffect(() => { applyPrefs(S.theme, S.accent) }, [S.theme, S.accent])
+  useEffect(() => { applyPrefs(S.theme, S.accent, S.heatTone) }, [S.theme, S.accent, S.heatTone])
   // 'system' needs to react live if the OS theme flips while the app is open, not just on
   // the next mount — a fixed 'dark'/'light' choice never re-fires this since matchMedia
   // isn't consulted for those.
   useEffect(() => {
     if (S.theme !== 'system' || !window.matchMedia) return
     const mql = window.matchMedia('(prefers-color-scheme: dark)')
-    const onChange = () => applyPrefs(S.theme, S.accent)
+    const onChange = () => applyPrefs(S.theme, S.accent, S.heatTone)
     mql.addEventListener('change', onChange)
     return () => mql.removeEventListener('change', onChange)
-  }, [S.theme, S.accent])
+  }, [S.theme, S.accent, S.heatTone])
   useEffect(() => { setLang(S.lang || 'en') }, [S.lang])
   useEffect(() => { document.documentElement.lang = S.lang || 'en' }, [langV, S.lang])
   // Forward navigation starts at the top; going back lands where you left off.
@@ -339,7 +334,7 @@ function Shell() {
             re-mounts the boundary, so the tab bar is always a way out */}
         <div id="app" className="vfade" key={loc.pathname}>
           <ErrorBoundary>
-            {!authed ? <Login /> : needsMobileOnboarding ? <MobileOnboarding /> : (
+            {!authed ? <Login /> : (
               <Routes>
                 <Route path="/home" element={<Home />} />
                 {/* Gym check-in — switched off in Settings, the route falls through to the
@@ -363,16 +358,8 @@ function Shell() {
                 <Route path="/library" element={<Library />} />
                 <Route path="/muscles" element={<Muscles />} />
                 <Route path="/profile" element={<Profile />} />
-                <Route path="/plans" element={<PlansManager />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/login" element={<Login />} />
-                {/* The Coach screens gate themselves on the instance config; the routes exist
-                    unconditionally so a deep link from a notification lands somewhere sane
-                    rather than on the catch-all. */}
-                <Route path="/coach" element={<CoachChat />} />
-                <Route path="/coach/intake" element={<CoachIntake />} />
-                <Route path="/coach/proposal" element={<Navigate to="/coach" replace />} />
-                <Route path="/coach/setup" element={<CoachSetup />} />
                 <Route path="/admin" element={<Admin />} />
                 <Route path="*" element={<Navigate to="/home" replace />} />
               </Routes>
@@ -380,8 +367,7 @@ function Shell() {
           </ErrorBoundary>
         </div>
       </div>
-      {/* The chat owns the bottom of the screen: its composer sits where the tabs would be. */}
-      {!needsMobileOnboarding && loc.pathname !== '/coach' && <TabBar onStart={startFlow} />}
+      <TabBar onStart={startFlow} />
       <RestTimer />
       <Modals />
       <Toast />

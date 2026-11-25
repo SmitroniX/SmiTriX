@@ -291,34 +291,4 @@ describe('Workout UI/UX Enhancements', () => {
     await new Promise(r => setTimeout(r, 160))
     expect(focusSpy).toHaveBeenCalled()
   })
-
-  it('renders attached form check badge on set row and handles set menu attach option', async () => {
-    await mount(
-      [{
-        id: '0025',
-        target: { mode: 'reps', weight: 80, reps: 5 },
-        sets: [
-          { w: 80, r: 5, done: true, formCheckVideoId: 'vid_123' },
-          { w: 80, r: 5, done: false }
-        ]
-      }],
-      0
-    )
-
-    // Set 1 has a video badge
-    const badge = container.querySelector('.form-check-badge-tag')
-    expect(badge).toBeTruthy()
-    expect(badge.textContent).toContain('Form Check')
-
-    // Open set menu for Set 2 (has no video)
-    const setButtons = container.querySelectorAll('button[aria-label^="Set"]')
-    if (setButtons[1]) {
-      await act(async () => {
-        setButtons[1].dispatchEvent(new dom.Event('click', { bubbles: true }))
-      })
-      const lastCall = mocks.menuSheet.mock.calls.at(-1)[0]
-      const items = lastCall.items.filter(Boolean).map(it => it.label)
-      expect(items).toContain('Attach form check video')
-    }
-  })
 })

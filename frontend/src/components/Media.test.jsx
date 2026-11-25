@@ -24,7 +24,7 @@ vi.mock('../store/useStore.js', () => {
   return { useStore }
 })
 
-const EX = { id: 'bench', n: 'bench press', gif: 'bench.gif', img: 'bench.jpg' }
+const EX = { id: 'EIeI8Vf', n: 'Barbell Bench Press', art: 'bench-press', bp: 'chest', eq: 'barbell' }
 
 let host, root
 beforeEach(() => {
@@ -41,9 +41,10 @@ afterEach(() => {
 const mount = props => act(() => root.render(<Media ex={EX} {...props} />))
 
 describe('Media gifSize', () => {
-  it('renders the full animation by default and toggles to mini in the workout', () => {
+  it('renders the full GymMane vector stage by default and toggles to mini in the workout', () => {
     mount({ minimizable: true })
-    expect(host.querySelector('.exmedia img')).toBeTruthy()
+    expect(host.querySelector('.exmedia.gm-vector')).toBeTruthy()
+    expect(host.querySelector('.exmedia img')).toBeNull()
     expect(host.querySelector('.exmedia.mini')).toBeFalsy()
     act(() => { host.querySelector('.giftoggle').click() })
     expect(mocks.S.gifSize).toBe('mini')
@@ -55,20 +56,19 @@ describe('Media gifSize', () => {
     mocks.S = { gifSize: 'off' }
     mount({ minimizable: true })
     expect(host.querySelector('.exmedia')).toBeFalsy()
-    expect(host.querySelector('img')).toBeFalsy()
     expect(host.innerHTML).toBe('')
   })
 
-  it("'off' only applies to the workout — the detail sheet (not minimizable) still shows media", () => {
+  it("'off' only applies to the workout — the detail sheet (not minimizable) still shows vector media", () => {
     mocks.S = { gifSize: 'off' }
     mount({})
-    expect(host.querySelector('.exmedia img')).toBeTruthy()
+    expect(host.querySelector('.exmedia.gm-vector')).toBeTruthy()
   })
 
   it('treats a legacy/unknown value as full', () => {
     mocks.S = { gifSize: 'huge' }
     mount({ minimizable: true })
-    expect(host.querySelector('.exmedia img')).toBeTruthy()
+    expect(host.querySelector('.exmedia.gm-vector')).toBeTruthy()
     expect(host.querySelector('.exmedia.mini')).toBeFalsy()
   })
 })

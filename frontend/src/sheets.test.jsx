@@ -7,7 +7,7 @@ import { useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
 import { exConfigSheet } from './sheets.jsx'
 
-const ex = EXDB.find(e => e.id === '0009')
+const ex = EXDB[0]
 const mounted = []
 
 function type(el, value) {

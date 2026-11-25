@@ -104,7 +104,7 @@ describe('Profile view', () => {
     expect(statRow.textContent).toContain('Days trained')
   })
 
-  it('renders lifetime stats card with total sets and volume lifted', () => {
+  it('renders GymMane Medals, PHOTOS, Gym Pass and 12-month History sections', () => {
     act(() => {
       root.render(
         <MemoryRouter>
@@ -113,15 +113,15 @@ describe('Profile view', () => {
       )
     })
 
-    const tiles = host.querySelectorAll('.card .tile')
-    expect(tiles.length).toBeGreaterThanOrEqual(4)
-    // 3 done sets total in seed data
-    expect(host.textContent).toContain('Total sets')
-    expect(host.textContent).toContain('Volume lifted')
-    expect(host.textContent).toContain('Time training')
+    expect(host.textContent).toContain('Medals')
+    expect(host.textContent).toContain('PHOTOS')
+    expect(host.textContent).toContain('Gym Pass')
+    expect(host.textContent).toContain('History')
+    expect(host.textContent).toContain('WORKOUTS')
+    expect(host.textContent).toContain('LIFTED')
   })
 
-  it('renders body weight and activity heatmap cards', () => {
+  it('renders latest body weight pill and training summary', () => {
     act(() => {
       root.render(
         <MemoryRouter>
@@ -130,10 +130,9 @@ describe('Profile view', () => {
       )
     })
 
-    expect(host.textContent).toContain('Body weight')
-    expect(host.textContent).toContain('75.5')
-    expect(host.textContent).toContain('Activity')
-    expect(host.querySelector('.activity-heatmap')).toBeTruthy()
+    expect(host.textContent).toContain('75.5 kg')
+    expect(host.textContent).toContain('1h 45m')
+    expect(host.textContent).toContain('Best month')
   })
 
   it('handles empty workouts and guest user gracefully', () => {
@@ -153,7 +152,7 @@ describe('Profile view', () => {
 
     expect(host.querySelector('.profile-name').textContent).toBe('Athlete')
     expect(host.querySelector('.profile-avatar').textContent).toBe('🏋️')
-    expect(host.textContent).toContain('No entries yet')
+    expect(host.textContent).toContain('Log weight')
   })
 
   it('determines earliest date for memberSince even with unchronological workouts', () => {
@@ -242,13 +241,7 @@ describe('Profile view', () => {
     expect(host.textContent).toContain('500 kg')
   })
 
-  it('renders recent PRs showcase with formatted dates without throwing', () => {
-    useStore.getState().update(s => {
-      s.exWeights = {
-        '0025': { w: 120, d: '2026-10-15' },
-      }
-    })
-
+  it('opens Month Recap trigger cleanly without throwing', () => {
     act(() => {
       root.render(
         <MemoryRouter>
@@ -257,7 +250,7 @@ describe('Profile view', () => {
       )
     })
 
-    expect(host.textContent).toContain('Recent Personal Records (PRs)')
-    expect(host.textContent).toContain('120 kg')
+    expect(host.textContent).toContain('Month Recap')
+    expect(host.textContent).toContain('Edit profile')
   })
 })

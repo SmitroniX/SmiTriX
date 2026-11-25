@@ -25,7 +25,6 @@ import { progressionGuidance } from '../lib/progression-copy.js'
 import { glyphOf, DEFAULT_GLYPH } from '../lib/glyphs.js'
 import { isWarmupRow, isDropSet, isRestPauseSet, dropsOf, clustersOf, addDrop, addCluster, removeDropAt, removeClusterAt, setDropAt, setClusterAt, nextDropWeight, nextBurstReps } from '../lib/workout-model.js'
 import { canMoveActiveWorkoutUnit, moveActiveWorkoutUnit } from '../lib/active-workout-order.js'
-import { FormCheckBadge, openFormCheckPlayer, openFormCheckRecorder } from '../components/FormCheckVaultModal.jsx'
 import { GymTimerPanel, MiniBody, Rise, RollingText, RoutineFolder } from '../components/GymManeMotion.jsx'
 import { openStickerEditor } from '../components/StickerEditorModal.jsx'
 
@@ -111,7 +110,7 @@ function StartChooser() {
         <div className="gm-hero-card routine-card-featured" style={{ marginBottom: 14 }}>
           <div className="gm-hero-orb-1" aria-hidden="true" />
           <div className="gm-hero-orb-2" aria-hidden="true" />
-          <img src="./smitrix-ui/img/home_runner.webp" alt="" className="gm-hero-runner" aria-hidden="true" />
+          <img src="./smitrix-ui/img/runner.png" alt="" className="gm-hero-runner" aria-hidden="true" />
           <div style={{ position: 'relative', zIndex: 2 }}>
             <div className="row between" style={{ marginBottom: 10 }}>
               <span className="gm-micro" style={{ color: 'var(--acc)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
@@ -391,45 +390,10 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
   // sit as chips and an X on every single row.
   const openSetMenu = (s, i) => {
     const warm = isWarmupRow(s)
-    const hasVideo = !!(s.formCheckVideoId || s.videoKey)
-    const isWeightPR = !warm && mode === 'reps' && s.done && s.w > 0 && best > 0 && s.w > best
-    const est1RM = (!warm && mode === 'reps' && s.w > 0 && s.r > 0) ? estimate1RM(s.w, s.r) : 0
-    const is1RMPR = !warm && mode === 'reps' && s.done && est1RM > 0 && priorBest1RM > 0 && est1RM > priorBest1RM
-    const isSetPR = isWeightPR || is1RMPR
-
     menuSheet({
       title: (warm ? t('Warm-up') : t('Set {0}', entry.sets.slice(0, i + 1).filter(x => isWarmupRow(x) === warm).length)),
       subtitle: setLabel(entry.id, s, entry.target),
       items: [
-        hasVideo && {
-          icon: 'video',
-          label: t('Watch form check'),
-          onClick: () => openFormCheckPlayer({
-            videoId: s.formCheckVideoId || s.videoKey,
-            setInfo: { exerciseName: exerciseNameFor(ex), isPR: isSetPR, weight: s.w, reps: s.r, unit: S.unit },
-            onDetach: () => onField(i, 'formCheckVideoId', null)
-          })
-        },
-        hasVideo && {
-          icon: 'trash',
-          label: t('Remove form check video'),
-          danger: true,
-          onClick: () => onField(i, 'formCheckVideoId', null)
-        },
-        !hasVideo && {
-          icon: 'video',
-          label: t('Attach form check video'),
-          onClick: () => openFormCheckRecorder({
-            exerciseId: entry.id,
-            exerciseName: exerciseNameFor(ex),
-            setIndex: i,
-            isPR: isSetPR,
-            workoutId: S.active?.routineId || 'freestyle',
-            weight: s.w,
-            reps: s.r,
-            onAttached: videoId => onField(i, 'formCheckVideoId', videoId)
-          })
-        },
         !warm && mode === 'reps' && !isRestPauseSet(s) && { icon: 'arrowDown', label: t('Drop set'), sub: t('+ Drop'), onClick: () => addDropRow(i) },
         !warm && mode === 'reps' && !isDropSet(s) && { icon: 'bolt', label: t('Rest-pause burst'), sub: t('+ Burst'), onClick: () => addBurstRow(i) },
         { icon: 'trash', label: t('Remove this set'), danger: true, disabled: entry.sets.length <= 1, onClick: () => onRemoveSetAt(i) },
@@ -640,7 +604,7 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
               </button>
             </div>
           )}
-          {((s.formCheckVideoId || s.videoKey) || (s.done && (isPR || (prevSet && (wDelta > 0 || rDelta > 0))))) && (
+          {(s.done && (isPR || (prevSet && (wDelta > 0 || rDelta > 0)))) && (
             <div className="set-meta-row">
               {s.done && (isPR ? (
                 <span className="set-pr-tag animate-pop">
@@ -659,16 +623,6 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
                   <span>+{rDelta} {rDelta === 1 ? t('rep') : t('reps')} {t('vs last')}</span>
                 </span>
               ) : null)}
-              {(s.formCheckVideoId || s.videoKey) && (
-                <FormCheckBadge
-                  videoId={s.formCheckVideoId || s.videoKey}
-                  onClick={() => openFormCheckPlayer({
-                    videoId: s.formCheckVideoId || s.videoKey,
-                    setInfo: { exerciseName: exerciseNameFor(ex), isPR, weight: s.w, reps: s.r, unit: S.unit },
-                    onDetach: () => onField(i, 'formCheckVideoId', null)
-                  })}
-                />
-              )}
             </div>
           )}
           {barInfo && s.w > barInfo.bar && (
@@ -1559,49 +1513,6 @@ function ActiveWorkout() {
             {prCelebration.detail && (
               <div className="golden-pr-detail">{prCelebration.detail}</div>
             )}
-            <div style={{ marginTop: 6 }}>
-              <button
-                type="button"
-                className="btn sm"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  padding: '3px 8px',
-                  fontSize: 11,
-                  background: 'rgba(255,255,255,0.22)',
-                  border: '1px solid rgba(255,255,255,0.4)',
-                  color: '#fff',
-                  borderRadius: 6,
-                  cursor: 'pointer'
-                }}
-                onClick={() => {
-                  const targetEntryIdx = prCelebration.entryIdx ?? A.cur
-                  const curEntry = A.entries[targetEntryIdx]
-                  const targetSetIdx = prCelebration.setIdx !== undefined
-                    ? prCelebration.setIdx
-                    : (curEntry?.sets?.findLastIndex ? curEntry.sets.findLastIndex(st => st.done) : 0)
-                  const resolvedSetIdx = targetSetIdx >= 0 ? targetSetIdx : 0
-                  openFormCheckRecorder({
-                    exerciseId: prCelebration.exerciseId || curEntry?.id,
-                    exerciseName: prCelebration.exName,
-                    setIndex: resolvedSetIdx,
-                    isPR: true,
-                    workoutId: A.routineId || 'freestyle',
-                    weight: prCelebration.weight,
-                    reps: prCelebration.reps,
-                    onAttached: videoId => {
-                      if (curEntry) {
-                        setField(targetEntryIdx, resolvedSetIdx, 'formCheckVideoId', videoId)
-                      }
-                    }
-                  })
-                }}
-              >
-                <Icon name="video" size={12} />
-                <span>{t('Record PR Form Check')}</span>
-              </button>
-            </div>
           </div>
           <button
             type="button"

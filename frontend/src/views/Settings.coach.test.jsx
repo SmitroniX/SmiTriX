@@ -150,42 +150,14 @@ const mount = async component => {
   })
 }
 
-describe('Settings — AI Coach & API Keys section', () => {
-  it('renders AI Coach and Manage API Keys rows with active status', async () => {
+describe('Settings — AI Plan & Places section', () => {
+  it('renders AI Plan Builder and Training Places rows inside the Beta section', async () => {
     await mount(<Settings initialSection="beta" />)
 
     const text = host.textContent
-    expect(text).toContain('AI Coach & API Keys')
-    expect(text).toContain('Active · Anthropic API (claude-opus-5)')
-    expect(text).toContain('Manage API Keys')
-  })
-
-  it('shows missing key status when active BYOK provider has no key saved', async () => {
-    state.keys['coach.apiKey.anthropic'] = null
-    await mount(<Settings initialSection="beta" />)
-
-    const text = host.textContent
-    expect(text).toContain('Needs API key · Anthropic API')
-  })
-
-  it('shows active status for OpenAI-compatible even without key', async () => {
-    state.coachLocal = { mode: 'byok', provider: 'compatible', model: 'llama3:latest', baseUrl: 'http://localhost:11434' }
-    await mount(<Settings initialSection="beta" />)
-
-    const text = host.textContent
-    expect(text).toContain('Active · OpenAI-compatible endpoint (llama3:latest)')
-  })
-
-  it('opens ApiKeyManagerSheet when Manage API Keys row is clicked', async () => {
-    await mount(<Settings initialSection="beta" />)
-
-    const manageKeysRow = [...host.querySelectorAll('button.lrow')].find(el => el.textContent.includes('Manage API Keys'))
-    expect(manageKeysRow).toBeTruthy()
-    await act(async () => {
-      manageKeysRow.click()
-      await new Promise(r => setTimeout(r, 30))
-    })
-    expect(state.ui.openSheet).toHaveBeenCalled()
+    expect(text).toContain('AI Plan & Places')
+    expect(text).toContain('AI Plan Builder')
+    expect(text).toContain('Training Places')
   })
 })
 

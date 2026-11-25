@@ -41,9 +41,9 @@ describe('demo seed — effort', () => {
     const rated = {}
     eachSet((s, w, e) => { rated[e.id] = (rated[e.id] || 0) + (rirOf(s) != null ? 1 : 0) })
     const ids = Object.keys(rated)
-    expect(ids.filter(id => rated[id] === 0)).toEqual(['0605'])
+    expect(ids.filter(id => rated[id] === 0)).toEqual(['82LxxkW'])
     // …while the rest carry enough rated sessions for a curve of their own (needs 3).
-    ids.filter(id => id !== '0605').forEach(id => {
+    ids.filter(id => id !== '82LxxkW').forEach(id => {
       const sessions = S.workouts.filter(w => {
         const en = w.entries.find(e => e.id === id)
         return en && avgRir(en.sets.filter(s => s.done)) != null

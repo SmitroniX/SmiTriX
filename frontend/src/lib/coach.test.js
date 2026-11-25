@@ -22,7 +22,7 @@ const state = (over = {}) => ({
       { id: '0007', sets: 3, sec: 45, mode: 'time' },
       { id: '0009', sets: 3, reps: 12, mode: 'reps' }
     ]
-  }, { id: 'r2', name: 'Full body B', ex: [{ id: '0002', sets: 4, reps: 6, mode: 'reps' }] }],
+  }, { id: 'r2', name: 'Full body B', ex: [{ id: '0025', sets: 4, reps: 6, mode: 'reps' }] }],
   week: { 1: 'r1', 3: 'r2', 5: 'r1' },
   coach: { consent: { agreedAt: '2026-07-01T00:00:00Z', version: CONSENT_VERSION }, log: [], snapshots: [], cadence: 'off' },
   ...over

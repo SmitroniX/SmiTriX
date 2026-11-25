@@ -8,7 +8,7 @@
 //  2. A clean, printable page (Save as PDF) where a single exercise never splits across
 //     a page break — each exercise, and each routine that fits, stays in one place.
 
-import { EXIDX, isBodyweightEq } from './exercises.js'
+import { EXIDX, isBodyweightEq, resolveLegacyEx } from './exercises.js'
 import { modeOf, fmtSec, isBw, isPerSide, sideReps, MAX_PLANNED_WARMUPS } from './history.js'
 import { uid, todayISO, DAYN, weekOrder, weekStartOf, fmtNum, exCount } from './format.js'
 import { t, exerciseNameFor } from './i18n-core.js'
@@ -135,7 +135,7 @@ export function parsePlan(raw) {
   const routines = data.routines.filter(r => r && Array.isArray(r.ex)).map(r => ({
     ...r,
     ex: r.ex.filter(e => {
-      const ok = !!e && (known.has(e.id) || !!EXIDX[e.id])
+      const ok = !!e && (known.has(e.id) || !!EXIDX[e.id] || !!resolveLegacyEx(e.id))
       if (!ok) dropped++
       return ok
     }).map(e => {
@@ -243,7 +243,7 @@ function units(ex) {
 function routineHTML(r, unit) {
   const rows = units(r.ex).map(u => {
     const items = u.map(e => {
-      const ex = EXIDX[e.id]
+      const ex = EXIDX[e.id] || resolveLegacyEx(e.id)
       const name = ex ? exerciseNameFor(ex) : t('Unknown exercise')
       const part = ex && ex.bp && ex.bp !== 'cardio' ? `<span class="part">${esc(ex.bp)}</span>` : ''
       const note = e.note ? `<div class="ex-note">${esc(e.note)}</div>` : ''
@@ -455,7 +455,7 @@ export function routineShareText(routine, S = {}) {
     `----------------------------------------`
   ]
   ;(routine.ex || []).forEach((e, idx) => {
-    const ex = EXIDX[e.id]
+    const ex = EXIDX[e.id] || resolveLegacyEx(e.id)
     const name = ex ? exerciseNameFor(ex) : (e.n || e.id)
     const sets = e.sets || 3
     const reps = e.reps || 10

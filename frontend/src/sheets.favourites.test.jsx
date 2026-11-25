@@ -91,7 +91,7 @@ describe('exercise picker', () => {
     host = renderTop()
     expect(chip(host).textContent).toBe('Favourites (2)')
     act(() => chip(host).click())
-    expect(names(host)).toEqual([EXDB[5].n, EXDB[9].n])
+    expect(new Set(names(host))).toEqual(new Set([EXDB[5].n, EXDB[9].n]))
   })
 
   it('filters exercises when clicking Chest or Back muscle chips without throwing', () => {

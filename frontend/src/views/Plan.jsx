@@ -9,9 +9,6 @@ import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
 import { tappable } from '../lib/use-sheet-keyboard.js'
 import { glyphOf, DEFAULT_GLYPH } from '../lib/glyphs.js'
-import { DEMO } from '../lib/demo.js'
-import { MOBILE } from '../lib/mobile.js'
-import { coachAvailable } from '../lib/coach.js'
 import { openTutorial } from '../components/TutorialDialog.jsx'
 import { copyRoutine } from '../lib/routines.js'
 import { exOr } from '../lib/exercises.js'
@@ -39,12 +36,8 @@ export default function Plan() {
   const nav = useNavigate()
   const S = useStore(s => s.S)
   const update = useStore(s => s.update)
-  const config = useStore(s => s.config)
-  const coachMode = useStore(s => s.coachLocal?.mode)
-  const user = useStore(s => s.user)
   const [tab, setTab] = useState(initialTabFromUrl)
 
-  const showCoach = coachAvailable(config, user, { demo: DEMO, mobile: MOBILE, coachMode })
   const scheduleMode = S.scheduleMode === 'rotation' ? 'rotation' : 'week'
 
   const addRoutine = () => {
@@ -178,17 +171,6 @@ export default function Plan() {
           </button>
         ))}
       </div>
-
-      {showCoach && (
-        <button className="coach-cta" onClick={() => nav('/coach')}>
-          <span className="coach-cta-av"><Icon name="sparkles" /></span>
-          <span className="coach-cta-t">
-            <b>{t('Coach')}</b>
-            <span>{t('Plan design and reviews, from your own training')}</span>
-          </span>
-          <Icon name="chevronRight" className="coach-cta-chev" />
-        </button>
-      )}
 
       {tab === 'circuits' ? (
         <Rise index={0}>
@@ -342,7 +324,7 @@ export default function Plan() {
                 <div className="muted small" style={{ marginBottom: 16 }}>{t('Create one, load a starter split, or paste an AI plan.')}</div>
                 <Button variant="primary" icon="sparkles" onClick={starterPlanSheet}>{t('Load starter plan')}</Button>
                 <div style={{ height: 8 }} />
-                <Button variant="tinted" icon="sparkles" onClick={openSplitChooser}>{t('Explore Splits & Legends')}</Button>
+                <Button variant="tinted" icon="sparkles" onClick={openSplitChooser}>{t('Program Templates')}</Button>
                 <div style={{ height: 8 }} />
                 <Button variant="ghost" icon="download" onClick={() => openImportRoutine()}>{t('Import shared routine')}</Button>
               </div>

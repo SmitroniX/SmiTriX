@@ -2263,6 +2263,417 @@ body.gm-has-parked #app {
   transform: scale(0.97);
 }
 
+/* ---------------------------------- GymMane Anatomical BodyMap & Heat Ramps */
+.gm-bodymap .bm-v path {
+  stroke: none;
+  stroke-width: 0;
+}
+
+.gm-bodymap .bm-sil {
+  fill: var(--surface-2);
+}
+
+.gm-bodymap .bm-sil-lite {
+  fill: color-mix(in srgb, var(--surface-2) 86%, var(--label-3));
+}
+
+.gm-bodymap .bm-m {
+  fill: color-mix(in srgb, var(--surface-2) 68%, var(--label-2));
+  transition: fill 220ms var(--ease);
+}
+
+.gm-bodymap .bm-m.sel,
+.gm-bodymap.tappable .bm-m:focus-visible {
+  outline: none;
+  stroke: var(--label);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  filter: none;
+}
+
+/* Heat Tone Ramps (Dark Default — exact GymMane kHeatRampsDark) */
+:root, [data-heat-tone="ember"] {
+  --heat-1: #7A4028;
+  --heat-2: #B4632C;
+  --heat-3: #E38B3A;
+  --heat-4: #FFC168;
+}
+[data-heat-tone="green"] {
+  --heat-1: #1B4B2C;
+  --heat-2: #2C7A44;
+  --heat-3: #3FA95C;
+  --heat-4: #63D67F;
+}
+[data-heat-tone="blue"] {
+  --heat-1: #1E3A5C;
+  --heat-2: #2C5E96;
+  --heat-3: #3D86C9;
+  --heat-4: #6EB4F0;
+}
+[data-heat-tone="mono"] {
+  --heat-1: #3A3A3A;
+  --heat-2: #5E5E5E;
+  --heat-3: #8C8C8C;
+  --heat-4: #D8D8D8;
+}
+
+/* Heat Tone Ramps (Light Theme — exact GymMane kHeatRampsLight) */
+[data-theme="light"], [data-theme="light"] [data-heat-tone="ember"] {
+  --heat-1: #D9B48A;
+  --heat-2: #C07A3C;
+  --heat-3: #9E4A24;
+  --heat-4: #6E2A16;
+}
+[data-theme="light"] [data-heat-tone="green"], [data-theme="light"][data-heat-tone="green"] {
+  --heat-1: #BBD9BE;
+  --heat-2: #7FB88A;
+  --heat-3: #488C58;
+  --heat-4: #255E32;
+}
+[data-theme="light"] [data-heat-tone="blue"], [data-theme="light"][data-heat-tone="blue"] {
+  --heat-1: #BACFE8;
+  --heat-2: #7EA5D2;
+  --heat-3: #3F74AE;
+  --heat-4: #1F4876;
+}
+[data-theme="light"] [data-heat-tone="mono"], [data-theme="light"][data-heat-tone="mono"] {
+  --heat-1: #CFC8BC;
+  --heat-2: #9C958A;
+  --heat-3: #6B655C;
+  --heat-4: #3A352F;
+}
+
+.gm-bodymap:not(.hm-fatigue):not(.hm-strength) .bm-m.l1 { fill: var(--heat-1); }
+.gm-bodymap:not(.hm-fatigue):not(.hm-strength) .bm-m.l2 { fill: var(--heat-2); }
+.gm-bodymap:not(.hm-fatigue):not(.hm-strength) .bm-m.l3 { fill: var(--heat-3); }
+.gm-bodymap:not(.hm-fatigue):not(.hm-strength) .bm-m.l4 { fill: var(--heat-4); }
+
+.hm-c.l1 { background: var(--heat-1); }
+.hm-c.l2 { background: var(--heat-2); }
+.hm-c.l3 { background: var(--heat-3); }
+.hm-c.l4 { background: var(--heat-4); }
+
+.gm-sport-art {
+  font-size: 46px;
+  color: var(--acc);
+}
+
+/* ------------------------------------------- GymMane History Screen ------ */
+.gm-month-arrow {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--label);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
+.gm-month-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.gm-month-stat-val {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--label);
+}
+
+.gm-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.gm-cal-hdr {
+  margin-bottom: 6px;
+}
+
+.gm-cal-dow {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--label-3);
+}
+
+.gm-cal-cell {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+}
+
+.gm-cal-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.gm-cal-dot.today:not(.on) {
+  border: 1.5px solid var(--ember);
+  color: var(--label);
+  font-weight: 800;
+}
+
+.gm-cal-dot.on {
+  background: var(--acc);
+  color: var(--on-acc);
+  font-weight: 800;
+}
+
+.gm-cal-dot.future {
+  color: color-mix(in srgb, var(--label-3) 50%, transparent);
+}
+
+.gm-history-card {
+  width: 100%;
+  text-align: left;
+  padding: 14px 16px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--sep) 35%, transparent);
+  transition: transform 160ms var(--ease);
+}
+
+.gm-history-card:active {
+  transform: scale(0.985);
+}
+
+.gm-history-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.gm-history-date {
+  width: 46px;
+  padding: 6px 0;
+  border-radius: 12px;
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: none;
+}
+
+.gm-history-dow {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--label-3);
+}
+
+.gm-history-day {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--label);
+  line-height: 1.15;
+}
+
+.gm-history-meta-col {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.gm-history-title {
+  font-size: 15.5px;
+  font-weight: 800;
+  color: var(--label);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-history-sub {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--label-3);
+  margin-top: 3px;
+}
+
+.gm-history-pr {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--amber) 16%, transparent);
+  color: var(--amber);
+  font-size: 11.5px;
+  font-weight: 800;
+  flex: none;
+}
+
+.gm-history-div {
+  height: 1px;
+  background: color-mix(in srgb, var(--sep) 45%, transparent);
+  margin: 12px 0 10px;
+}
+
+.gm-history-exlist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gm-history-exrow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.gm-history-exname {
+  color: var(--label-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-history-exname b {
+  color: var(--label);
+  font-weight: 800;
+  margin-right: 4px;
+}
+
+.gm-history-extop {
+  color: var(--label-3);
+  font-size: 12px;
+  font-weight: 700;
+  flex: none;
+}
+
+.gm-history-more {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--label-3);
+  margin-top: 2px;
+}
+
+/* ------------------------------------------- GymMane RoutineEdit --------- */
+.gm-swatch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.gm-swatch-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  padding: 0;
+  border: 2px solid transparent;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 180ms var(--ease), border-color 180ms var(--ease), padding 180ms var(--ease);
+}
+
+.gm-swatch-btn.on {
+  padding: 3px;
+  border-color: var(--label);
+}
+
+.gm-swatch-dot {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: block;
+}
+
+.gm-day-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.gm-day-pill {
+  height: 36px;
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--label-2);
+  font-size: 12px;
+  font-weight: 800;
+  border: 1px solid color-mix(in srgb, var(--sep) 45%, transparent);
+  transition: background 180ms, color 180ms, transform 140ms;
+}
+
+.gm-day-pill.on {
+  background: var(--ember);
+  color: var(--on-ember);
+  border-color: transparent;
+}
+
+.gm-day-pill:active {
+  transform: scale(0.92);
+}
+
+.gm-routine-floatbar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(92px + var(--sab));
+  width: min(calc(100vw - 32px), 440px);
+  display: flex;
+  gap: 10px;
+  z-index: 44;
+  padding: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  border: 1px solid color-mix(in srgb, var(--sep) 45%, transparent);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+/* ------------------------------------------- GymMane Progress Sparkline -- */
+.gm-tone-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.gm-tone-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1.5px solid transparent;
+  cursor: pointer;
+}
+
+.gm-tone-btn.on {
+  border-color: var(--label);
+}
+
+.gm-tone-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
 /* ------------------------------------------ Reduced Motion --------------- */
 @media (prefers-reduced-motion: reduce) {
   .gm-rise, .gm-roll-char, .gm-rest-glow, .gm-countdown-num,

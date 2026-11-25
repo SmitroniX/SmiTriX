@@ -17,7 +17,6 @@ import { openStartSheet } from '../components/StartSheet.jsx'
 import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
 import { tappable } from '../lib/use-sheet-keyboard.js'
-import ActivityHeatmap from '../components/ActivityHeatmap.jsx'
 
 function formatElapsed(start) {
   if (!start) return '0:00'
@@ -567,19 +566,6 @@ export default function Home() {
             <Button variant="primary" icon="sparkles" onClick={starterPlanSheet}>{t('Load starter plan')}</Button>
             <div style={{ height: 8 }} />
             <Button onClick={() => nav('/plan')}>{t('Build my own plan')}</Button>
-          </div>
-        </Rise>
-      )}
-
-      {/* Consistency Activity Heatmap */}
-      {S.workouts.length > 0 && (
-        <Rise index={7}>
-          <div className="card tappable" style={{ cursor: 'pointer', marginTop: 6 }} {...tappable(() => calendarSheet())}>
-            <div className="row between" style={{ marginBottom: 8 }}>
-              <span className="gm-micro">{t('ACTIVITY')}</span>
-              <span className="dim small" style={{ fontWeight: 700 }}>{t('{0} total', S.workouts.length)}</span>
-            </div>
-            <ActivityHeatmap workouts={S.workouts} weekStart={ws} />
           </div>
         </Rise>
       )}

@@ -23,12 +23,16 @@ describe('GymMane exercise vector art manifest & matcher', () => {
     expect(resolveExerciseArtSlug({ id: '6', n: 'front plank', bp: 'waist', eq: 'body weight' })).toBe('plank')
   })
 
-  it('resolves a valid vector art slug for every built-in EXDB exercise', () => {
+  it('resolves a valid vector art slug or sport icon for every built-in EXDB exercise', () => {
     const slugSet = new Set(ART_SLUGS)
     for (const ex of EXDB) {
       const slug = resolveExerciseArtSlug(ex)
-      expect(slug).toBeTruthy()
-      expect(slugSet.has(slug)).toBe(true)
+      if (ex.sportIcon && !ex.art) {
+        expect(ex.sportIcon).toBeTruthy()
+      } else {
+        expect(slug, ex.id).toBeTruthy()
+        expect(slugSet.has(slug), `${ex.id}:${slug}`).toBe(true)
+      }
     }
   })
 })

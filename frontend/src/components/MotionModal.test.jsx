@@ -7,19 +7,18 @@ import MotionModal from './MotionModal.jsx'
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
 const EX = {
-  id: 'bench',
-  n: 'barbell bench press',
+  id: 'EIeI8Vf',
+  n: 'Barbell Bench Press',
   bp: 'chest',
   tg: 'pectorals',
   eq: 'barbell',
-  gif: 'bench.gif',
-  img: 'bench.jpg',
+  art: 'bench-press',
   st: [
     'Lie flat on your back on the bench.',
     'Grip the barbell slightly wider than shoulder width.',
     'Lower the bar slowly to your chest.',
-    'Press upward powerfully to return to starting position.'
-  ]
+    'Press upward powerfully to return to starting position.',
+  ],
 }
 
 let host, root
@@ -34,17 +33,16 @@ afterEach(() => {
 })
 
 describe('MotionModal', () => {
-  it('renders exercise name, player, steps, and tags', () => {
+  it('renders exercise name, vector player stage, steps, and tags', () => {
     const onClose = vi.fn()
     act(() => {
       root.render(<MotionModal ex={EX} onClose={onClose} />)
     })
 
-    expect(host.querySelector('h3').textContent).toContain('barbell bench press')
+    expect(host.querySelector('h3').textContent).toContain('Barbell Bench Press')
     expect(host.querySelectorAll('.motion-step-item').length).toBe(4)
-    expect(host.querySelector('.motion-player-media')).toBeTruthy()
+    expect(host.querySelector('.motion-player-stage.gm-vector-stage')).toBeTruthy()
 
-    // Test close button
     act(() => {
       host.querySelector('.motion-modal-close').click()
     })
@@ -56,7 +54,7 @@ describe('MotionModal', () => {
       root.render(<MotionModal ex={EX} onClose={() => {}} />)
     })
 
-    const playBtn = host.querySelector('.motion-player-playbtn')
+    const playBtn = host.querySelector('.motion-player-playbtn[aria-label]')
     expect(playBtn).toBeTruthy()
     expect(playBtn.textContent).toContain('Pause')
 
@@ -74,19 +72,15 @@ describe('MotionModal', () => {
     const modeBtns = host.querySelectorAll('.motion-mode-btn')
     expect(modeBtns.length).toBe(2)
 
-    // Setup mode button
     act(() => {
       modeBtns[1].click()
     })
     expect(host.querySelector('.motion-live-pill').textContent).toContain('Setup Frame')
-    expect(host.querySelector('.motion-player-media').src).toContain('bench.jpg')
 
-    // Back to loop mode
     act(() => {
       modeBtns[0].click()
     })
     expect(host.querySelector('.motion-live-pill').textContent).toContain('Motion HD')
-    expect(host.querySelector('.motion-player-media').src).toContain('bench.gif')
   })
 
   it('allows clicking different steps to set them active', () => {

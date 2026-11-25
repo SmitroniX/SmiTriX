@@ -622,48 +622,16 @@ export default function Settings({ initialSection = null }) {
       return (
         <>
           <Section
-            title={t('AI Coach & API Keys')}
-            footer={
-              coachLocal?.mode === 'byok'
-                ? t('Using your personal API key. Direct HTTPS requests never leave this device unencrypted.')
-                : coachLocal?.mode === 'server'
-                  ? t('Using instance-wide AI Coach configured on your SmiTriX server.')
-                  : t('AI Coach designs personalized routines and reviews progress. Keys are stored safely on this device.')
-            }
+            title={t('AI Plan & Places')}
+            footer={t('Paste any AI-generated workout plan to import routines directly, or manage equipment profiles for different gyms.')}
           >
             <Row
               icon="sparkles"
               iconTint="var(--acc)"
-              title={t('AI Coach')}
+              title={t('AI Plan Builder')}
               accessory="chevron"
-              subtitle={
-                coachLocal?.mode === 'server'
-                  ? t('Active · Runs on your SmiTriX server')
-                  : coachLocal?.mode === 'byok'
-                    ? (hasCoachKey || HTTP_PROVIDERS[coachLocal?.provider]?.keyOptional
-                        ? t('Active · {0}{1}', HTTP_PROVIDERS[coachLocal?.provider]?.label || coachLocal?.provider || 'BYOK', coachLocal?.model ? ` (${coachLocal.model})` : '')
-                        : t('Needs API key · {0}', HTTP_PROVIDERS[coachLocal?.provider]?.label || coachLocal?.provider || 'BYOK'))
-                    : (user && config?.coach?.enabled)
-                      ? t('Available via server · Tap to configure')
-                      : t('Off — configure provider & API key')
-              }
-              onClick={() => nav('/coach/setup')}
-            />
-            <Row
-              icon="key"
-              iconTint="var(--teal)"
-              title={t('Manage API Keys')}
-              accessory="chevron"
-              subtitle={
-                (savedProviderCount > 0 && hasHevyKey)
-                  ? t('{0} AI & Hevy keys saved', savedProviderCount)
-                  : savedProviderCount > 0
-                    ? t('{0} AI Coach {1} saved', savedProviderCount, savedProviderCount === 1 ? 'key' : 'keys')
-                    : hasHevyKey
-                      ? t('Hevy Pro key saved')
-                      : t('Configure keys for AI Coach and Hevy')
-              }
-              onClick={() => useUI.getState().openSheet(close => <ApiKeyManagerSheet close={close} onUpdate={refreshApiKeys} />)}
+              subtitle={t('Build or paste a prompt-generated weekly split')}
+              onClick={() => nav('/ai-plan')}
             />
             <Row
               icon="mapPin"
@@ -1212,8 +1180,7 @@ function AboutSmiTriXSection() {
       <div className="dim small" style={{ textAlign: 'center', lineHeight: 1.6, paddingBottom: 12 }}>
         SmiTriX v{__APP_VERSION__} · © 2026 Asmit Jogdand (SmitroniX)<br />
         {t('Free & open source (GNU AGPL v3.0)')} · Based on GymMane by InlitX (GPL v3.0)<br />
-        Nunito font (SIL OFL 1.1) · exercise data: hasaneyldrm/exercises-dataset (MIT)<br />
-        exercise images & animations © <a href="https://gymvisual.com/" target="_blank" rel="noopener">Gym visual</a>
+        Nunito font (SIL OFL 1.1) · Curated exercise catalog, anatomical body SVGs & vector animations from GymMane (GPL v3.0)
       </div>
     </div>
   )

@@ -89,34 +89,39 @@ function lifecycleWorkouts(now = BASE_NOW) {
   const balanceEdge = now - (30 * DAY - 30000)
   const strengthEdge = now - (14 * DAY - 30000)
   return [
-    workout('fatigue-edge', fatigueEdge, [entry('1254', Array.from({ length: 6 }, () => set(true, { rir: 0 })))]),
-    workout('balance-edge', balanceEdge, [entry('1254', [set(true, { rir: 2 })])]),
-    workout('strength-edge', strengthEdge, [entry('1001', [set(true, { rir: 2 })])]),
-    workout('abs-completed', now - 20 * DAY, [entry('1002', [set(true, { rir: 2 })])]),
-    workout('abs-undone', now - DAY, [entry('1002', [set(false, { rir: 0 })])]),
+    workout('fatigue-edge', fatigueEdge, [entry('yz9nUhF', Array.from({ length: 6 }, () => set(true, { rir: 0 })))]),
+    workout('balance-edge', balanceEdge, [entry('yz9nUhF', [set(true, { rir: 2 })])]),
+    workout('strength-edge', strengthEdge, [entry('leg-extension', [set(true, { rir: 2 })])]),
+    workout('abs-completed', now - 20 * DAY, [entry('TFqbd8t', [set(true, { rir: 2 })])]),
+    workout('abs-undone', now - DAY, [entry('TFqbd8t', [set(false, { rir: 0 })])]),
   ]
 }
 
 function allFatiguedWorkout(now = BASE_NOW) {
   const ids = [
-    '1018', '1012', '1167', '1013', '3011', '1413', '1399', '1016', '1005',
-    '1010', '1003', '1001', '1511', '1494', '1002', '1000', '1396',
+    'yz9nUhF', 'iZop9xO', 'myfUsKf', 'PbzNu7c', 'NJzBsGJ', '25GPyDY',
+    'ila4NZS', 'leg-extension', 'wrist-prep', 'ykUOVze', 'VBAWRPG', 'kettlebell-side-bend',
   ]
+  const extraMuscles = ['serratus', 'adductors', 'hip-flexors', 'tibialis'].map(slug => ({
+    id: `custom-${slug}`,
+    muscleGroups: [slug],
+    sets: Array.from({ length: 12 }, () => set(true)),
+  }))
   return workout(
     'all-fatigued',
     now,
-    ids.map(id => entry(id, Array.from({ length: 12 }, () => set(true)))),
+    [...ids.map(id => entry(id, Array.from({ length: 12 }, () => set(true)))), ...extraMuscles],
   )
 }
 
 function allSubfullWorkout(now = BASE_NOW) {
-  return workout('all-subfull', now - 15 * DAY, [entry('1254', [set(true)])])
+  return workout('all-subfull', now - 15 * DAY, [entry('yz9nUhF', [set(true)])])
 }
 
 function exercisePickerWorkouts(now = BASE_NOW) {
   return [
-    workout('bench', now, [entry('0025', [set(true, { w: 80 })])]),
-    workout('squat', now - DAY, [entry('0043', [set(true, { w: 60 })])]),
+    workout('bench', now, [entry('EIeI8Vf', [set(true, { w: 80 })])]),
+    workout('squat', now - DAY, [entry('qXTaZnJ', [set(true, { w: 60 })])]),
     workout('legacy', now - 2 * DAY, [
       {
         id: LEGACY_SNAPSHOT_ID,
@@ -272,7 +277,7 @@ describe('Stats muscle recovery view runtime', () => {
 
   it('derives a pound-profile bodyweight in kg and passes it into the rendered Fatigue map', async () => {
     const bodyweightWorkout = workout('bodyweight', BASE_NOW, [
-      entry('0001', [{ done: true, w: 0, r: 10 }]),
+      entry('TFqbd8t', [{ done: true, w: 0, r: 10 }]),
     ])
     resetFixture([bodyweightWorkout])
     mocks.S.unit = 'lb'
@@ -312,7 +317,7 @@ describe('Stats exercise progress picker', () => {
     await mountStats()
     expect(EXIDX[LEGACY_SNAPSHOT_ID]).toBeUndefined()
 
-    const card = [...container.querySelectorAll('.card')].find(el => el.querySelector('h2')?.textContent.trim() === 'Exercise progress')
+    const card = [...container.querySelectorAll('.card')].find(el => el.textContent.includes('STRENGTH TRENDS'))
     const selector = [...card.querySelectorAll('button')].find(button => button.querySelector('.lrow-t')?.textContent.trim() === 'Exercise')
     await click(selector)
 
@@ -369,13 +374,13 @@ describe('Stats exercise progress picker', () => {
     await click(modal.querySelector('button[aria-label="Clear"]'))
     await setSearch('squat full bárbell')
 
-    expect(modal.textContent).toContain('barbell full squat')
-    expect(modal.textContent).not.toContain('barbell bench press')
+    expect(modal.textContent).toContain('Barbell Full Squat')
+    expect(modal.textContent).not.toContain('Barbell Bench Press')
 
-    const matching = [...modal.querySelectorAll('button')].find(button => button.textContent.includes('barbell full squat'))
+    const matching = [...modal.querySelectorAll('button')].find(button => button.textContent.includes('Barbell Full Squat'))
     await click(matching)
 
     expect(useUI.getState().sheets).toHaveLength(0)
-    expect(card.querySelector('.lrow-v').textContent).toContain('barbell full squat')
+    expect(card.querySelector('.lrow-v').textContent).toContain('Barbell Full Squat')
   })
 })

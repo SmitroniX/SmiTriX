@@ -252,6 +252,10 @@ const slugMemo = new Map()
 
 export function resolveExerciseArtSlug(ex) {
   if (!ex || typeof ex !== 'object') return null
+  // Fast O(1) exact match from GymMane catalog's curated `art` slug
+  if (ex.art && ART_SET.has(ex.art)) return ex.art
+  // Pure sport exercises without vector animation render their crisp sport icon instead
+  if (ex.sportIcon && !ex.art) return null
   const cacheKey = `${ex.id || ''}|${ex.n || ''}|${ex.eq || ''}|${ex.bp || ''}|${ex.tg || ''}`
   if (slugMemo.has(cacheKey)) return slugMemo.get(cacheKey)
 

@@ -50,41 +50,37 @@ describe('multi-muscle exercise metadata', () => {
 })
 
 describe('catalogue secondary muscles', () => {
-  it('maps a bench press to chest, triceps and deltoids', () => {
-    expect(musclesOf(EXIDX['0025'])).toMatchObject({
+  it('maps a bench press to chest and triceps', () => {
+    expect(musclesOf(EXIDX.EIeI8Vf)).toMatchObject({
       chest: 1,
       triceps: 0.4,
-      deltoids: 0.4,
     })
   })
 
-  it('maps a squat to glutes, quads and hamstrings', () => {
-    expect(musclesOf(EXIDX['0043'])).toMatchObject({
-      gluteal: 1,
+  it('maps a squat to quads, glutes and hamstrings', () => {
+    expect(musclesOf(EXIDX.qXTaZnJ)).toMatchObject({
       quadriceps: 1,
+      gluteal: 0.4,
       hamstring: 0.4,
     })
   })
 
-  it('maps common row variations to the upper back, biceps and rear deltoids', () => {
-    for (const id of ['0027', '0293', '0499', '0861']) {
+  it('maps common row variations to the upper back and biceps', () => {
+    for (const id of ['eZyBC3j', 'BJ0Hz5L', 'fUBheHs']) {
       expect(musclesOf(EXIDX[id])).toMatchObject({
         'upper-back': 1,
         biceps: 0.4,
-        deltoids: 0.4,
       })
     }
   })
 })
 
 
-describe('catalogue secondary additions', () => {
-  it('enriches the muscle map without mutating the raw dataset', () => {
-    const raw = EXDB.find(e => e.id === '0027')
-    expect(raw.sm).not.toContain('rear deltoids')
-    expect(smOf(raw)).toContain('rear deltoids')
-    // the alias collapses onto the deltoids slug in the canonical muscle map
-    expect(musclesOf(raw)).toHaveProperty('deltoids')
+describe('catalogue secondary list', () => {
+  it('returns secondary muscles without mutating the raw dataset', () => {
+    const raw = EXDB.find(e => e.id === 'eZyBC3j')
+    expect(smOf(raw)).toContain('biceps')
+    expect(musclesOf(raw)).toHaveProperty('upper-back', 1)
   })
 })
 
@@ -204,9 +200,9 @@ describe('muscle balance windows and ranking', () => {
   })
 
   it('keeps catalogue precedence and deleted-custom snapshot weights', () => {
-    const known = { id: '0025', muscleGroups: ['quadriceps'], sets: [{ done: true }] }
+    const known = { id: 'EIeI8Vf', muscleGroups: ['quadriceps'], sets: [{ done: true }] }
     const deleted = { id: 'deleted', muscleSnapshot: { muscleWeights: { chest: 1 } }, sets: [{ done: true }] }
-    expect(loadOfWorkouts([{ entries: [known] }])).toEqual({ chest: 1, triceps: 0.4, deltoids: 0.4, biceps: 0.4 })
+    expect(loadOfWorkouts([{ entries: [known] }])).toEqual({ chest: 1, triceps: 0.4 })
     expect(loadOfWorkouts([{ entries: [deleted] }])).toEqual({ chest: 1 })
   })
 })

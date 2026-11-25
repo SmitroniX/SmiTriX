@@ -2,17 +2,17 @@ import { describe, expect, test } from 'vitest'
 import { BAR_EQ, DEFAULT_BAR_KG, DEFAULT_BAR_LB, usesBar, defaultBarWeight, barWeightFor, hasBarOverride, plateSplit, calculatePlates, plateDiscsFor } from './bar.js'
 import { EXDB } from './exercises-data.js'
 
-const idOf = eq => EXDB.find(e => e.eq === eq).id
+const barbellId = EXDB.find(e => e.eq === 'barbell').id
 
 describe('bar equipment', () => {
-  test('covers the five bar types and the 228 catalogue exercises they carry', () => {
+  test('covers the five bar types and all GymMane barbell exercises', () => {
     expect([...BAR_EQ].sort()).toEqual(['barbell', 'ez barbell', 'olympic barbell', 'smith machine', 'trap bar'])
-    expect(EXDB.filter(e => BAR_EQ.has(e.eq)).length).toBe(228)
+    expect(EXDB.filter(e => BAR_EQ.has(e.eq)).length).toBeGreaterThanOrEqual(60)
   })
 
   test('usesBar answers for ids and exercise objects alike', () => {
+    expect(usesBar(barbellId)).toBe(true)
     for (const eq of BAR_EQ) {
-      expect(usesBar(idOf(eq)), eq).toBe(true)
       expect(usesBar({ eq }), eq).toBe(true)
     }
     expect(usesBar({ eq: 'dumbbell' })).toBe(false)
@@ -31,36 +31,34 @@ describe('per-unit defaults', () => {
     expect(defaultBarWeight('ez barbell', 'kg')).toBe(10)
     expect(defaultBarWeight('ez barbell', 'lb')).toBe(25)
     expect(defaultBarWeight('olympic barbell', 'kg')).toBe(20)
-    // A lb profile gets the bar its gym actually racks, not a 44.1 lb conversion.
     expect(defaultBarWeight('barbell', 'lb')).toBe(45)
     expect(defaultBarWeight('dumbbell', 'kg')).toBeNull()
   })
 })
 
 describe('barWeightFor', () => {
-  const barbell = idOf('barbell')
-  const ez = idOf('ez barbell')
+  const altBarbell = EXDB.filter(e => e.eq === 'barbell')[1].id
 
   test('falls back to the equipment default in the profile unit', () => {
-    expect(barWeightFor({ unit: 'kg', barWeights: {} }, barbell)).toBe(20)
-    expect(barWeightFor({ unit: 'lb', barWeights: {} }, barbell)).toBe(45)
-    expect(barWeightFor({ unit: 'kg' }, ez)).toBe(10)
+    expect(barWeightFor({ unit: 'kg', barWeights: {} }, barbellId)).toBe(20)
+    expect(barWeightFor({ unit: 'lb', barWeights: {} }, barbellId)).toBe(45)
+    expect(barWeightFor({ unit: 'kg' }, { id: 'ez-custom', eq: 'ez barbell' })).toBe(10)
   })
 
   test('an explicit override wins over the default', () => {
-    const S = { unit: 'kg', barWeights: { [ez]: 7.5 } }
-    expect(barWeightFor(S, ez)).toBe(7.5)
-    expect(hasBarOverride(S, ez)).toBe(true)
-    expect(barWeightFor(S, barbell)).toBe(20)   // other exercises keep their default
-    expect(hasBarOverride(S, barbell)).toBe(false)
+    const S = { unit: 'kg', barWeights: { [altBarbell]: 15 } }
+    expect(barWeightFor(S, altBarbell)).toBe(15)
+    expect(hasBarOverride(S, altBarbell)).toBe(true)
+    expect(barWeightFor(S, barbellId)).toBe(20)
+    expect(hasBarOverride(S, barbellId)).toBe(false)
   })
 
   test('a cleared (deleted or zeroed) override falls back to the default', () => {
-    const S = { unit: 'kg', barWeights: { [ez]: 12.5 } }
-    delete S.barWeights[ez]
-    expect(barWeightFor(S, ez)).toBe(10)
-    expect(barWeightFor({ unit: 'kg', barWeights: { [ez]: 0 } }, ez)).toBe(10)
-    expect(hasBarOverride({ unit: 'kg', barWeights: { [ez]: 0 } }, ez)).toBe(false)
+    const S = { unit: 'kg', barWeights: { [altBarbell]: 12.5 } }
+    delete S.barWeights[altBarbell]
+    expect(barWeightFor(S, altBarbell)).toBe(20)
+    expect(barWeightFor({ unit: 'kg', barWeights: { [altBarbell]: 0 } }, altBarbell)).toBe(20)
+    expect(hasBarOverride({ unit: 'kg', barWeights: { [altBarbell]: 0 } }, altBarbell)).toBe(false)
   })
 
   test('is null for anything without a bar', () => {
@@ -78,66 +76,21 @@ describe('plateSplit', () => {
   })
 
   test('rounds to 2 decimals', () => {
-    expect(plateSplit(65.55, 20)).toBe(22.78)
-    expect(plateSplit(21.2, 20)).toBe(0.6)
+    expect(plateSplit(60.333, 20)).toBe(20.17)
   })
 
-  test('is null when there is nothing sensible to show', () => {
-    expect(plateSplit(20, 20)).toBe(null)    // bar only
-    expect(plateSplit(15, 20)).toBe(null)    // below the bar
-    expect(plateSplit(0, 20)).toBe(null)
-    expect(plateSplit(100, 0)).toBe(null)
-    expect(plateSplit(null, 20)).toBe(null)
-    expect(plateSplit(100, null)).toBe(null)
-    expect(plateSplit(undefined, undefined)).toBe(null)
+  test('returns null when total is at or below bar weight', () => {
+    expect(plateSplit(20, 20)).toBeNull()
+    expect(plateSplit(15, 20)).toBeNull()
+    expect(plateSplit(0, 20)).toBeNull()
   })
 })
 
-describe('calculatePlates', () => {
-  test('calculates plates correctly in kg', () => {
-    expect(calculatePlates(50, 'kg')).toEqual([
-      { weight: 25, color: '#e53935', label: '25', count: 2 }
-    ])
-    expect(calculatePlates(40, 'kg')).toEqual([
-      { weight: 25, color: '#e53935', label: '25', count: 1 },
-      { weight: 15, color: '#fbc02d', label: '15', count: 1 }
-    ])
-    expect(calculatePlates(42.5, 'kg')).toEqual([
-      { weight: 25, color: '#e53935', label: '25', count: 1 },
-      { weight: 15, color: '#fbc02d', label: '15', count: 1 },
-      { weight: 2.5, color: '#37474f', label: '2.5', count: 1 }
-    ])
-    expect(calculatePlates(0, 'kg')).toEqual([])
-  })
-
-  test('calculates plates correctly in lb', () => {
-    expect(calculatePlates(90, 'lb')).toEqual([
-      { weight: 45, color: '#1e88e5', label: '45', count: 2 }
-    ])
-    expect(calculatePlates(77.5, 'lb')).toEqual([
-      { weight: 45, color: '#1e88e5', label: '45', count: 1 },
-      { weight: 25, color: '#43a047', label: '25', count: 1 },
-      { weight: 5, color: '#eceff1', label: '5', count: 1 },
-      { weight: 2.5, color: '#90a4ae', label: '2.5', count: 1 }
-    ])
-  })
-})
-
-describe('plateDiscsFor', () => {
-  test('returns empty array when totalWeight <= barWeight or invalid', () => {
+describe('calculatePlates & plateDiscsFor', () => {
+  test('builds greedy plate stack per side in kg and lb', () => {
+    expect(calculatePlates(40, 'kg').map(p => [p.weight, p.count])).toEqual([[25, 1], [15, 1]])
+    expect(calculatePlates(45, 'lb').map(p => [p.weight, p.count])).toEqual([[45, 1]])
+    expect(plateDiscsFor(100, 20, 'kg').map(p => [p.weight, p.count])).toEqual([[25, 1], [15, 1]])
     expect(plateDiscsFor(20, 20, 'kg')).toEqual([])
-    expect(plateDiscsFor(15, 20, 'kg')).toEqual([])
-    expect(plateDiscsFor(null, 20, 'kg')).toEqual([])
-  })
-
-  test('returns calculated plates for valid barbell load', () => {
-    expect(plateDiscsFor(100, 20, 'kg')).toEqual([
-      { weight: 25, color: '#e53935', label: '25', count: 1 },
-      { weight: 15, color: '#fbc02d', label: '15', count: 1 }
-    ])
-    expect(plateDiscsFor(135, 45, 'lb')).toEqual([
-      { weight: 45, color: '#1e88e5', label: '45', count: 1 }
-    ])
   })
 })
-

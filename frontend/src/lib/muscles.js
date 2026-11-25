@@ -8,7 +8,7 @@
 // ankles, "cardiovascular system") maps to null and is dropped rather than guessed at.
 
 import { isWarmupRow } from './workout-model.js'
-import { EXIDX, smOf } from './exercises.js'
+import { EXIDX, resolveLegacyEx, smOf } from './exercises.js'
 import { todayISO, weekKey, MONDAY } from './format.js'
 
 // The muscles a map can shade, in head-to-toe order — also the order of any list
@@ -36,9 +36,10 @@ export const MUSCLE_NAME = {
 // Every spelling that occurs in the dataset's `tg` and `sm` fields. null = not drawable.
 const ALIAS = {
   // primaries
-  abs: 'abs', pectorals: 'chest', biceps: 'biceps', glutes: 'gluteal', delts: 'deltoids',
+  abs: 'abs', abdomen: 'abs', pectorals: 'chest', biceps: 'biceps', glutes: 'gluteal', gluteal: 'gluteal', delts: 'deltoids',
   triceps: 'triceps', 'upper back': 'upper-back', lats: 'upper-back', calves: 'calves',
-  quads: 'quadriceps', forearms: 'forearm', hamstrings: 'hamstring', spine: 'lower-back',
+  quads: 'quadriceps', forearms: 'forearm', forearm: 'forearm', hamstrings: 'hamstring', hamstring: 'hamstring',
+  spine: 'lower-back', lowerback: 'lower-back',
   traps: 'trapezius', adductors: 'adductors', 'serratus anterior': 'serratus',
   abductors: 'gluteal', 'levator scapulae': 'trapezius', 'cardiovascular system': null,
   // secondaries
@@ -243,7 +244,7 @@ export function loadOf(items) {
     const { id, sets } = item || {}
     if (!sets) return
     const historical = item.ex || item.exercise
-    const source = historical?.muscleWeights ? historical : (EXIDX[id] || historical || item)
+    const source = historical?.muscleWeights ? historical : (EXIDX[id] || resolveLegacyEx(id) || historical || item)
     const m = musclesOf(source)
     for (const slug in m) load[slug] = (load[slug] || 0) + m[slug] * sets
   })

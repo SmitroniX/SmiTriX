@@ -15,17 +15,17 @@ describe('Smart Exercise Recommendations Engine', () => {
   it('identifies PR Opportunity when user has prior bestWeight on an exercise', () => {
     const state = {
       ...DEF,
-      exWeights: { '0025': { w: 100, d: '2026-11-01' } },
+      exWeights: { EIeI8Vf: { w: 100, d: '2026-11-01' } },
       workouts: [
         {
           id: 'w1',
           d: '2026-11-01',
-          entries: [{ id: '0025', sets: [{ w: 100, r: 8, done: true }] }]
+          entries: [{ id: 'EIeI8Vf', sets: [{ w: 100, r: 8, done: true }] }]
         }
       ]
     }
     const recs = getExerciseRecommendations(state, { bp: 'chest', limit: 4 })
-    const bench = recs.find(r => r.id === '0025')
+    const bench = recs.find(r => r.id === 'EIeI8Vf')
     expect(bench).toBeTruthy()
     expect(bench.tag).toBe('PR Opportunity')
     expect(bench.bestWeight).toBe(100)
