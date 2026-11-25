@@ -89,6 +89,10 @@ void main() {
 
   group('LoginScreen widget', () {
     testWidgets('switches modes, validates input, and allows offline continuation', (tester) async {
+      tester.view.physicalSize = const Size(430, 932);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
       AuthService.instance.forceRequireLoginForTest = true;
       await tester.pumpWidget(MaterialApp(
         theme: AppTheme.dark,
@@ -103,7 +107,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('DISPLAY NAME'), findsOneWidget);
 
-      await tester.tap(find.text('Continue Offline (Device Only)'));
+      final offlineBtn = find.text('Continue Offline (Device Only)');
+      await tester.ensureVisible(offlineBtn);
+      await tester.pumpAndSettle();
+      await tester.tap(offlineBtn);
       await tester.pumpAndSettle();
       expect(AuthService.instance.isGuest, isTrue);
       expect(AuthService.instance.requiresLogin, isFalse);

@@ -83,7 +83,7 @@ class AboutScreen extends StatelessWidget {
         _credits(gc),
         const SizedBox(height: 16),
         Text(
-          '© 2026 Asmit Jogdand (SmitroniX) · GNU GPL v3.0\nBased on GymMane by InlitX (GPL v3.0)',
+          t.aboutLicenseFooter,
           textAlign: TextAlign.center,
           style: AppTheme.f(11, weight: FontWeight.w500, color: gc.textTertiary, height: 1.5),
         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
+import '../l10n/l10n.dart';
 import '../models/profile.dart';
 import '../services/auth_service.dart';
 import '../state/fit_state.dart';
@@ -106,12 +107,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SheetHandle(),
                 const SizedBox(height: 16),
                 Text(
-                  'Reset Password',
+                  t.authResetTitle,
                   style: AppTheme.f(21, weight: FontWeight.w800, color: gc.text),
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Enter the email linked to your SmiTriX account to receive a password reset link.',
+                  t.authResetBody,
                   style: AppTheme.f(13.5, weight: FontWeight.w500, color: gc.textSecondary, height: 1.4),
                 ),
                 const SizedBox(height: 16),
@@ -128,7 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
                 const SizedBox(height: 18),
                 PrimaryButton(
-                  label: sending ? 'Sending...' : 'Send Reset Link',
+                  label: sending ? t.authResetSending : t.authResetSend,
                   onTap: sending
                       ? null
                       : () async {
@@ -149,8 +150,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           if (mounted) {
                             showNotchToast(
                               context,
-                              'Reset email sent',
-                              subtitle: 'Check your inbox to set a new password.',
+                              t.authResetSentTitle,
+                              subtitle: t.authResetSentBody,
                               icon: PhosphorIconsFill.envelopeSimple,
                               accent: gc.sage,
                             );
@@ -231,9 +232,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        _register
-                            ? 'Create your training account to back up workouts & PRs.'
-                            : 'Sign in to sync your workouts, routines & progress.',
+                        _register ? t.authRegisterSubtitle : t.authSignInSubtitle,
                         textAlign: TextAlign.center,
                         style: AppTheme.f(14, weight: FontWeight.w500, color: gc.textSecondary, height: 1.4),
                       ),
@@ -246,18 +245,18 @@ class _LoginScreenState extends State<LoginScreen> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             if (_register) ...[
-                              _fieldLabel(gc, 'Display Name'),
+                              _fieldLabel(gc, t.authDisplayName),
                               const SizedBox(height: 6),
                               _inputBox(
                                 gc: gc,
                                 controller: _name,
-                                hint: 'Asmit Jogdand',
+                                hint: kDefaultName,
                                 icon: PhosphorIconsRegular.user,
                                 capitalization: TextCapitalization.words,
                               ),
                               const SizedBox(height: 14),
                             ],
-                            _fieldLabel(gc, 'Email'),
+                            _fieldLabel(gc, t.authEmail),
                             const SizedBox(height: 6),
                             _inputBox(
                               gc: gc,
@@ -267,12 +266,12 @@ class _LoginScreenState extends State<LoginScreen> {
                               keyboardType: TextInputType.emailAddress,
                             ),
                             const SizedBox(height: 14),
-                            _fieldLabel(gc, 'Password'),
+                            _fieldLabel(gc, t.authPassword),
                             const SizedBox(height: 6),
                             _inputBox(
                               gc: gc,
                               controller: _password,
-                              hint: 'At least 6 characters',
+                              hint: t.authPasswordHint,
                               icon: PhosphorIconsRegular.lockSimple,
                               obscure: _obscure,
                               onSubmitted: (_) => _submit(),
@@ -298,7 +297,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   child: Padding(
                                     padding: const EdgeInsets.only(top: 10, bottom: 2),
                                     child: Text(
-                                      'Forgot password?',
+                                      t.authForgotPassword,
                                       style: AppTheme.f(12.5, weight: FontWeight.w700, color: gc.accent),
                                     ),
                                   ),
@@ -330,8 +329,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             const SizedBox(height: 18),
                             PrimaryButton(
                               label: _submitting
-                                  ? (_register ? 'Creating Account...' : 'Signing In...')
-                                  : (_register ? 'Create Account' : 'Sign In'),
+                                  ? (_register ? t.authCreatingAccount : t.authSigningIn)
+                                  : (_register ? t.authCreateAccount : t.authSignIn),
                               onTap: _submitting ? null : _submit,
                             ),
                           ],
@@ -354,7 +353,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               Icon(PhosphorIconsRegular.wifiSlash, size: 16, color: gc.textSecondary),
                               const SizedBox(width: 8),
                               Text(
-                                'Continue Offline (Device Only)',
+                                t.authContinueOffline,
                                 style: AppTheme.f(14, weight: FontWeight.w700, color: gc.textSecondary),
                               ),
                             ],
@@ -363,7 +362,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 22),
                       Text(
-                        'SmiTriX by Asmit Jogdand (SmitroniX) · GNU GPL-3.0',
+                        t.authFooterLicense,
                         textAlign: TextAlign.center,
                         style: AppTheme.f(11.5, weight: FontWeight.w500, color: gc.textTertiary),
                       ),
@@ -416,11 +415,11 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       child: Row(
         children: [
-          tab('Sign In', !_register, () => setState(() {
+          tab(t.authSignIn, !_register, () => setState(() {
                 _register = false;
                 _error = null;
               })),
-          tab('Create Account', _register, () => setState(() {
+          tab(t.authCreateAccount, _register, () => setState(() {
                 _register = true;
                 _error = null;
               })),

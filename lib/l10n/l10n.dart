@@ -327,4 +327,60 @@ extension GymL10n on AppLocalizations {
       _catalogSteps[appLanguage]?[id] ?? fallback;
 }
 
+extension AuthL10n on AppLocalizations {
+  bool get _es => appLanguage == 'es';
+
+  String get authSignIn => _es ? 'Iniciar sesión' : 'Sign In';
+  String get authCreateAccount => _es ? 'Crear cuenta' : 'Create Account';
+  String get authSigningIn => _es ? 'Iniciando sesión...' : 'Signing In...';
+  String get authCreatingAccount => _es ? 'Creando cuenta...' : 'Creating Account...';
+  String get authSignInSubtitle => _es
+      ? 'Inicia sesión para sincronizar tus entrenos, rutinas y progreso.'
+      : 'Sign in to sync your workouts, routines & progress.';
+  String get authRegisterSubtitle => _es
+      ? 'Crea tu cuenta para respaldar tus entrenos y récords.'
+      : 'Create your training account to back up workouts & PRs.';
+  String get authDisplayName => _es ? 'Nombre' : 'Display Name';
+  String get authEmail => _es ? 'Correo electrónico' : 'Email';
+  String get authPassword => _es ? 'Contraseña' : 'Password';
+  String get authPasswordHint => _es ? 'Mínimo 6 caracteres' : 'At least 6 characters';
+  String get authForgotPassword => _es ? '¿Olvidaste tu contraseña?' : 'Forgot password?';
+  String get authResetTitle => _es ? 'Restablecer contraseña' : 'Reset Password';
+  String get authResetBody => _es
+      ? 'Escribe el correo asociado a tu cuenta de SmiTriX para recibir un enlace de recuperación.'
+      : 'Enter the email linked to your SmiTriX account to receive a password reset link.';
+  String get authResetSend => _es ? 'Enviar enlace' : 'Send Reset Link';
+  String get authResetSending => _es ? 'Enviando...' : 'Sending...';
+  String get authResetSentTitle => _es ? 'Correo enviado' : 'Reset email sent';
+  String get authResetSentBody => _es
+      ? 'Revisa tu bandeja de entrada para crear una nueva contraseña.'
+      : 'Check your inbox to set a new password.';
+  String get authContinueOffline =>
+      _es ? 'Continuar sin conexión (solo dispositivo)' : 'Continue Offline (Device Only)';
+  String get authFooterLicense => 'SmiTriX by Asmit Jogdand (SmitroniX) · GNU GPL-3.0';
+  String get aboutLicenseFooter =>
+      '© 2026 Asmit Jogdand (SmitroniX) · GNU GPL v3.0\nBased on GymMane by InlitX (GPL v3.0)';
+
+  String get authSectionTitle => _es ? 'CUENTA Y NUBE' : 'ACCOUNT & CLOUD SYNC';
+  String get authAdminBadge => 'ADMIN';
+  String get authOfflineMode => _es ? 'Modo sin conexión' : 'Offline Mode';
+  String get authOfflineSub => _es ? 'Entrenando localmente en este dispositivo' : 'Training offline on this device';
+  String get authSync => _es ? 'Sincronizar' : 'Sync';
+  String get authSyncing => _es ? 'Sincronizando' : 'Syncing';
+  String get authRestore => _es ? 'Restaurar' : 'Restore';
+  String get authSignOut => _es ? 'Salir' : 'Sign Out';
+  String get authSignInCloud => _es ? 'Iniciar sesión para sincronizar' : 'Sign In for Cloud Sync';
+  String get authSyncSaved => _es ? 'Copia guardada en la nube' : 'Cloud backup saved';
+  String get authSyncSavedSub =>
+      _es ? 'Tus entrenos y rutinas están respaldados.' : 'Your workouts & routines are backed up.';
+  String get authSyncFailed => _es ? 'Error al sincronizar' : 'Sync failed';
+  String get authRestoreFailed => _es ? 'Error al restaurar' : 'Restore failed';
+  String get authNoCloudBackup => _es ? 'Sin copia en la nube todavía' : 'No cloud backup yet';
+  String get authNoCloudBackupSub =>
+      _es ? 'Pulsa Sincronizar para subir tus datos primero.' : 'Tap Sync to upload your current data first.';
+  String get authRestoreDone => _es ? 'Copia restaurada desde la nube' : 'Cloud backup restored';
+  String authSyncedAt(String email, String hhmm) =>
+      _es ? '$email · Sinc. $hhmm' : '$email · Synced $hhmm';
+}
+
 String _capitalize(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);

@@ -2803,7 +2803,7 @@ class _SettingsHomeState extends State<_SettingsHome> {
                             if (!kIsWeb) ...[
                               Padding(
                                 padding: const EdgeInsets.fromLTRB(4, 2, 0, 10),
-                                child: Text('ACCOUNT & CLOUD SYNC',
+                                child: Text(t.authSectionTitle,
                                     style: AppTheme.f(10.5,
                                         weight: FontWeight.w700, color: gc.textTertiary, letterSpacing: 1.4)),
                               ),
@@ -2889,12 +2889,12 @@ class _SettingsHomeState extends State<_SettingsHome> {
             );
 
         String syncSub() {
-          if (!signedIn) return 'Training offline on this device';
+          if (!signedIn) return t.authOfflineSub;
           final ts = auth.lastSyncAt;
           if (ts == null) return u.email;
           final hh = ts.hour.toString().padLeft(2, '0');
           final mm = ts.minute.toString().padLeft(2, '0');
-          return '${u.email} · Synced $hh:$mm';
+          return t.authSyncedAt(u.email, '$hh:$mm');
         }
 
         return SoftCard(
@@ -2932,7 +2932,7 @@ class _SettingsHomeState extends State<_SettingsHome> {
                           children: [
                             Flexible(
                               child: Text(
-                                signedIn ? u.label : 'Offline Mode',
+                                signedIn ? u.label : t.authOfflineMode,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: AppTheme.f(15.5, weight: FontWeight.w800, color: gc.text),
@@ -2947,7 +2947,7 @@ class _SettingsHomeState extends State<_SettingsHome> {
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
-                                  'ADMIN',
+                                  t.authAdminBadge,
                                   style: AppTheme.f(9.5,
                                       weight: FontWeight.w800, color: gc.accent, letterSpacing: 0.8),
                                 ),
@@ -2973,7 +2973,7 @@ class _SettingsHomeState extends State<_SettingsHome> {
                   children: [
                     pillBtn(
                       icon: PhosphorIconsRegular.cloudArrowUp,
-                      label: busy ? 'Syncing' : 'Sync',
+                      label: busy ? t.authSyncing : t.authSync,
                       fg: gc.onEmber,
                       bg: gc.ember,
                       onTap: busy
@@ -2984,8 +2984,8 @@ class _SettingsHomeState extends State<_SettingsHome> {
                               if (!context.mounted) return;
                               showNotchToast(
                                 context,
-                                err == null ? 'Cloud backup saved' : 'Sync failed',
-                                subtitle: err ?? 'Your workouts & routines are backed up.',
+                                err == null ? t.authSyncSaved : t.authSyncFailed,
+                                subtitle: err ?? t.authSyncSavedSub,
                                 icon: err == null
                                     ? PhosphorIconsFill.cloudCheck
                                     : PhosphorIconsFill.warningCircle,
@@ -2996,7 +2996,7 @@ class _SettingsHomeState extends State<_SettingsHome> {
                     const SizedBox(width: 8),
                     pillBtn(
                       icon: PhosphorIconsRegular.cloudArrowDown,
-                      label: 'Restore',
+                      label: t.authRestore,
                       onTap: busy
                           ? null
                           : () async {
@@ -3006,7 +3006,7 @@ class _SettingsHomeState extends State<_SettingsHome> {
                               if (res.error != null) {
                                 showNotchToast(
                                   context,
-                                  'Restore failed',
+                                  t.authRestoreFailed,
                                   subtitle: res.error,
                                   icon: PhosphorIconsFill.warningCircle,
                                   accent: gc.danger,
@@ -3016,8 +3016,8 @@ class _SettingsHomeState extends State<_SettingsHome> {
                               if (res.data == null || res.data!.isEmpty) {
                                 showNotchToast(
                                   context,
-                                  'No cloud backup yet',
-                                  subtitle: 'Tap Sync to upload your current data first.',
+                                  t.authNoCloudBackup,
+                                  subtitle: t.authNoCloudBackupSub,
                                   icon: PhosphorIconsFill.cloud,
                                   accent: gc.accent,
                                 );
@@ -3027,7 +3027,7 @@ class _SettingsHomeState extends State<_SettingsHome> {
                               fit.persistNow();
                               showNotchToast(
                                 context,
-                                'Cloud backup restored',
+                                t.authRestoreDone,
                                 icon: PhosphorIconsFill.cloudCheck,
                                 accent: gc.sage,
                               );
@@ -3036,7 +3036,7 @@ class _SettingsHomeState extends State<_SettingsHome> {
                     const SizedBox(width: 8),
                     pillBtn(
                       icon: PhosphorIconsRegular.signOut,
-                      label: 'Sign Out',
+                      label: t.authSignOut,
                       fg: gc.danger,
                       onTap: busy
                           ? null
@@ -3052,7 +3052,7 @@ class _SettingsHomeState extends State<_SettingsHome> {
                   children: [
                     pillBtn(
                       icon: PhosphorIconsRegular.signIn,
-                      label: 'Sign In for Cloud Sync',
+                      label: t.authSignInCloud,
                       fg: gc.onEmber,
                       bg: gc.ember,
                       onTap: () async {
