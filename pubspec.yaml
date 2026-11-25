@@ -16,7 +16,7 @@ dependencies:
   file_picker: ^8.1.7
   flutter_local_notifications: ^22.0.1
   home_widget: ^0.7.0
-  image_picker: ^1.2.3
+  image_picker: ^1.2.4
   intl: ^0.20.2
   path_drawing: ^1.0.1
   path_provider: ^2.1.6
