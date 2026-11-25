@@ -1,53 +1,75 @@
-# Exercise media — fetched on first `docker compose up` (or via scripts/fetch-media.sh)
-media/img/
-media/gif/
-
-# Runtime data — users, passkeys, per-user state, session secret
-data/
-
-# Environment variables
-.env
-.env.*
-!.env.example
-
-# Dependencies
-node_modules/
-*/node_modules/
-
-# Build output
-dist/
-build/
-.next/
-out/
-frontend/dist/
-
-# Local configuration
-.firebase/
-.firebaserc.local
-
-# Credentials and private keys
-service-account*.json
-*-private-key*
-*.pem
-*.key
-
-# Logs
+# Miscellaneous
+*.class
 *.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
 
-# IDE
-.vscode/
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
 .idea/
 
-# OS
-.DS_Store
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Kotlin build cache
+android/.kotlin/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+/android/build/
+/android/.gradle/
+/android/local.properties
+
+# Python tooling
+__pycache__/
+
+# Release signing
+*.jks
+*.apk
+*.keystore
+/android/key.properties
+
+# Not published
+doc-personal/
+tool/
+fdroid/
+test/fixtures/
+test/failures/
+test/preview/
+test/preview_*.dart
+test/marketing_shots.dart
+site/
+
+# OS junk
 Thumbs.db
-
-# Workspace & Agent artifacts
-.claude/
-.agents/
-
-# CI reports (test:* jobs write these next to the suites)
-junit.xml
-coverage/
-frontend/bundle-size.json
-brag-output/
+desktop.ini

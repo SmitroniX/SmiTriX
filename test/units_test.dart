@@ -1,0 +1,157 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:smitrix/state/fit_state.dart';
+
+void main() {
+  setUp(() {
+    fit.saveAndExit();
+    fit.sessions.clear();
+    fit.setUnits('kg');
+  });
+  tearDown(() {
+    fit.setUnits('kg');
+    fit.setLengthUnits('');
+  });
+
+  test('#428 las medidas van en cm o pulgadas aparte del peso', () {
+    fit.setUnits('kg');
+    expect(fit.heightLabel(178), '178 cm');
+    fit.setLengthUnits('in');
+    expect(fit.weightLabel(60), '60 kg');
+    expect(fit.heightLabel(178), '5′ 10″');
+    expect(fit.lengthUnit, 'in');
+    expect(fit.toJson()['lengthUnits'], 'in');
+    fit.setUnits('lb');
+    fit.setLengthUnits('cm');
+    expect(fit.lengthUnit, 'cm');
+    fit.setLengthUnits('');
+    expect(fit.lengthUnit, 'in');
+  });
+
+  void startSession() {
+    fit.startWorkout();
+    fit.toggleMuscle('chest');
+    fit.trainContinue();
+    fit.startSession();
+  }
+
+  test('kg is the identity — nothing is converted', () {
+    fit.setUnits('kg');
+    expect(fit.toDisplayWeight(100), 100);
+    expect(fit.fromDisplayWeight(100), 100);
+    expect(fit.weightLabel(60), '60 kg');
+    expect(fit.weightStep, 2.5);
+  });
+
+  test('lb only changes what is shown', () {
+    fit.setUnits('lb');
+    expect(fit.toDisplayWeight(100), closeTo(220.462, 0.001));
+    expect(fit.fromDisplayWeight(220.462), closeTo(100, 0.001));
+    expect(fit.weightLabel(100), '220.5 lb');
+    expect(fit.weightStep, 5);
+  });
+
+  test('switching units never rewrites what was stored', () {
+    startSession();
+    fit.setSessionWeight(0, 0, 100);
+    final stored = fit.session!.exercises[0].sets[0].weight;
+
+    fit.setUnits('lb');
+    expect(fit.session!.exercises[0].sets[0].weight, stored, reason: 'el kg guardado no se toca');
+    expect(fit.weightValue(stored), '220.5');
+
+    fit.setUnits('kg');
+    expect(fit.weightValue(stored), '100');
+    fit.saveAndExit();
+  });
+
+  test('typing a weight in lb round-trips back to the same lb', () {
+    fit.setUnits('lb');
+    startSession();
+    fit.setSessionWeightShown(0, 0, 135);
+    expect(fit.weightValue(fit.session!.exercises[0].sets[0].weight), '135');
+    fit.saveAndExit();
+  });
+
+  test('repeated unit flipping does not erode the weight', () {
+    fit.setUnits('lb');
+    startSession();
+    fit.setSessionWeightShown(0, 0, 225);
+    for (var i = 0; i < 20; i++) {
+      fit.setUnits(i.isEven ? 'kg' : 'lb');
+    }
+    fit.setUnits('lb');
+    expect(fit.weightValue(fit.session!.exercises[0].sets[0].weight), '225');
+    fit.saveAndExit();
+  });
+
+  test('the stepper moves in whole plates of the active unit', () {
+    fit.setUnits('lb');
+    startSession();
+    fit.setSessionWeightShown(0, 0, 135);
+    fit.bumpSessionWeight(0, 0, 1);
+    expect(fit.weightValue(fit.session!.exercises[0].sets[0].weight), '140');
+    fit.bumpSessionWeight(0, 0, -1);
+    expect(fit.weightValue(fit.session!.exercises[0].sets[0].weight), '135');
+
+    fit.setUnits('kg');
+    fit.setSessionWeightShown(0, 0, 60);
+    fit.bumpSessionWeight(0, 0, 1);
+    expect(fit.weightValue(fit.session!.exercises[0].sets[0].weight), '62.5');
+    fit.saveAndExit();
+  });
+
+  test('the stepper never drives the weight negative', () {
+    startSession();
+    fit.setSessionWeight(0, 0, 0);
+    fit.bumpSessionWeight(0, 0, -1);
+    expect(fit.session!.exercises[0].sets[0].weight, 0);
+    fit.saveAndExit();
+  });
+
+  test('volume is summarised in the active unit', () {
+    fit.setUnits('kg');
+    expect(fit.volumeUnit, 't');
+    expect(fit.volumeLabel(12400), '12.4 t');
+
+    fit.setUnits('lb');
+    expect(fit.volumeUnit, 'k lb');
+    expect(fit.volumeLabel(12400), '27.3 k lb');
+  });
+
+  test('bodyweight logged in lb comes back as the same lb', () {
+    fit.setUnits('lb');
+    fit.addBodyweight(fit.fromDisplayWeight(180));
+    expect(fit.weightValue(fit.latestBodyweight!.kg), '180');
+    fit.bodyweight.clear();
+  });
+
+  test('#288 un ejercicio puede ir en lb aunque la app vaya en kg', () {
+    startSession();
+    final id = fit.session!.exercises.first.id;
+    fit.setExerciseUnits(id, 'lb');
+    expect(fit.unitsFor(id), 'lb');
+    expect(fit.units, 'kg');
+    fit.setSessionWeightShown(0, 0, 100);
+    expect(fit.session!.exercises.first.sets.first.weight, closeTo(45.36, 0.01));
+    expect(fit.weightValueFor(id, fit.session!.exercises.first.sets.first.weight), '100');
+    fit.bumpSessionWeight(0, 0, 1);
+    expect(fit.toShownFor(id, fit.session!.exercises.first.sets.first.weight), closeTo(105, 0.01));
+    fit.setExerciseUnits(id, 'kg');
+    expect(fit.exerciseUnits.containsKey(id), isFalse, reason: 'igual que la app no se guarda');
+  });
+
+  test('#358 un cardio puede ir en km aunque la app vaya en lb', () {
+    fit.setUnits('lb');
+    final id = fit.allExercises.firstWhere((e) => fit.modeOf(e.id) == 'cardio').id;
+    expect(fit.distanceUnitFor(id), 'mi');
+    fit.setExerciseDistance(id, 'km');
+    expect(fit.distanceUnitFor(id), 'km');
+    expect(fit.distanceUnit, 'mi');
+    expect(fit.distanceLabelFor(id, 5), '5 km');
+    expect(fit.fromDisplayKmFor(id, 3), 3);
+    expect(fit.toJson()['exDist'], {id: 'km'});
+    fit.setExerciseDistance(id, 'mi');
+    expect(fit.exerciseDistance.containsKey(id), isFalse, reason: 'igual que la app no se guarda');
+    fit.setUnits('kg');
+  });
+}

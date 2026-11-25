@@ -1,0 +1,86 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:smitrix/widgets/glass.dart';
+import 'package:smitrix/widgets/ui_kit.dart';
+import 'package:smitrix/app/gymmane_app.dart';
+import 'package:smitrix/l10n/l10n.dart';
+import 'package:smitrix/services/local_store.dart';
+import 'package:smitrix/services/progress_reminder.dart';
+import 'package:smitrix/state/fit_state.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    await Store.instance.init();
+    ProgressReminder.instance.enabled = false;
+    setAppLanguage('es');
+    fit.onboarded = true;
+    fit.session = null;
+    fit.setBodyTimeline(false);
+    fit.setPhotoInterval(30);
+  });
+
+  tearDown(() {
+    fit.setBodyTimeline(false);
+    fit.persistNow();
+  });
+
+  Future<void> open(WidgetTester tester, String route) async {
+    fit.route = route;
+    await tester.pumpWidget(const GymManeApp());
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('the timeline repaints when its own buttons change the state', (tester) async {
+    await open(tester, 'timeline');
+
+    await tester.tap(find.text(titleCase(t.timelineBody)));
+    await tester.pumpAndSettle();
+    expect(find.text(titleCase(t.addTodayPhotos)), findsNothing, reason: 'la pantalla no se repintó');
+
+    await tester.tap(find.text(titleCase(t.timelinePhotos)));
+    await tester.pumpAndSettle();
+    expect(find.text(titleCase(t.addTodayPhotos)), findsOneWidget);
+
+    await tester.tap(find.text('60'));
+    await tester.pumpAndSettle();
+    expect(fit.photoIntervalDays, 60);
+    expect(find.text(t.photoNextIn(60)), findsNothing);
+    fit.persistNow();
+  });
+
+  testWidgets('the measurements screen repaints when a measure is logged', (tester) async {
+    fit.measures.clear();
+    fit.setUnits('kg');
+    await open(tester, 'measures');
+    expect(find.text(t.measureNoneYet), findsWidgets);
+
+    fit.addMeasure('arm', 38);
+    await tester.pumpAndSettle();
+    expect(find.text('38'), findsOneWidget, reason: 'la pantalla no se repintó');
+    fit.measures.clear();
+    fit.persistNow();
+  });
+
+  testWidgets('al abrir una hoja el fondo se suaviza con una copia y al cerrarla se va', (tester) async {
+    blurEffects = true;
+    await open(tester, 'home');
+    final ctx = tester.element(find.byType(Scaffold).first);
+    bool soft() => tester
+        .widgetList<CustomPaint>(find.byType(CustomPaint))
+        .any((c) => c.painter.runtimeType.toString() == '_SoftCopy');
+    showAppSheet<void>(context: ctx, builder: (_) => const SizedBox(height: 200));
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+    expect(sheetRecede.value, greaterThan(0.9));
+    expect(soft(), isTrue);
+    Navigator.of(ctx).pop();
+    await tester.pumpAndSettle();
+    expect(sheetRecede.value, 0);
+    expect(soft(), isFalse);
+  });
+}

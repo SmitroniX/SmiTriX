@@ -28,7 +28,7 @@ try {
 } catch (e) {}
 </script>
 <script type="application/ld+json">
-{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is SmiTriX really free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — free as in cost and as in freedom (AGPL-3.0). No pro tier, no locked features, no ads, and the license keeps every fork open source too."}}, {"@type": "Question", "name": "Why isn't SmiTriX on the Play Store or App Store?", "acceptedAnswer": {"@type": "Answer", "text": "By choice (and on iOS, by Apple's rules for sideloading). Store accounts cost money, impose terms that sit badly with the AGPL, and put a gatekeeper between you and an app whose whole point is that your data is yours. The signed Android APK is a direct download."}}, {"@type": "Question", "name": "Should I pick the mobile app or self-host?", "acceptedAnswer": {"@type": "Answer", "text": "To simply track your training: the mobile app. For data on your own hardware, synced across devices, with profiles for the people you train with: self-host with Docker. The backup file migrates everything between the two, or pair the app to your server."}}, {"@type": "Question", "name": "What's on the SmiTriX roadmap?", "acceptedAnswer": {"@type": "Answer", "text": "Percentage/training-max programming (5/3/1-style), more starter plans, body measurements alongside weight, per-exercise notes and a plate calculator, more instruction languages. Community-driven — ideas and merge requests welcome."}}, {"@type": "Question", "name": "Where does the exercise database come from?", "acceptedAnswer": {"@type": "Answer", "text": "From hasaneyldrm/exercises-dataset: 1,324 exercises with animations and instructions. The metadata and instruction text are MIT; the images and animations are third-party media that SmiTriX never redistributes — your instance downloads them from upstream on first run."}}, {"@type": "Question", "name": "What does the AGPL license mean for me?", "acceptedAnswer": {"@type": "Answer", "text": "You can self-host, use, modify and share SmiTriX freely. Only if you run a modified version as a network service must you offer that version's source under the same license. Using or self-hosting it unmodified obliges you to nothing."}}]}
+{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is SmiTriX really free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — free as in cost and as in freedom (GPL-3.0). No pro tier, no locked features, no ads, and the license keeps every fork open source too."}}, {"@type": "Question", "name": "Why isn't SmiTriX on the Play Store or App Store?", "acceptedAnswer": {"@type": "Answer", "text": "By choice (and on iOS, by Apple's rules for sideloading). Store accounts cost money, impose terms that sit badly with the GPL, and put a gatekeeper between you and an app whose whole point is that your data is yours. The signed Android APK is a direct download."}}, {"@type": "Question", "name": "Should I pick the mobile app or self-host?", "acceptedAnswer": {"@type": "Answer", "text": "To simply track your training: the mobile app. For data on your own hardware, synced across devices, with profiles for the people you train with: self-host with Docker. The backup file migrates everything between the two, or pair the app to your server."}}, {"@type": "Question", "name": "What's on the SmiTriX roadmap?", "acceptedAnswer": {"@type": "Answer", "text": "Percentage/training-max programming (5/3/1-style), more starter plans, body measurements alongside weight, per-exercise notes and a plate calculator, more instruction languages. Community-driven — ideas and merge requests welcome."}}, {"@type": "Question", "name": "Where does the exercise database come from?", "acceptedAnswer": {"@type": "Answer", "text": "From hasaneyldrm/exercises-dataset: 1,324 exercises with animations and instructions. The metadata and instruction text are MIT; the images and animations are third-party media that SmiTriX never redistributes — your instance downloads them from upstream on first run."}}, {"@type": "Question", "name": "What does the GPL license mean for me?", "acceptedAnswer": {"@type": "Answer", "text": "You can self-host, use, modify and share SmiTriX freely. Only if you run a modified version as a network service must you offer that version's source under the same license. Using or self-hosting it unmodified obliges you to nothing."}}]}
 </script>
 </head>
 <body class="topnav">
@@ -906,13 +906,13 @@ Leg Day,Leg Press,2026-08-21,200,1</code></pre>
 
   <h2 id="faq">FAQ</h2>
   <h3>Is it really free?</h3>
-  <p>Yes — free as in cost <i>and</i> as in freedom (AGPL-3.0). No pro tier, no locked
+  <p>Yes — free as in cost <i>and</i> as in freedom (GPL-3.0). No pro tier, no locked
      features, no ads, and the license keeps every fork open source too. If it replaced a
      paid tracker for you, there's a <a href="https://buymeacoffee.com/asmit_jogdand" rel="noopener">coffee button</a> —
      a star, a bug report or a merge request is worth just as much.</p>
   <h3>Why isn't it on the Play Store / App Store?</h3>
   <p>By choice (and on iOS, by Apple's rules for sideloading). Store accounts cost money,
-     impose terms that sit badly with the AGPL, and put a gatekeeper between you and an app
+     impose terms that sit badly with the GPL, and put a gatekeeper between you and an app
      whose whole point is that your data is yours.</p>
   <h3>Mobile app or self-hosted — which one should I pick?</h3>
   <p>If you just want to track your training: the mobile app. If you want your data on your
@@ -932,7 +932,7 @@ Leg Day,Leg Press,2026-08-21,200,1</code></pre>
      languages — including SmiTriX's separately curated Brazilian Portuguese translation.
      That dataset licenses the two halves differently, and so does SmiTriX: the exercise
      metadata and instruction text are <b>MIT</b>, while the images and animations are
-     third-party media used under the dataset's terms rather than SmiTriX's AGPL — their
+     third-party media used under the dataset's terms rather than SmiTriX's GPL-3.0 — their
      ownership is currently disputed between
      <a href="https://gymvisual.com/" rel="noopener">Gym visual</a> and ExerciseDB, and a
      clarification has been requested.</p>
@@ -941,7 +941,7 @@ Leg Day,Leg Press,2026-08-21,200,1</code></pre>
      it with the rights holder first. Full third-party notices, including the body-diagram
      geometry, are in
      <a href="https://gitlab.com/jogdandasmit/SmiTriX/-/blob/main/NOTICE.md" rel="noopener">NOTICE.md</a>.</p>
-  <h3>What does the AGPL mean for me?</h3>
+  <h3>What does the GPL mean for me?</h3>
   <p>You can self-host, use, modify and share SmiTriX freely. If you run a <i>modified</i>
      version as a network service, you must offer that version's source under the same
      license — that's the clause that keeps SmiTriX from ever becoming someone's closed,
@@ -950,7 +950,7 @@ Leg Day,Leg Press,2026-08-21,200,1</code></pre>
 </main>
 
 <footer><div class="wrap foot">
-  <span class="c">SmiTriX · AGPL-3.0 · © 2026 <a href="https://github.com/SmitroniX" rel="noopener">Asmit Jogdand (SmitroniX)</a> · <a href="https://github.com/SmitroniX/SmiTriX/blob/main/NOTICE.md" rel="noopener">Third-Party Notices</a></span>
+  <span class="c">SmiTriX · GPL-3.0 · © 2026 <a href="https://github.com/SmitroniX" rel="noopener">Asmit Jogdand (SmitroniX)</a> · <a href="https://github.com/SmitroniX/SmiTriX/blob/main/NOTICE.md" rel="noopener">Third-Party Notices</a></span>
   <div class="links">
     <a href="docs.html">Docs</a>
     <a href="about.html">About</a>

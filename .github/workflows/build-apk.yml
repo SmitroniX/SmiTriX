@@ -1,175 +1,112 @@
 name: Build & Release Android APK
 
 on:
-  release:
-    types: [published]
   push:
     tags:
       - 'v*'
+  release:
+    types: [published]
   workflow_dispatch:
-    inputs:
-      create_release:
-        description: 'Create a draft release if triggered manually without a tag'
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: write
 
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-apk:
-    name: Build and Sign APK
     runs-on: ubuntu-latest
-    env:
-      ANDROID_HOME: /usr/local/lib/android/sdk
-      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
         with:
-          fetch-depth: 0
+          distribution: temurin
+          java-version: '17'
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: subosito/flutter-action@v2
         with:
-          node-version: 22
-          cache: 'npm'
-          cache-dependency-path: 'frontend/package-lock.json'
+          flutter-version: '3.41.9'
+          channel: stable
+          cache: true
 
-      - name: Setup Java JDK
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Install Frontend Dependencies & Build Mobile Bundle
+      - name: Configure Android signing keystore
         env:
-          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASS: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
-          cd frontend
-          npm ci
-          npm run build:mobile
-          APP_VER=$(node -p "require('./package.json').version")
-          echo "APP_VERSION=$APP_VER" >> $GITHUB_ENV
-          echo "Building SmiTriX mobile v$APP_VER"
-
-      - name: Make Gradlew Executable
-        run: |
-          chmod +x frontend/android/gradlew
-
-      - name: Build Android Release APK
-        run: |
-          cd frontend/android
-          ./gradlew assembleRelease --no-daemon --stacktrace
-
-      - name: Sign & Align APK
-        run: |
-          set -eu
-          UNSIGNED="frontend/android/app/build/outputs/apk/release/app-release-unsigned.apk"
-          if [ ! -f "$UNSIGNED" ]; then
-            echo "ERROR: Could not find unsigned apk at $UNSIGNED"
-            find frontend/android/app/build/outputs/apk -type f
-            exit 1
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > android/app/smitrix-release.keystore
+            cat > android/key.properties <<EOF
+          storePassword=${STORE_PASS:-smitrix_release_key}
+          keyPassword=${KEY_PASS:-smitrix_release_key}
+          keyAlias=${KEY_ALIAS:-smitrix}
+          storeFile=smitrix-release.keystore
+          EOF
+          elif [ -f android/app/smitrix-release.keystore ]; then
+            cat > android/key.properties <<EOF
+          storePassword=smitrix_release_key
+          keyPassword=smitrix_release_key
+          keyAlias=smitrix
+          storeFile=smitrix-release.keystore
+          EOF
           fi
 
-          if [ -d "${ANDROID_HOME:-}/build-tools" ]; then
-            BT="$(ls -d $ANDROID_HOME/build-tools/* 2>/dev/null | sort -V | tail -1)"
-            ZIPALIGN="${BT}/zipalign"
-            APKSIGNER="${BT}/apksigner"
-          fi
-          if [ ! -x "${ZIPALIGN:-}" ]; then
-            ZIPALIGN="$(which zipalign 2>/dev/null || true)"
-          fi
-          if [ ! -x "${APKSIGNER:-}" ]; then
-            APKSIGNER="$(which apksigner 2>/dev/null || true)"
-          fi
+      - name: Install Flutter dependencies
+        run: flutter pub get
 
-          echo "Using Android Build Tools: ${BT:-PATH}"
+      - name: Build signed universal Android APK
+        env:
+          FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+        run: |
+          mkdir -p dist
+          flutter build apk --release \
+            --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY"
+          cp build/app/outputs/flutter-apk/app-release.apk dist/SmiTriX.apk
 
-          # 1. Zipalign the unsigned APK
-          "$ZIPALIGN" -f -p 4 "$UNSIGNED" "aligned.apk"
+      - name: Build signed ABI-split Android APKs
+        env:
+          FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+        run: |
+          flutter build apk --release --split-per-abi \
+            --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY"
 
-          # 2. Check if user configured secret keystore, else use persistent repository release keystore
-          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
-            echo "Signing with provided ANDROID_KEYSTORE_BASE64 secret..."
-            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
-            KEYSTORE="release.keystore"
-            KS_PASS="${{ secrets.ANDROID_KEYSTORE_PASSWORD }}"
-            KEY_ALIAS="${{ secrets.ANDROID_KEY_ALIAS }}"
-          elif [ -f "frontend/android/smitrix-release.keystore" ]; then
-            echo "Using persistent repository release keystore..."
-            KEYSTORE="frontend/android/smitrix-release.keystore"
-            KS_PASS="smitrix_release_key"
-            KEY_ALIAS="smitrix"
+      - name: Package release APKs & SHA-256 checksums
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
           else
-            echo "Generating fallback release signing key..."
-            keytool -genkeypair -v \
-              -keystore release.keystore \
-              -alias smitrix \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass "smitrix_release_key" \
-              -keypass "smitrix_release_key" \
-              -dname "CN=SmiTriX, OU=Mobile, O=SmitroniX, L=Mumbai, ST=Maharashtra, C=IN"
-            KEYSTORE="release.keystore"
-            KS_PASS="smitrix_release_key"
-            KEY_ALIAS="smitrix"
+            VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
           fi
+          cp dist/SmiTriX.apk "dist/SmiTriX-${VERSION}.apk"
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            src="build/app/outputs/flutter-apk/app-${abi}-release.apk"
+            if [ -f "$src" ]; then
+              cp "$src" "dist/SmiTriX-${VERSION}-${abi}.apk"
+            fi
+          done
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt)
+          (cd dist && sha256sum SmiTriX.apk > SmiTriX.apk.sha256)
+          ls -lh dist/
+          cat dist/SHA256SUMS.txt
 
-          # 3. Sign the APK
-          "$APKSIGNER" sign \
-            --ks "$KEYSTORE" \
-            --ks-pass "pass:$KS_PASS" \
-            --ks-key-alias "$KEY_ALIAS" \
-            --key-pass "pass:$KS_PASS" \
-            --out "SmiTriX-${APP_VERSION}.apk" \
-            aligned.apk
-
-          # 4. Verify signature
-          "$APKSIGNER" verify --verbose --print-certs "SmiTriX-${APP_VERSION}.apk"
-
-          # 5. Checksums and generic named copy for direct download links
-          sha256sum "SmiTriX-${APP_VERSION}.apk" > "SmiTriX-${APP_VERSION}.apk.sha256"
-          cp "SmiTriX-${APP_VERSION}.apk" "SmiTriX.apk"
-          sha256sum "SmiTriX.apk" > "SmiTriX.apk.sha256"
-          APK_HASH=$(cut -d' ' -f1 "SmiTriX.apk.sha256")
-          echo "APK_SHA256=$APK_HASH" >> $GITHUB_ENV
-
-          # Cleanup temporary build files from runner
-          rm -f release.keystore aligned.apk
-
-          echo "Signed APK successfully created: SmiTriX-${APP_VERSION}.apk (SHA-256: $APK_HASH)"
-
-      - name: Upload APK Artifacts
+      - name: Upload APK build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: smitrix-android-apk
-          path: |
-            SmiTriX-*.apk
-            SmiTriX-*.apk.sha256
-            SmiTriX.apk
-            SmiTriX.apk.sha256
-          retention-days: 30
+          path: dist/*
 
-      - name: Upload APK to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.create_release)
+      - name: Publish APKs to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', env.APP_VERSION) }}
-          name: SmiTriX v${{ env.APP_VERSION }}
-          body: |
-            ### Downloads
-            - **Signed APK**: [SmiTriX.apk](https://github.com/SmitroniX/SmiTriX/releases/download/${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', env.APP_VERSION) }}/SmiTriX.apk)
-            - **Versioned APK**: [SmiTriX-${{ env.APP_VERSION }}.apk](https://github.com/SmitroniX/SmiTriX/releases/download/${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', env.APP_VERSION) }}/SmiTriX-${{ env.APP_VERSION }}.apk)
-            - **SHA-256 Checksum**: `${{ env.APK_SHA256 }}`
-          files: |
-            SmiTriX-${{ env.APP_VERSION }}.apk
-            SmiTriX-${{ env.APP_VERSION }}.apk.sha256
-            SmiTriX.apk
-            SmiTriX.apk.sha256
+          name: SmiTriX ${{ github.ref_name }}
           generate_release_notes: true
+          files: |
+            dist/*.apk
+            dist/SHA256SUMS.txt
+            dist/SmiTriX.apk.sha256

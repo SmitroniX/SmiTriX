@@ -1,0 +1,1235 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:smitrix/l10n/l10n.dart';
+import 'package:smitrix/models/nutrition.dart';
+import 'package:smitrix/models/workout.dart';
+import 'package:smitrix/services/food_library.dart';
+import 'package:smitrix/services/local_store.dart';
+import 'package:smitrix/services/supplement_reminder.dart';
+import 'package:smitrix/services/sticker_cutout.dart';
+import 'package:smitrix/state/fit_state.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+FoodItem lib(String es) => FoodLibrary.foods.firstWhere((f) => f.names['es'] == es).item('es');
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() {
+    FoodLibrary.parse(File('assets/data/foods.tsv').readAsStringSync());
+    FoodLibrary.parseDishes(File('assets/data/dishes.tsv').readAsStringSync());
+  });
+
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    await Store.instance.init();
+    fit.resetAllData();
+    fit.setUnits('kg');
+  });
+
+  const whey = Macros(kcal: 120, protein: 24, carbs: 3, fat: 1.5);
+
+  group('comidas', () {
+    test('apuntar un alimento suma sus macros por ración', () {
+      final food = fit.saveFood(name: 'Whey', serving: '30 g', macros: whey);
+      fit.logFood(food, servings: 1.5, meal: Meal.snacks);
+      final total = fit.totalOn(DateTime.now());
+      expect(total.kcal, 180);
+      expect(total.protein, 36);
+      expect(fit.entriesOn(DateTime.now()).single.meal, Meal.snacks);
+    });
+
+    test('el añadido rápido sin números no apunta nada y sin kcal las calcula', () {
+      expect(fit.logQuick('Nada', Macros.zero), isNull);
+      final e = fit.logQuick('', const Macros(kcal: 500, protein: 30))!;
+      expect(fit.totalOn(DateTime.now()).kcal, 500);
+      expect(e.name, isEmpty);
+    });
+
+    test('quitar y deshacer deja la comida como estaba', () {
+      final e = fit.logQuick('Pollo', const Macros(kcal: 640, protein: 48))!;
+      final gone = fit.removeEntry(e.id)!;
+      expect(fit.entriesOn(DateTime.now()), isEmpty);
+      fit.restoreEntry(gone);
+      expect(fit.totalOn(DateTime.now()).protein, 48);
+    });
+
+    test('lo apuntado en otro día no cuenta para hoy', () {
+      fit.setNutritionDay(shiftDays(DateTime.now(), -2));
+      fit.logQuick('Ayer', const Macros(kcal: 300));
+      expect(fit.totalOn(DateTime.now()).kcal, 0);
+      expect(fit.totalOn(fit.nutritionDay).kcal, 300);
+    });
+
+    test('no se puede ir más allá de una semana', () {
+      fit.setNutritionDay(shiftDays(DateTime.now(), 10));
+      final now = DateTime.now();
+      expect(fit.nutritionDay, DateTime(now.year, now.month, now.day + 7));
+    });
+
+    test('borrar un alimento no borra lo que ya se apuntó', () {
+      final food = fit.saveFood(name: 'Pan', macros: const Macros(kcal: 180));
+      fit.logFood(food);
+      fit.deleteFood(food.id);
+      expect(fit.foods, isEmpty);
+      expect(fit.totalOn(DateTime.now()).kcal, 180);
+    });
+  });
+
+  group('agua y suplementos', () {
+    test('cada vaso suma su tamaño y deshacer quita el último', () {
+      fit.addWater();
+      fit.addWater(500);
+      expect(fit.waterOn(DateTime.now()), fit.activeGoals.glassMl + 500);
+      expect(fit.undoWater(), isTrue);
+      expect(fit.waterOn(DateTime.now()), fit.activeGoals.glassMl);
+    });
+
+    test('#298 un batido con agua suma al agua del día y se va al quitarlo', () {
+      final shake = fit.saveFood(name: 'Whey con agua', serving: '1 batido', macros: whey, water: 500);
+      expect(FoodItem.fromJson(shake.toJson()).water, 500);
+      final e = fit.logFood(shake, servings: 1.5);
+      fit.addWater(250);
+      expect(fit.waterFromFoodOn(DateTime.now()), 750);
+      expect(fit.waterOn(DateTime.now()), 1000);
+      expect(FoodEntry.fromJson(e.toJson()).waterMl, 750);
+      fit.removeEntry(e.id);
+      expect(fit.waterOn(DateTime.now()), 250);
+      final milk = fit.saveFood(name: 'Whey con leche', macros: whey);
+      fit.logFood(milk);
+      expect(fit.waterOn(DateTime.now()), 250);
+    });
+
+    test('el agua en litros no pierde los cuartos', () {
+      expect(fit.waterValue(250), '0.25');
+      expect(fit.waterValue(1750), '1.75');
+      expect(fit.waterValue(2000), '2');
+      expect(fit.waterLabel(1250), '1.25 L');
+      expect(fit.waterLabel(250), '250 ml');
+    });
+
+    test('un suplemento se marca por día y al quitarlo se van sus marcas', () {
+      final s = fit.addSupplement('Creatina', dose: '5 g')!;
+      fit.toggleSupplement(s.id);
+      expect(fit.takenOn(DateTime.now()), {s.id});
+      fit.removeSupplement(s.id);
+      expect(fit.takenOn(DateTime.now()), isEmpty);
+      expect(fit.addSupplement('  '), isNull);
+    });
+
+    test('#354 «Tomado» desde el aviso marca ese día sin desmarcar si ya estaba', () {
+      final a = fit.addSupplement('Creatina')!;
+      final b = fit.addSupplement('Omega 3')!;
+      final at = DateTime.now().subtract(const Duration(days: 1));
+      final day = DateTime(at.year, at.month, at.day);
+      final payload = SupplementReminder.payloadFor(at, [a.id, b.id]);
+      expect(SupplementReminder.idsOf(payload), [a.id, b.id]);
+      expect(SupplementReminder.dayOf(payload), day);
+      expect(SupplementReminder.idsOf('supp:${a.id}'), [a.id]);
+      fit.takeSupplementsOn(day, [a.id, b.id, 'nope']);
+      expect(fit.takenOn(day), {a.id, b.id});
+      fit.takeSupplementsOn(day, [a.id]);
+      expect(fit.takenOn(day), {a.id, b.id});
+      expect(fit.takenOn(DateTime.now()), isEmpty);
+    });
+
+    test('#439 racha, mes y constancia de los suplementos', () {
+      final a = fit.addSupplement('Creatina')!;
+      final b = fit.addSupplement('Omega 3')!;
+      final today = DateTime(2026, 11, 21);
+      DateTime ago(int n) => DateTime(2026, 11, 21 - n);
+      for (var i = 9; i >= 0; i--) {
+        fit.takeSupplementsOn(ago(i), [a.id, if (i != 4) b.id]);
+      }
+      expect(fit.suppStart(a), ago(9));
+      expect(fit.suppStreak(id: a.id, today: today), (current: 10, best: 10));
+      expect(fit.suppStreak(today: today), (current: 4, best: 5));
+      expect(fit.suppAdherence(id: b.id, days: 10, today: today), (due: 10, taken: 9));
+      expect(fit.suppAdherence(days: 10, today: today), (due: 20, taken: 19));
+      expect(fit.suppDayCount(ago(4)), (due: 2, taken: 1));
+      expect(fit.suppTakenTotal(a.id), 10);
+      final tomorrow = DateTime(2026, 11, 22);
+      expect(fit.suppStreak(id: a.id, today: tomorrow).current, 10);
+      expect(fit.suppStreak(id: a.id, today: DateTime(2026, 11, 23)).current, 0);
+      final days = fit.suppMonthDays(DateTime(2026, 11), id: a.id);
+      expect(days.length, 30);
+      expect(days[20], (due: 1, taken: 1));
+      expect(days[10], (due: 0, taken: 0));
+    });
+  });
+
+  group('objetivos', () {
+    test('sin tocar nada salen del perfil, y al fijarlos mandan los tuyos', () {
+      fit.profile.weightKg = 80;
+      final auto = fit.activeGoals;
+      expect(auto.protein, 144);
+      expect(auto.waterMl, 2750);
+      fit.setNutritionGoals(auto.copyWith(protein: 180));
+      expect(fit.activeGoals.protein, 180);
+    });
+  });
+
+  group('ritmo semanal del peso', () {
+    void weighIns(List<(int, double)> list) {
+      final n = DateTime.now();
+      for (final (ago, kg) in list) {
+        fit.bodyweight.add(BodyweightEntry(DateTime(n.year, n.month, n.day - ago, 8), kg));
+      }
+    }
+
+    test('con pocos pesajes no hay ritmo', () {
+      weighIns([(2, 80), (1, 79.8)]);
+      expect(fit.weightPace, isNull);
+      expect(fit.weightPaceStatus, isNull);
+    });
+
+    test('mide kg y % por semana y lo compara con lo que buscas', () {
+      weighIns([(14, 81), (7, 80.5), (0, 80)]);
+      final pace = fit.weightPace!;
+      expect(pace.kgPerWeek, closeTo(-0.5, 0.01));
+      expect(pace.pctPerWeek, closeTo(-0.5 / 80.5 * 100, 0.01));
+      expect(fit.weightPaceStatus, isNull, reason: 'sin objetivo no sabe qué buscas');
+      fit.setWeightAim('lose');
+      expect(fit.weightPaceStatus, 'onPace');
+      fit.setWeightAim('gain');
+      expect(fit.weightPaceStatus, 'wrongWay');
+      fit.setWeightAim('hold');
+      expect(fit.weightPaceStatus, 'drifting');
+      fit.setWeightAim('');
+      fit.setWeightGoal(75);
+      expect(fit.effectiveWeightAim, 'lose');
+      fit.setWeightAim('hold');
+      fit.persistNow();
+      fit.loadFromStore();
+      expect(fit.weightAim, 'hold');
+    });
+
+    test('perder demasiado rápido se avisa', () {
+      weighIns([(14, 84), (7, 82), (0, 80)]);
+      fit.setWeightAim('lose');
+      expect(fit.weightPaceStatus, 'tooFast');
+    });
+  });
+
+  group('guardado', () {
+    test('todo sobrevive a cerrar la app', () {
+      final food = fit.saveFood(name: 'Whey', photo: 'food-x.png', serving: '30 g', macros: whey);
+      fit.logFood(food, meal: Meal.breakfast);
+      fit.addWater(750);
+      final s = fit.addSupplement('Omega 3')!;
+      fit.toggleSupplement(s.id);
+      fit.setNutritionGoals(const NutritionGoals(kcal: 2500, protein: 170));
+      fit.persistNow();
+
+      fit.loadFromStore();
+      expect(fit.foods.single.photo, 'food-x.png');
+      expect(fit.totalOn(DateTime.now()).protein, 24);
+      expect(fit.waterOn(DateTime.now()), 750);
+      expect(fit.takenOn(DateTime.now()), {s.id});
+      expect(fit.activeGoals.kcal, 2500);
+    });
+
+    test('al restaurar una copia las fotos apuntan a los ficheros nuevos', () {
+      fit.saveFood(name: 'Whey', photo: 'viejo.png', macros: whey);
+      final data = fit.toJson();
+      fit.applyBackup(data, restoredFoods: {'viejo.png': 'nuevo.png'});
+      expect(fit.foods.single.photo, 'nuevo.png');
+    });
+
+    test('borrar todos los datos vacía la nutrición', () {
+      fit.logQuick('x', const Macros(kcal: 100));
+      fit.addWater();
+      fit.resetAllData();
+      expect(fit.foodLog, isEmpty);
+      expect(fit.waterLog, isEmpty);
+      expect(fit.nutritionGoalsSet, isFalse);
+    });
+  });
+
+  group('base de alimentos', () {
+    test('se carga entera y busca sin tildes en el idioma de la app', () {
+      expect(FoodLibrary.foods.length, greaterThan(500));
+      final hits = FoodLibrary.search('platano', 'es');
+      expect(hits.first.nameFor('es'), startsWith('Plátano'));
+      expect(FoodLibrary.search('chicken breast', 'es'), isNotEmpty);
+      expect(FoodLibrary.search('   ', 'es'), isEmpty);
+    });
+
+    test('los 17 idiomas tienen nombre propio y se buscan sin diacríticos', () {
+      for (final l in appLanguages.where((l) => !const {'vi', 'hi', 'bn', 'ur', 'id'}.contains(l))) {
+        final missing = FoodLibrary.foods.where((f) => (f.names[l] ?? '').isEmpty).length;
+        expect(missing, 0, reason: l);
+      }
+      expect(FoodLibrary.search('losos', 'pl').first.names['en'], 'Salmon');
+      expect(FoodLibrary.search('sut', 'tr').first.names['en'], contains('Milk'));
+      expect(FoodLibrary.search('鮭魚', 'zh_Hant').first.names['en'], 'Salmon');
+      expect(FoodLibrary.search('سيب', 'fa').first.names['en'], 'Apple');
+      expect(FoodLibrary.search('banana', 'ja'), isNotEmpty);
+    });
+
+    test('apuntar en gramos guarda los gramos y escala por 100 g', () {
+      final rice = FoodLibrary.search('arroz blanco', 'es').first.item('es');
+      expect(rice.grams, 100);
+      final e = fit.logFood(rice, servings: 1.5);
+      expect(e.totalGrams, 150);
+      expect(fit.totalOn(DateTime.now()).kcal, closeTo(rice.macros.kcal * 1.5, 0.01));
+      expect(fit.foodById(rice.id)?.macros.kcal, rice.macros.kcal);
+      expect(e.name, 'Arroz blanco');
+    });
+
+    test('cocido convierte el peso al crudo con el rendimiento del alimento', () {
+      final rice = lib('Arroz blanco');
+      expect(rice.canCook, isTrue);
+      final e = fit.logFood(rice, servings: 250 / rice.cookedYield / 100, cooked: true);
+      expect(e.cooked, rice.cookedYield);
+      expect(e.shownGrams, closeTo(250, 0.01));
+      expect(fit.totalOn(DateTime.now()).kcal, closeTo(rice.macros.kcal, 0.5));
+      expect(lib('Pechuga de pollo').cookedYield, 0.75);
+      expect(lib('Jamón serrano').canCook, isFalse);
+    });
+
+    test('las fotos de la base son assets y no se borran ni se exportan', () {
+      final egg = lib('Huevo');
+      expect(egg.photo, 'asset:assets/food/egg.webp');
+      expect(File(assetOfPhoto(egg.photo)).existsSync(), isTrue);
+      final mine = fit.saveFood(name: 'Mi huevo', photo: egg.photo, grams: 100, macros: egg.macros);
+      final data = fit.toJson();
+      fit.applyBackup(data, restoredFoods: {});
+      expect(fit.foods.single.photo, mine.photo);
+    });
+
+    test('los líquidos van en ml y traen ración de vaso', () {
+      final milk = FoodLibrary.foods.firstWhere((f) => f.names['es'] == 'Leche entera');
+      expect(milk.liquid, isTrue);
+      expect(milk.portion, PortionKind.glass);
+      expect(milk.portionGrams, 250);
+    });
+  });
+
+  group('platos hechos', () {
+    setUp(() => setAppLanguage('es'));
+    tearDown(() => setAppLanguage('en'));
+
+    test('todos los platos traen todos sus ingredientes de la base', () {
+      expect(FoodLibrary.dishes.length, greaterThan(20));
+      for (final d in FoodLibrary.dishes) {
+        expect(fit.dishRecipe(d).items.length, d.items.length, reason: d.id);
+        expect(d.nameFor('es'), isNotEmpty);
+      }
+    });
+
+    test('el arroz del plato va en peso cocido y se apunta en crudo', () {
+      final r = fit.dishRecipe(FoodLibrary.dishes.firstWhere((d) => d.id == 'chicken-rice'));
+      final rice = r.items.firstWhere((e) => e.foodId == 'a:rice');
+      expect(rice.shownGrams, closeTo(250, 0.01));
+      expect(rice.totalGrams, closeTo(250 / lib('Arroz blanco').cookedYield, 0.01));
+      expect(r.total.kcal, greaterThan(400));
+    });
+
+    test('#355 la foto de una comida guardada se conserva al editarla y al guardar', () {
+      final dish = fit.searchDishes('arroz con pollo').single;
+      final r = fit.saveRecipe('Mi arroz', dish.items, photo: 'recipe_1.jpg')!;
+      expect(r.photo, 'recipe_1.jpg');
+      fit.updateRecipe(r.id, dish.items.take(1).toList());
+      fit.renameRecipe(r.id, 'Arroz');
+      final kept = fit.recipes.single;
+      expect(kept.photo, 'recipe_1.jpg');
+      expect(Recipe.fromJson(kept.toJson()).photo, 'recipe_1.jpg');
+      fit.setRecipePhoto(r.id, '');
+      expect(fit.recipes.single.photo, isEmpty);
+      expect(fit.recipes.single.toJson().containsKey('ph'), isFalse);
+    });
+
+    test('se buscan sin tildes y no se guardan solos', () {
+      expect(fit.searchDishes('bolonesa').single.name, 'Espaguetis a la boloñesa');
+      final r = fit.searchDishes('cafe con leche').single;
+      expect(fit.isOwnRecipe(r.id), isFalse);
+      fit.logRecipe(r, meal: Meal.breakfast);
+      expect(fit.recipes, isEmpty);
+      expect(fit.entriesOn(DateTime.now()).length, 2);
+    });
+
+    test('editar una comida propia cambia sus ingredientes y no se queda vacía', () {
+      final dish = fit.searchDishes('arroz con pollo').single;
+      final r = fit.saveRecipe('Mi arroz', dish.items)!;
+      expect(fit.isOwnRecipe(r.id), isTrue);
+      fit.updateRecipe(r.id, [r.items.first.copyWith(servings: r.items.first.servings * 2)]);
+      expect(fit.recipes.single.items.length, 1);
+      expect(fit.recipes.single.name, 'Mi arroz');
+      fit.updateRecipe(r.id, const []);
+      expect(fit.recipes.single.items.length, 1);
+    });
+  });
+
+  group('comidas guardadas y repetir', () {
+    test('una comida guardada se apunta entera y se puede escalar', () {
+      fit.logQuick('Avena', const Macros(kcal: 300, protein: 10), meal: Meal.breakfast);
+      fit.logQuick('Whey', const Macros(kcal: 120, protein: 24), meal: Meal.breakfast);
+      final r = fit.saveRecipe('Desayuno', fit.entriesOn(DateTime.now()))!;
+      expect(fit.saveRecipe('  ', fit.foodLog), isNull);
+      fit.setNutritionDay(shiftDays(DateTime.now(), -1));
+      final added = fit.logRecipe(r, meal: Meal.lunch, factor: 2);
+      expect(added.length, 2);
+      expect(fit.totalOn(fit.nutritionDay).kcal, 840);
+      expect(added.every((e) => e.meal == Meal.lunch), isTrue);
+      expect(r.items.first.id, isNot(added.first.id));
+    });
+
+    test('un plato archivado sale de la estantería y del buscador, y se recuerda', () {
+      fit.logQuick('Avena', const Macros(kcal: 300), meal: Meal.breakfast);
+      final r = fit.saveRecipe('Gachas', fit.entriesOn(DateTime.now()))!;
+      fit.setRecipeArchived(r.id, true);
+      expect(fit.activeRecipes, isEmpty);
+      expect(fit.searchRecipes('gach'), isEmpty);
+      expect(fit.archivedRecipeList.single.id, r.id);
+
+      fit.persistNow();
+      fit.loadFromStore();
+      expect(fit.isRecipeArchived(r.id), isTrue);
+
+      fit.setRecipeArchived(r.id, false);
+      expect(fit.activeRecipes.single.id, r.id);
+      fit.setRecipeArchived(r.id, true);
+      fit.deleteRecipe(r.id);
+      expect(fit.archivedRecipes, isEmpty);
+    });
+
+    test('repetir una comida de otro día la copia al día abierto', () {
+      fit.setNutritionDay(shiftDays(DateTime.now(), -2));
+      fit.logQuick('Pollo', const Macros(kcal: 500), meal: Meal.dinner);
+      fit.logQuick('Fruta', const Macros(kcal: 80), meal: Meal.snacks);
+      fit.setNutritionDay(DateTime.now());
+      final from = fit.daysWithMeal(Meal.dinner);
+      expect(from.length, 1);
+      fit.copyMeal(from.single, Meal.dinner);
+      expect(fit.totalOn(DateTime.now()).kcal, 500);
+      expect(fit.daysWithMeal(Meal.dinner).length, 1);
+    });
+
+    test('repetir el día entero copia cada comida en la suya', () {
+      fit.setNutritionDay(shiftDays(DateTime.now(), -1));
+      fit.logQuick('Avena', const Macros(kcal: 300), meal: Meal.breakfast);
+      fit.logQuick('Pasta', const Macros(kcal: 700), meal: Meal.lunch);
+      fit.setNutritionDay(DateTime.now());
+      final from = fit.daysWithMeal(null);
+      expect(from.length, 1);
+      final added = fit.copyDay(from.single);
+      expect(added.length, 2);
+      final today = fit.entriesOn(DateTime.now());
+      expect(today.firstWhere((e) => e.name == 'Avena').meal, Meal.breakfast);
+      expect(today.firstWhere((e) => e.name == 'Pasta').meal, Meal.lunch);
+      expect(fit.totalOn(shiftDays(DateTime.now(), -1)).kcal, 1000);
+    });
+
+    test('vaciar una comida se deshace y mover la pasa entera a otra', () {
+      fit.logQuick('Huevos', const Macros(kcal: 200), meal: Meal.breakfast);
+      fit.logQuick('Café', const Macros(kcal: 40), meal: Meal.breakfast);
+      fit.logQuick('Pasta', const Macros(kcal: 700), meal: Meal.lunch);
+      final gone = fit.clearMeal(Meal.breakfast);
+      expect(gone.length, 2);
+      expect(fit.totalOn(DateTime.now()).kcal, 700);
+      fit.restoreEntries(gone);
+      expect(fit.totalOn(DateTime.now()).kcal, 940);
+      final moved = fit.moveMeal(Meal.breakfast, Meal.lunch);
+      expect(moved.length, 2);
+      var today = fit.entriesOn(DateTime.now());
+      expect(today.where((e) => e.meal == Meal.lunch).length, 3);
+      expect(today.where((e) => e.meal == Meal.breakfast), isEmpty);
+      fit.moveEntries(moved, Meal.breakfast);
+      today = fit.entriesOn(DateTime.now());
+      expect(today.where((e) => e.meal == Meal.lunch).single.name, 'Pasta');
+      expect(fit.moveMeal(Meal.lunch, Meal.lunch), isEmpty);
+    });
+
+    test('mover una entrada a otro día conserva la hora y se puede deshacer', () {
+      final e = fit.logQuick('Cena', const Macros(kcal: 600), meal: Meal.dinner)!;
+      final ayer = shiftDays(DateTime.now(), -1);
+      fit.moveEntryToDay(e.id, ayer);
+      expect(fit.totalOn(DateTime.now()).kcal, 0);
+      expect(fit.totalOn(ayer).kcal, 600);
+      expect(fit.entriesOn(ayer).single.at.hour, e.at.hour);
+      fit.moveEntryToDay(e.id, DateTime.now());
+      expect(fit.totalOn(DateTime.now()).kcal, 600);
+    });
+
+    test('los favoritos se guardan, van primero los últimos y se van al borrar el alimento', () {
+      final mine = fit.saveFood(name: 'Whey', serving: '30 g', macros: whey);
+      final egg = lib('Huevo');
+      fit.toggleFavoriteFood(egg.id);
+      fit.toggleFavoriteFood(mine.id);
+      expect([for (final f in fit.favoriteFoodItems) f.id], [mine.id, egg.id]);
+      fit.persistNow();
+      fit.loadFromStore();
+      expect(fit.isFavoriteFood(egg.id), isTrue);
+      fit.deleteFood(mine.id);
+      expect([for (final f in fit.favoriteFoodItems) f.id], [egg.id]);
+      fit.toggleFavoriteFood(egg.id);
+      expect(fit.favoriteFoodItems, isEmpty);
+    });
+
+    test('las comidas guardadas sobreviven a cerrar la app', () {
+      fit.logQuick('Tostada', const Macros(kcal: 200, fiber: 4));
+      fit.saveRecipe('Merienda', fit.foodLog);
+      fit.persistNow();
+      fit.loadFromStore();
+      expect(fit.recipes.single.name, 'Merienda');
+      expect(fit.recipes.single.total.fiber, 4);
+    });
+  });
+
+  group('objetivos y quemado', () {
+    test('lo quemado solo se suma si lo activas y sin contar el reposo', () {
+      fit.profile.weightKg = 80;
+      fit.setNutritionGoals(const NutritionGoals(kcal: 2000));
+      final n = DateTime.now();
+      fit.sessions.add(LoggedSession(DateTime(n.year, n.month, n.day, 12), 3600, const []));
+      expect(fit.burnedOn(DateTime.now()), 320);
+      expect(fit.kcalBudgetOn(DateTime.now()), 2000);
+      fit.setAddBurned(true);
+      expect(fit.kcalBudgetOn(DateTime.now()), 2320);
+    });
+
+    test('las calorías sugeridas siguen al objetivo de peso', () {
+      fit.profile.weightKg = 80;
+      final base = fit.suggestedGoals.kcal;
+      fit.setWeightGoal(74);
+      expect(fit.suggestedGoals.kcal, base - 500);
+      expect(fit.suggestedGoals.protein, 160);
+      fit.setWeightGoal(86);
+      expect(fit.suggestedGoals.kcal, base + 300);
+      fit.setWeightGoal(80.3);
+      expect(fit.suggestedGoals.kcal, base);
+    });
+
+    test('en descanso mandan los objetivos de descanso', () {
+      fit.setNutritionGoals(const NutritionGoals(kcal: 2600, protein: 160));
+      fit.splitRestGoals(true);
+      final past = shiftDays(DateTime.now(), -3);
+      expect(fit.goalsFor(past).kcal, 2210);
+      expect(fit.goalsFor(past).protein, 160);
+      fit.sessions.add(LoggedSession(past, 1800, const []));
+      expect(fit.goalsFor(past).kcal, 2600);
+      fit.splitRestGoals(false);
+      expect(fit.restGoals, isNull);
+    });
+
+    test('kJ solo cambia cómo se muestra, no lo guardado', () {
+      fit.setUseKj(true);
+      expect(fit.energyOf(100), 418);
+      expect(fit.kcalFromShown(418.4), closeTo(100, 0.01));
+      expect(fit.energyUnit, 'kJ');
+    });
+
+    test('la media de la semana cuenta solo los días apuntados', () {
+      fit.setNutritionGoals(const NutritionGoals(kcal: 2000, protein: 150));
+      fit.setAddBurned(false);
+      fit.logQuick('a', const Macros(kcal: 2000, protein: 150));
+      final w = fit.weekNutrition()!;
+      expect(w.days, 1);
+      expect(w.kcal, 2000);
+      expect(w.kcalMet, 1);
+      expect(w.proteinMet, 1);
+    });
+
+    test('el peso objetivo se guarda en kg', () {
+      fit.setWeightGoal(78.5);
+      fit.persistNow();
+      fit.loadFromStore();
+      expect(fit.weightGoalKg, 78.5);
+      fit.setWeightGoal(0);
+      expect(fit.weightGoalKg, 0);
+    });
+  });
+
+  group('ideas de Francis', () {
+    test('la proteína animal y los tipos de grasa salen de la base', () {
+      fit.logFood(lib('Pechuga de pollo'), servings: 2);
+      fit.logFood(lib('Lentejas'), servings: 2);
+      final m = fit.totalOn(DateTime.now());
+      expect(m.animal, closeTo(lib('Pechuga de pollo').macros.protein * 2, 0.5));
+      expect(m.plant, closeTo(lib('Lentejas').macros.protein * 2, 0.5));
+      expect(m.sat + m.mono + m.poly, greaterThan(0));
+    });
+
+    test('el arroz solo es incompleto y con legumbres mejora', () {
+      final rice = lib('Arroz blanco');
+      fit.logFood(rice, servings: 3);
+      final alone = fit.totalOn(DateTime.now());
+      expect(alone.limitingAmino, Amino.lys);
+      fit.logFood(lib('Lentejas'), servings: 2);
+      final mixed = fit.totalOn(DateTime.now());
+      expect(mixed.proteinQuality, greaterThan(alone.proteinQuality));
+    });
+
+    test('el huevo es proteína completa', () {
+      fit.logFood(lib('Huevo'), servings: 1);
+      expect(fit.totalOn(DateTime.now()).proteinQuality, 1);
+      expect(fit.totalOn(DateTime.now()).limitingAmino, isNull);
+    });
+
+    test('un lote se apunta una vez y se come a trozos de lo que queda', () {
+      final rice = fit.entryFor(lib('Arroz blanco'), servings: 10);
+      final chicken = fit.entryFor(lib('Pechuga de pollo'), servings: 6);
+      final b = fit.saveBatch(name: 'Pollo con arroz', items: [rice, chicken], cookedGrams: 2000)!;
+      expect(fit.foodLog, isEmpty);
+      expect(b.leftGrams, 2000);
+      final e = fit.logFromBatch(b, b.leftGrams * 0.25)!;
+      expect(e.totalGrams, 500);
+      expect(fit.batchById(b.id)!.leftGrams, 1500);
+      expect(fit.totalOn(DateTime.now()).kcal, closeTo(b.total.kcal / 4, 0.5));
+      fit.updateEntry(e.id, servings: 4);
+      expect(fit.batchById(b.id)!.leftGrams, 1600);
+      fit.removeEntry(e.id);
+      expect(fit.batchById(b.id)!.leftGrams, 2000);
+      fit.logFromBatch(b, 5000);
+      expect(fit.batchById(b.id)!.finished, isTrue);
+      expect(fit.activeBatches, isEmpty);
+    });
+
+    test('#301 una ración del lote se puede dejar para mañana', () {
+      final rice = fit.entryFor(lib('Arroz blanco'), servings: 10);
+      final b = fit.saveBatch(name: 'Táper', items: [rice], cookedGrams: 1000)!;
+      final now = DateTime.now();
+      final tomorrow = DateTime(now.year, now.month, now.day + 1);
+      final e = fit.logFromBatch(b, 250, meal: Meal.lunch, day: tomorrow)!;
+      expect(DateTime(e.at.year, e.at.month, e.at.day), tomorrow);
+      expect(fit.entriesOn(now), isEmpty);
+      expect(fit.entriesOn(tomorrow).single.meal, Meal.lunch);
+      expect(fit.batchById(b.id)!.leftGrams, 750);
+      final far = fit.logFromBatch(b, 100, day: DateTime(now.year, now.month, now.day + 40))!;
+      expect(DateTime(far.at.year, far.at.month, far.at.day), DateTime(now.year, now.month, now.day + 7));
+    });
+
+    test('sin peso cocinado ni gramos no se crea el lote', () {
+      final quick = FoodEntry(id: 'x', at: DateTime.now(), meal: Meal.lunch, name: 'a', per: const Macros(kcal: 100));
+      expect(fit.saveBatch(name: 'Nada', items: [quick]), isNull);
+      expect(fit.saveBatch(name: 'Con peso', items: [quick], cookedGrams: 300), isNotNull);
+    });
+
+    test('comidas libres: crear, renombrar, mover y quitar sin perder lo apuntado', () {
+      final pre = fit.addMealSlot('Preentreno')!;
+      fit.logQuick('Plátano', const Macros(kcal: 100), meal: pre.meal);
+      fit.renameMealSlot(pre.meal, 'Pre');
+      fit.moveMealSlot(pre.meal, -1);
+      expect(fit.mealSlots[fit.mealSlots.length - 2].meal, pre.meal);
+      fit.persistNow();
+      fit.loadFromStore();
+      expect(fit.slotOf(pre.meal)?.name, 'Pre');
+      expect(fit.removeMealSlot(pre.meal), isTrue);
+      expect(fit.entriesOn(DateTime.now()).single.meal, isNot(pre.meal));
+      expect(fit.totalOn(DateTime.now()).kcal, 100);
+    });
+
+    test('la comida por hora sale de las franjas', () {
+      expect(mealForHour(8), Meal.breakfast);
+      expect(mealForHour(13), Meal.lunch);
+      expect(mealForHour(17), Meal.snacks);
+      expect(mealForHour(21), Meal.dinner);
+    });
+
+    test('el aviso de suplementos se guarda y se apaga', () {
+      fit.addSupplement('Creatina');
+      fit.setSupplementReminder(21 * 60 + 30);
+      fit.persistNow();
+      fit.loadFromStore();
+      expect(fit.supplementReminderMin, 21 * 60 + 30);
+      fit.setSupplementReminder(null);
+      fit.persistNow();
+      fit.loadFromStore();
+      expect(fit.supplementReminderMin, isNull);
+    });
+
+    test('repetir una entrada la apunta otra vez en la misma comida', () {
+      final e = fit.logQuick('Café', const Macros(kcal: 20), meal: Meal.breakfast)!;
+      final copy = fit.repeatEntry(e)!;
+      expect(copy.id, isNot(e.id));
+      expect(copy.meal, Meal.breakfast);
+      expect(fit.totalOn(DateTime.now()).kcal, 40);
+    });
+
+    test('editar los valores de una entrada solo cambia esa entrada', () {
+      final food = fit.saveFood(name: 'Pan', grams: 100, macros: const Macros(kcal: 250, protein: 8));
+      final a = fit.logFood(food);
+      fit.logFood(food);
+      fit.editEntryValues(a.id, name: 'Pan de casa', per: const Macros(kcal: 300, protein: 10));
+      final list = fit.entriesOn(DateTime.now());
+      expect(list.firstWhere((e) => e.id == a.id).name, 'Pan de casa');
+      expect(fit.totalOn(DateTime.now()).kcal, 550);
+      expect(fit.foods.single.macros.kcal, 250);
+    });
+
+    test('los rastreadores se apagan y se guardan', () {
+      expect(fit.trackerOn(Tracker.water), isTrue);
+      expect(fit.trackerOn(Tracker.quality), isFalse);
+      fit.setTracker(Tracker.water, false);
+      fit.setTracker(Tracker.quality, true);
+      fit.persistNow();
+      fit.loadFromStore();
+      expect(fit.trackerOn(Tracker.water), isFalse);
+      expect(fit.trackerOn(Tracker.quality), isTrue);
+    });
+  });
+
+  group('recorte de pegatina', () {
+    Uint8List scene({required bool busy}) {
+      const w = 120, h = 120;
+      final px = Uint8List(w * h * 4);
+      for (var y = 0; y < h; y++) {
+        for (var x = 0; x < w; x++) {
+          final i = (y * w + x) * 4;
+          final inside = x >= 40 && x < 80 && y >= 30 && y < 95;
+          final shade = 220 - y ~/ 4;
+          final noise = busy ? ((x * 37 + y * 91) % 200) : 0;
+          px[i] = inside ? 30 : (busy ? noise : shade);
+          px[i + 1] = inside ? 30 : (busy ? (noise * 3) % 255 : shade - 4);
+          px[i + 2] = inside ? 200 : (busy ? (noise * 7) % 255 : shade - 10);
+          px[i + 3] = 255;
+        }
+      }
+      return px;
+    }
+
+    test('un objeto sobre fondo liso se separa del fondo', () {
+      final mask = cutoutMask(120, 120, scene(busy: false))!;
+      expect(mask[60 * 120 + 60], 1);
+      expect(mask[5 * 120 + 5], 0);
+      final area = mask.where((v) => v == 1).length;
+      expect(area, closeTo(40 * 65, 400));
+    });
+
+    test('con el fondo revuelto no se inventa un recorte', () {
+      expect(cutoutMask(120, 120, scene(busy: true)), isNull);
+    });
+  });
+
+  group('planes de comida', () {
+    test('un plan copia el día, se asigna a un día y apunta solo lo que falta', () {
+      fit.logFood(lib('Huevo'), servings: 2, meal: Meal.breakfast);
+      fit.logFood(lib('Arroz blanco'), meal: Meal.lunch);
+      final plan = fit.createMealPlan(name: 'Pierna', fromDay: true);
+      expect(plan.items.length, 2);
+      expect(plan.itemsOf(Meal.breakfast).single.servings, 2);
+
+      final other = shiftDays(fit.nutritionDay, -1);
+      fit.setPlanDay(other.weekday, plan.id);
+      expect(fit.planOn(other)?.id, plan.id);
+
+      fit.setNutritionDay(other);
+      fit.logFood(lib('Plátano'), meal: Meal.breakfast);
+      expect(fit.logPlanDay(fit.planOn(other)!), 1);
+      expect(fit.entriesOn(other).where((e) => e.meal == Meal.lunch).single.name, contains('Arroz'));
+      expect(fit.entriesOn(other).where((e) => e.meal == Meal.breakfast).length, 1);
+    });
+
+    test('borrar un plan lo quita de la semana y todo sobrevive a reiniciar', () async {
+      final a = fit.createMealPlan(name: 'A');
+      final b = fit.createMealPlan(name: 'B');
+      fit.addPlanItem(a.id, fit.entryFor(lib('Huevo'), meal: Meal.dinner));
+      fit.setPlanDay(1, a.id);
+      fit.setPlanDay(2, b.id);
+      fit.deleteMealPlan(b.id);
+      expect(fit.mealWeek, {1: a.id});
+
+      fit.persistNow();
+      fit.loadFromStore();
+      expect(fit.mealPlans.single.itemsOf(Meal.dinner).single.name, contains('Huevo'));
+      expect(fit.mealWeek, {1: fit.mealPlans.single.id});
+    });
+
+    test('quien ya tenía rastreadores guardados ve los planes al actualizar', () {
+      fit.loadNutrition({'trackers': ['calories', 'water']});
+      expect(fit.trackerOn(Tracker.plans), isTrue);
+      expect(fit.trackerOn(Tracker.protein), isFalse);
+    });
+  });
+
+  group('suplementos con cantidad y existencias', () {
+    test('las dosis escritas a mano se leen como cantidad y unidad', () {
+      expect(parseSuppDose('5 g'), (amount: 5.0, unit: 'g'));
+      expect(parseSuppDose('2 cápsulas'), (amount: 2.0, unit: 'capsule'));
+      expect(parseSuppDose('1,5 scoops'), (amount: 1.5, unit: 'scoop'));
+      expect(parseSuppDose('1000 UI'), (amount: 1000.0, unit: 'iu'));
+      expect(parseSuppDose('3'), (amount: 3.0, unit: ''));
+      expect(parseSuppDose('una cucharadita'), isNull);
+      expect(parseSuppDose('2 con el desayuno'), isNull);
+      final old = Supplement.fromJson({'id': 'a', 'n': 'Creatina', 'd': '5 g'});
+      expect((old.amount, old.unit), (5.0, 'g'));
+      final odd = Supplement.fromJson({'id': 'b', 'n': 'Zinc', 'd': 'una al día'});
+      expect(odd.amount, isNull);
+      expect(fit.suppDoseLabel(odd), 'una al día');
+    });
+
+    test('marcar descuenta la dosis y desmarcar la devuelve', () {
+      final s = fit.addSupplement('Omega-3', amount: 2, unit: 'capsule', stock: 10)!;
+      fit.toggleSupplement(s.id);
+      expect(fit.supplements.single.stock, 8);
+      fit.toggleSupplement(s.id);
+      expect(fit.supplements.single.stock, 10);
+      final saved = Supplement.fromJson(fit.supplements.single.toJson());
+      expect((saved.amount, saved.unit, saved.stock), (2.0, 'capsule', 10.0));
+    });
+
+    test('sabe para cuántos días queda y avisa cuando falta poco', () {
+      final s = fit.addSupplement('Creatina', amount: 5, unit: 'g', stock: 50)!;
+      expect(fit.suppDaysLeft(s), 10);
+      expect(fit.suppRunningLow(s), isFalse);
+      fit.updateSupplement(s.id, stock: 12);
+      expect(fit.suppDaysLeft(fit.supplements.single), 2);
+      expect(fit.suppRunningLow(fit.supplements.single), isTrue);
+      fit.updateSupplement(s.id, stock: 3);
+      expect(fit.suppDaysLeft(fit.supplements.single), 0);
+      fit.updateSupplement(s.id, every: 2);
+      fit.updateSupplement(s.id, stock: 15);
+      expect(fit.suppDaysLeft(fit.supplements.single), 6);
+      fit.updateSupplement(s.id, clearStock: true);
+      expect(fit.suppDaysLeft(fit.supplements.single), isNull);
+      expect(fit.suppDoseLabel(fit.supplements.single), '5 g');
+    });
+  });
+
+  group('suplementos con hora', () {
+    test('cada suplemento guarda su foto, su dosis y su hora', () {
+      final s = fit.addSupplement('Creatina', dose: '5 g', at: 9 * 60)!;
+      fit.updateSupplement(s.id, photo: 'asset:assets/img/peek-protein.webp', at: 21 * 60);
+      final saved = fit.supplements.single;
+      expect(saved.dose, '5 g');
+      expect(saved.photo, contains('peek-protein'));
+      expect(fit.supplementTime(saved), 21 * 60);
+      fit.updateSupplement(s.id, clearAt: true);
+      expect(fit.supplementTime(fit.supplements.single), isNull);
+    });
+
+    test('sin hora propia hereda la hora general de antes', () {
+      final s = fit.addSupplement('Vitamina D')!;
+      fit.setSupplementReminder(8 * 60);
+      expect(fit.supplementTime(fit.supplements.firstWhere((x) => x.id == s.id)), 8 * 60);
+    });
+  });
+
+  group('compartir planes y beta', () {
+    test('un plan exportado vuelve igual, con su comida propia y sus días', () {
+      final pre = fit.addMealSlot('Preentreno')!;
+      final plan = fit.createMealPlan(name: 'Volumen');
+      fit.addPlanItem(plan.id, fit.entryFor(lib('Huevo'), servings: 2, meal: Meal.breakfast));
+      fit.addPlanItem(plan.id, fit.entryFor(lib('Plátano'), meal: pre.meal));
+      fit.setPlanDay(3, plan.id);
+      final json = fit.exportMealPlansJson([plan]);
+
+      fit.deleteMealPlan(plan.id);
+      fit.removeMealSlot(pre.meal);
+      expect(fit.isMealPlanText(json), isTrue);
+      expect(fit.importMealPlans('mira mi plan: $json'), 1);
+
+      final back = fit.mealPlans.single;
+      expect(back.name, 'Volumen');
+      expect(back.itemsOf(Meal.breakfast).single.servings, 2);
+      final slot = fit.mealSlots.firstWhere((s) => s.name == 'Preentreno');
+      expect(back.itemsOf(slot.meal).single.name, contains('Plátano'));
+      expect(fit.mealWeek[3], back.id);
+    });
+
+    test('un texto cualquiera no importa nada', () {
+      expect(fit.importMealPlans('hola'), 0);
+      expect(fit.importMealPlans('{"name": "Push"}'), 0);
+    });
+
+    test('los planes se pueden ordenar', () {
+      final a = fit.createMealPlan(name: 'A');
+      final b = fit.createMealPlan(name: 'B');
+      fit.moveMealPlan(b.id, -1);
+      expect(fit.mealPlans.map((p) => p.id), [b.id, a.id]);
+    });
+
+    test('la nutrición viene encendida y se recuerda al apagarla', () {
+      expect(fit.nutritionBeta, isTrue);
+      fit.setNutritionBeta(false);
+      fit.persistNow();
+      fit.loadFromStore();
+      expect(fit.nutritionBeta, isFalse);
+      fit.setNutritionBeta(true);
+      fit.persistNow();
+      fit.loadFromStore();
+      expect(fit.nutritionBeta, isTrue);
+    });
+  });
+
+  group('tanda 9-oct', () {
+    test('un suplemento puede tocar algunos días, cada X días y con fecha de fin', () {
+      final monday = DateTime(2026, 10, 5);
+      final someDays = Supplement(id: 'a', name: 'Omega', days: (1 << 1) | (1 << 3) | (1 << 5));
+      expect([for (var i = 0; i < 7; i++) someDays.dueOn(monday.add(Duration(days: i)))],
+          [true, false, true, false, true, false, false]);
+      final every3 = Supplement(id: 'b', name: 'Zinc', every: 3, from: monday);
+      expect([for (var i = 0; i < 7; i++) every3.dueOn(monday.add(Duration(days: i)))],
+          [true, false, false, true, false, false, true]);
+      final short = Supplement(id: 'c', name: 'Melatonina', from: monday, until: DateTime(2026, 10, 6));
+      expect(short.dueOn(DateTime(2026, 10, 4)), isFalse);
+      expect(short.dueOn(DateTime(2026, 10, 6, 23)), isTrue);
+      expect(short.dueOn(DateTime(2026, 10, 7)), isFalse);
+      final back = Supplement.fromJson(every3.toJson());
+      expect(back.every, 3);
+      expect(back.from, monday);
+    });
+
+    test('el calendario del suplemento se guarda y la tarjeta solo cuenta los de hoy', () {
+      final today = fit.nutritionDay;
+      final notToday = (today.weekday % 7) + 1;
+      final s = fit.addSupplement('Creatina', days: 1 << notToday, until: shiftDays(today, 30))!;
+      fit.addSupplement('Vitamina D');
+      expect(fit.supplementsDueOn(today).map((x) => x.name), ['Vitamina D']);
+      fit.persistNow();
+      fit.loadFromStore();
+      final again = fit.supplements.firstWhere((x) => x.id == s.id);
+      expect(again.days, 1 << notToday);
+      expect(again.until, shiftDays(today, 30));
+      fit.updateSupplement(s.id, days: 0, clearUntil: true);
+      expect(fit.supplements.firstWhere((x) => x.id == s.id).until, isNull);
+      expect(fit.supplementsDueOn(today).length, 2);
+    });
+
+    test('cada X días sin fecha empieza a contar hoy', () {
+      final s = fit.addSupplement('Hierro', every: 2)!;
+      expect(s.from, fit.nutritionDay);
+      expect(s.dueOn(fit.nutritionDay), isTrue);
+      expect(s.dueOn(shiftDays(fit.nutritionDay, 1)), isFalse);
+    });
+
+    test('un plan nuevo no existe hasta guardarlo y se guarda con sus días', () {
+      final draft = fit.draftMealPlan();
+      expect(fit.mealPlans, isEmpty);
+      final saved = fit.saveMealPlan(
+        draft.copyWith(name: 'Lunes', items: [fit.entryFor(lib('Huevo'), servings: 2).copyWith(meal: Meal.breakfast)]),
+        {1, 3},
+      );
+      expect(fit.mealPlans.single.name, 'Lunes');
+      expect(fit.planDays(saved.id), [1, 3]);
+      fit.saveMealPlan(saved.copyWith(name: 'Lunes y viernes'), {1, 5});
+      expect(fit.mealPlans.length, 1);
+      expect(fit.planDays(saved.id), [1, 5]);
+      expect(fit.mealPlans.single.name, 'Lunes y viernes');
+    });
+
+    test('el progreso del plan de hoy cuenta las comidas ya apuntadas', () {
+      final plan = fit.saveMealPlan(
+        fit.draftMealPlan().copyWith(items: [
+          fit.entryFor(lib('Huevo')).copyWith(meal: Meal.breakfast),
+          fit.entryFor(lib('Arroz blanco')).copyWith(meal: Meal.lunch),
+        ]),
+        {fit.nutritionDay.weekday},
+      );
+      expect(fit.planProgress(plan, fit.nutritionDay), (done: 0, total: 2));
+      fit.logFood(lib('Plátano'), meal: Meal.breakfast);
+      expect(fit.planProgress(plan, fit.nutritionDay), (done: 1, total: 2));
+      expect(fit.logPlanDay(plan), 1);
+      expect(fit.planProgress(plan, fit.nutritionDay), (done: 2, total: 2));
+    });
+
+    Uint8List withLeg() {
+      const w = 120, h = 120;
+      final px = Uint8List(w * h * 4);
+      for (var y = 0; y < h; y++) {
+        for (var x = 0; x < w; x++) {
+          final i = (y * w + x) * 4;
+          final object = (x - 60) * (x - 60) + (y - 55) * (y - 55) < 18 * 18;
+          final leg = x >= 0 && x < 40 && y >= 70;
+          px[i] = object ? 240 : (leg ? 200 : 40);
+          px[i + 1] = object ? 200 : (leg ? 150 : 40);
+          px[i + 2] = object ? 20 : (leg ? 120 : 45);
+          px[i + 3] = 255;
+        }
+      }
+      return px;
+    }
+
+    test('el recorte se queda con lo del centro y no con lo que entra por el borde', () {
+      final mask = cutoutMask(120, 120, withLeg(), force: true)!;
+      expect(mask[55 * 120 + 60], 1);
+      expect(mask[100 * 120 + 15], 0);
+    });
+
+    test('la varita coge la zona tocada entera', () async {
+      final px = withLeg();
+      final full = Uint8List(120 * 120)..fillRange(0, 120 * 120, 1);
+      final draft = CutoutDraft(120, 120, px, full, auto: full, found: false);
+      final region = await regionAt(draft, 15, 100);
+      expect(region[110 * 120 + 30], 1);
+      expect(region[55 * 120 + 60], 0);
+      expect(region[10 * 120 + 100], 0);
+    });
+  });
+
+  test('agua: se borra un trago suelto y los topes de azúcar y sodio se guardan', () {
+    fit.addWater(250);
+    fit.addWater(500);
+    final sips = fit.waterSipsOn(DateTime.now());
+    expect(sips.length, 2);
+    fit.removeWaterSip(sips.first);
+    expect(fit.waterOn(DateTime.now()), 500);
+    fit.setNutritionGoals(fit.activeGoals.copyWith(sugar: 30, sodium: 1500, fiber: 35));
+    fit.persistNow();
+    fit.loadFromStore();
+    expect(fit.activeGoals.sugar, 30);
+    expect(fit.activeGoals.sodium, 1500);
+    expect(fit.activeGoals.fiber, 35);
+  });
+
+  test('quitar una comida pasa también lo planeado a la anterior', () {
+    final slot = fit.addMealSlot('Preentreno')!;
+    final plan = fit.createMealPlan(name: 'Pierna');
+    fit.addPlanItem(plan.id, fit.entryFor(lib('Plátano'), meal: slot.meal));
+    fit.removeMealSlot(slot.meal);
+    final items = fit.mealPlanById(plan.id)!.items;
+    expect(items.single.meal, isNot(slot.meal));
+    expect(fit.mealSlots.any((s) => s.meal == items.single.meal), isTrue);
+  });
+
+  group('#285 tipos de grasa en alimentos propios', () {
+    test('se guardan, se escalan al apuntar y sobreviven a reabrir', () {
+      final food = fit.saveFood(
+        name: 'Galletas',
+        macros: const Macros(kcal: 200, protein: 3, carbs: 25, fat: 10, sat: 4, trans: 0.5, mono: 3, poly: 2),
+      );
+      fit.logFood(food, servings: 2, meal: Meal.snacks);
+      final total = fit.totalOn(DateTime.now());
+      expect(total.sat, 8);
+      expect(total.trans, 1);
+      expect(total.mono, 6);
+      expect(total.poly, 4);
+
+      fit.persistNow();
+      fit.loadFromStore();
+      final again = fit.foodById(food.id)!.macros;
+      expect(again.trans, 0.5);
+      expect(again.hasFatTypes, isTrue);
+    });
+
+    test('solo trans ya cuenta como tipos de grasa', () {
+      expect(const Macros(fat: 5, trans: 1).hasFatTypes, isTrue);
+      expect(Macros.fromJson(const Macros(trans: 1.2).toJson()).trans, 1.2);
+    });
+  });
+
+  group('categorías propias', () {
+    test('se crean, se asignan, filtran y vuelven al reabrir', () {
+      final g = fit.addFoodGroup('Platos preparados');
+      expect(fit.addFoodGroup('  platos PREPARADOS '), g, reason: 'el mismo nombre no duplica');
+      final fish = fit.saveFood(name: 'Merluza congelada', macros: const Macros(kcal: 90, protein: 18), group: g);
+      fit.saveFood(name: 'Manzana', macros: const Macros(kcal: 52));
+      expect(fit.searchFoods('', group: g).map((f) => f.id), [fish.id]);
+      expect(fit.foodsInGroup(g), hasLength(1));
+      fit.persistNow();
+      fit.loadFromStore();
+      expect(fit.foodGroupById(g)!.name, 'Platos preparados');
+      expect(fit.foodById(fish.id)!.group, g);
+    });
+
+    test('borrar la categoría deja los alimentos sin ella', () {
+      final g = fit.addFoodGroup('Congelados');
+      final f = fit.saveFood(name: 'Pizza', macros: const Macros(kcal: 260), group: g);
+      fit.renameFoodGroup(g, 'Del congelador');
+      expect(fit.foodGroupById(g)!.name, 'Del congelador');
+      fit.deleteFoodGroup(g);
+      expect(fit.foodGroups, isEmpty);
+      expect(fit.foodById(f.id)!.group, isEmpty);
+      expect(fit.foodById(f.id)!.name, 'Pizza');
+    });
+
+    test('una categoría que no existe no se guarda en el alimento', () {
+      final f = fit.saveFood(name: 'Pan', macros: const Macros(kcal: 250), group: 'g-nope');
+      expect(f.group, isEmpty);
+      expect(fit.addFoodGroup('   '), isEmpty);
+    });
+  });
+
+  group('ayuno', () {
+    test('viene apagado y se activa como el resto de tarjetas', () {
+      expect(fit.trackerOn(Tracker.fasting), false);
+      fit.setTracker(Tracker.fasting, true);
+      expect(fit.trackerOn(Tracker.fasting), true);
+    });
+
+    test('un ayuno terminado se guarda y cuenta para la racha', () {
+      fit.setFastGoal(16);
+      fit.startFast(at: DateTime.now().subtract(const Duration(hours: 17)));
+      expect(fit.fasting, true);
+      expect(fit.fastEndsAt!.isBefore(DateTime.now()), true);
+      fit.endFast();
+      expect(fit.fasting, false);
+      expect(fit.fasts.single.reached, true);
+      expect(fit.fastStreak, 1);
+      fit.startFast(at: DateTime.now().subtract(const Duration(hours: 3)));
+      fit.endFast();
+      expect(fit.fasts.last.reached, false);
+      expect(fit.fastStreak, 0, reason: 'uno corto rompe la racha');
+      expect(fit.fastWeek!.count, 2);
+    });
+
+    test('no se puede empezar en el futuro ni hace días', () {
+      fit.startFast(at: DateTime.now().add(const Duration(hours: 2)));
+      expect(fit.fastStart!.isAfter(DateTime.now()), false);
+      fit.startFast(at: DateTime.now().subtract(const Duration(days: 5)));
+      expect(DateTime.now().difference(fit.fastStart!).inHours, lessThanOrEqualTo(48));
+    });
+
+    test('un ayuno en curso sobrevive a cerrar la app', () {
+      fit.setFastGoal(18);
+      fit.startFast(at: DateTime.now().subtract(const Duration(hours: 2)));
+      final saved = fit.nutritionJson();
+      fit.cancelFast();
+      fit.loadNutrition(saved);
+      expect(fit.fasting, true);
+      expect(fit.fastGoalHours, 18);
+    });
+
+    test('un ayuno terminado tarde se ajusta a la hora real', () {
+      fit.setFastGoal(16);
+      fit.startFast(at: DateTime.now().subtract(const Duration(hours: 20)));
+      final saved = fit.endFast()!;
+      final realEnd = saved.start.add(const Duration(hours: 16, minutes: 30));
+      expect(fit.saveFast(saved.start, realEnd, replacing: saved), isNotNull);
+      expect(fit.fasts.single.end, realEnd);
+      expect(fit.fasts.single.reached, true);
+      expect(fit.fasts.single.goalHours, 16);
+    });
+
+    test('se puede añadir un ayuno olvidado y se guarda en su sitio', () {
+      final now = DateTime.now();
+      fit.startFast(at: now.subtract(const Duration(hours: 2)));
+      fit.endFast();
+      final start = now.subtract(const Duration(days: 2, hours: 18));
+      final end = now.subtract(const Duration(days: 2));
+      expect(fit.saveFast(start, end), isNotNull);
+      expect(fit.fasts.first.start, start, reason: 'ordenado por inicio');
+      final saved = fit.nutritionJson();
+      fit.fasts.clear();
+      fit.loadNutrition(saved);
+      expect(fit.fasts.length, 2);
+    });
+
+    test('no se guardan ayunos imposibles', () {
+      final now = DateTime.now();
+      final a = fit.saveFast(now.subtract(const Duration(hours: 30)), now.subtract(const Duration(hours: 14)))!;
+      expect(fit.fastProblem(now.subtract(const Duration(hours: 2)), now.add(const Duration(hours: 3))), 'future');
+      expect(fit.fastProblem(now.subtract(const Duration(hours: 2)), now.subtract(const Duration(hours: 3))), 'order');
+      expect(fit.fastProblem(now.subtract(const Duration(minutes: 5)), now), 'short');
+      expect(fit.fastProblem(now.subtract(const Duration(hours: 20)), now.subtract(const Duration(hours: 10))), 'overlap');
+      expect(fit.fastProblem(a.start, a.end.add(const Duration(hours: 1)), editing: a), isNull,
+          reason: 'al editar no choca consigo mismo');
+      fit.startFast(at: now.subtract(const Duration(hours: 4)));
+      expect(fit.fastProblem(now.subtract(const Duration(hours: 8)), now.subtract(const Duration(hours: 3))), 'overlap',
+          reason: 'tampoco con el ayuno en curso');
+      expect(fit.saveFast(now.subtract(const Duration(hours: 8)), now.subtract(const Duration(hours: 3))), isNull);
+      expect(fit.fasts.length, 1);
+    });
+
+    test('cancelar no deja rastro en el historial', () {
+      fit.startFast(at: DateTime.now().subtract(const Duration(hours: 5)));
+      fit.cancelFast();
+      expect(fit.fasts, isEmpty);
+    });
+
+    test('Ramadán cuenta ayunos y días por recuperar, y se guarda', () {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      fit.setRamadan(true);
+      fit.ramadanFrom = today.subtract(const Duration(days: 4));
+      fit.setRamadanTimes(suhoor: 0, iftar: 1);
+      fit.toggleRamadanSkip(today.subtract(const Duration(days: 2)));
+      expect(fit.ramadanDay, 5);
+      expect(fit.ramadanCount, (fasted: now.isBefore(fit.ramadanAt(today, 1)) ? 3 : 4, owed: 1));
+      fit.persistNow();
+      fit.loadFromStore();
+      expect(fit.ramadan, isTrue);
+      expect((fit.suhoorMinute, fit.iftarMinute), (0, 1));
+      expect(fit.ramadanSkippedOn(today.subtract(const Duration(days: 2))), isTrue);
+      fit.restartRamadan();
+      expect(fit.ramadanCount.owed, 0);
+    });
+
+    test('con Ramadán el desayuno y la cena se llaman Suhoor e Iftar, salvo nombre propio', () {
+      setAppLanguage('es');
+      fit.nutritionBeta = true;
+      fit.setTracker(Tracker.fasting, true);
+      fit.setRamadan(true);
+      expect(fit.mealLabel(Meal.breakfast), 'Suhoor');
+      expect(fit.mealLabel(Meal.dinner), 'Iftar');
+      fit.setRamadan(false);
+      expect(fit.mealLabel(Meal.dinner), isNot('Iftar'));
+    });
+  });
+
+  group('archivar comida', () {
+    test('un alimento propio archivado sale de Mis alimentos pero se encuentra al buscarlo', () {
+      final f = fit.saveFood(name: 'Tarta de la abuela', grams: 100, macros: const Macros(kcal: 300, protein: 5, carbs: 40, fat: 12));
+      fit.setFoodArchived(f.id, true);
+      expect(fit.searchFoods('').map((x) => x.id), isNot(contains(f.id)));
+      expect(fit.searchFoods('abuela').map((x) => x.id), contains(f.id));
+      expect(fit.archivedFoodList.map((x) => x.id), [f.id]);
+      fit.setFoodArchived(f.id, false);
+      expect(fit.searchFoods('').map((x) => x.id), contains(f.id));
+    });
+
+    test('un plan archivado deja sus días libres y al recuperarlo vuelven', () {
+      final p = fit.createMealPlan(name: 'Volumen');
+      fit.setPlanDay(1, p.id);
+      fit.setPlanDay(3, p.id);
+      final days = fit.setPlanArchived(p.id, true);
+      expect(days, unorderedEquals([1, 3]));
+      expect(fit.activeMealPlans, isEmpty);
+      expect(fit.mealWeek, isEmpty);
+      fit.setPlanArchived(p.id, false, restore: days);
+      expect(fit.mealWeek, {1: p.id, 3: p.id});
+    });
+
+    test('un suplemento archivado no toca hoy y se guarda en la copia', () {
+      final s = fit.addSupplement('Creatina')!;
+      fit.setSuppArchived(s.id, true);
+      expect(fit.supplementsDueOn(DateTime.now()), isEmpty);
+      final json = fit.toJson();
+      fit.resetAllData();
+      fit.applyBackup(json);
+      expect(fit.archivedSupps, {s.id});
+      expect(fit.activeSupplements, isEmpty);
+    });
+  });
+
+  group('#394 hierro y potasio', () {
+    test('viene apagado y no se enciende solo al cargar ajustes viejos', () {
+      expect(fit.trackerOn(Tracker.minerals), isFalse);
+      final old = fit.toJson();
+      final n = Map<String, dynamic>.from(old['nutrition'] as Map);
+      n['trackers'] = [for (final t in Tracker.values) if (t != Tracker.minerals && fit.trackerOn(t)) t.name];
+      old['nutrition'] = n;
+      expect(fit.tryApplyBackup(old), isTrue);
+      expect(fit.trackerOn(Tracker.minerals), isFalse);
+    });
+
+    test('se guardan, se suman y cuentan cuántos alimentos del día los traen', () {
+      const lentils = Macros(kcal: 230, protein: 18, carbs: 40, fat: 1, iron: 6.6, potassium: 738);
+      expect(Macros.fromJson(lentils.toJson()).iron, 6.6);
+      expect(Macros.fromJson(lentils.toJson()).potassium, 738);
+      expect(Macros.fromJson(whey.toJson()).hasMinerals, isFalse);
+      fit.logFood(fit.saveFood(name: 'Lentejas', serving: '1 plato', macros: lentils));
+      fit.logFood(fit.saveFood(name: 'Whey', serving: '30 g', macros: whey), servings: 2);
+      final day = DateTime.now();
+      expect(fit.totalOn(day).iron, closeTo(6.6, 0.001));
+      expect(fit.totalOn(day).potassium, 738);
+      final c = fit.mineralsCoverage(day);
+      expect((c.known, c.total), (1, 2));
+    });
+
+    test('las metas salen del perfil hasta que pones las tuyas, y viajan en la copia', () {
+      fit.updateProfile(sex: 'female');
+      expect(fit.ironGoal(fit.nutritionGoals), 18);
+      fit.updateProfile(sex: 'male');
+      expect(fit.ironGoal(fit.nutritionGoals), 8);
+      expect(fit.potassiumGoal(fit.nutritionGoals), 3400);
+      fit.setNutritionGoals(fit.nutritionGoals.copyWith(iron: 12, potassium: 4000));
+      final g = NutritionGoals.fromJson(fit.nutritionGoals.toJson());
+      expect((g.iron, g.potassium), (12, 4000));
+      expect(NutritionGoals.fromJson(const NutritionGoals().toJson()).iron, 0);
+    });
+  });
+}

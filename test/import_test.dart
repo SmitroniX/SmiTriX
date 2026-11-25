@@ -1,0 +1,402 @@
+import 'dart:convert';
+
+import 'package:archive/archive.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:smitrix/services/workout_import.dart';
+import 'package:smitrix/state/fit_state.dart';
+
+const _hevy = '''
+"title","start_time","end_time","description","exercise_title","superset_id","exercise_notes","set_index","set_type","weight_kg","reps","distance_km","duration_seconds","rpe"
+"Morning","12 Jan 2024, 18:30","12 Jan 2024, 19:15","","Bench Press (Barbell)",,"",0,"warmup",20,10,,0,
+"Morning","12 Jan 2024, 18:30","12 Jan 2024, 19:15","","Bench Press (Barbell)",,"",1,"normal",60,10,,0,8
+"Morning","12 Jan 2024, 18:30","12 Jan 2024, 19:15","","Bench Press (Barbell)",,"",2,"normal",60,8,,0,9
+"Morning","12 Jan 2024, 18:30","12 Jan 2024, 19:15","","Squat (Barbell)",,"",0,"normal",100,5,,0,8
+''';
+
+const _hevyLb = '''
+"title","start_time","end_time","exercise_title","set_index","set_type","weight_kg","weight_lbs","reps"
+"Push","12 Jan 2024, 18:30","12 Jan 2024, 19:00","Bench Press (Barbell)",0,"normal",,220,5
+''';
+
+const _strongPlain = '''
+Date;Workout Name;Duration;Exercise Name;Set Order;Weight;Reps;Distance;Seconds;Notes;Workout Notes;RPE
+2024-01-13 10:00:00;Legs;1h 5m;Squat (Barbell);1;100;5;;;;;
+2024-01-13 10:00:00;Legs;1h 5m;Squat (Barbell);2;100;5;;;;;
+''';
+
+const _strongLb = '''
+Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,Notes,Workout Notes,RPE
+2024-01-14 09:00:00,Push,30m,Bench Press (Barbell),1,220,5,,,,,
+''';
+
+const _fitnotesPlain = '''
+Date,Exercise,Category,Weight,Reps,Distance,Distance Unit,Time,Comment
+2024-01-15,Barbell Bench Press,Chest,60,10,,,,
+2024-01-15,Barbell Squat,Legs,100,5,,,,
+''';
+
+const _fitnotesUnits = '''
+Date,Exercise,Category,Weight (kg),Weight (lbs),Reps,Distance,Distance Unit,Time,Notes,Kind
+2024-01-15,Bench Press,Chest,100.00,220.46,10,,,00:03:45,Good form,wr
+''';
+
+const _gymmane = '''
+date,exercise,muscle,set,reps,weight_kg,volume_kg,est_1rm_kg
+2024-01-16,Barbell Bench Press,chest,1,10,60,600,80
+''';
+
+const _generic = '''
+Date,Exercise,Reps,Weight,RiR
+2024-02-01,Bench Press,10,60,2
+2024-02-01,Bench Press,8,62.5,1
+2024-02-01,Squat,5,100,
+''';
+
+const _genericDe = '''
+Datum;Übung;Wiederholungen;Gewicht
+2024-02-02;Kniebeuge;5;100
+''';
+
+const _openGym = '''
+{
+  "unit": "kg",
+  "routines": [],
+  "customEx": [{"id": "im1", "n": "Sled Drag", "custom": true}],
+  "bodyweight": [{"d": "2024-01-20", "w": 81.4, "t": 1705750000000}],
+  "workouts": [
+    {
+      "id": "w1",
+      "d": "2024-01-20",
+      "start": 1705750000000,
+      "end": 1705753600000,
+      "name": "Push",
+      "entries": [
+        {"id": "0025", "sets": [
+          {"w": 20, "r": 10, "done": true, "phase": "warmup"},
+          {"w": 60, "r": 8, "done": true},
+          {"w": 60, "r": 7, "done": true},
+          {"w": 60, "r": 6, "done": false}
+        ]},
+        {"id": "0294", "sets": [{"w": 12, "r": 12, "done": true}]},
+        {"id": "im1", "sets": [{"w": 40, "r": 20, "done": true}]},
+        {"id": "9999", "sets": [{"w": 30, "r": 10, "done": true}]}
+      ]
+    }
+  ]
+}
+''';
+
+const _openGymLb = '''
+{
+  "unit": "lb",
+  "routines": [],
+  "workouts": [
+    {"id": "w1", "d": "2024-01-21", "start": 1705836000000, "end": 1705836000000,
+     "entries": [{"id": "0043", "sets": [{"w": 220, "r": 5, "done": true}]}]}
+  ],
+  "bodyweight": [{"d": "2024-01-21", "w": 180}]
+}
+''';
+
+void main() {
+  group('detección de formato', () {
+    test('reconoce cada app', () {
+      expect(detectFormat(_hevy), ImportFormat.hevy);
+      expect(detectFormat(_strongPlain), ImportFormat.strong);
+      expect(detectFormat(_fitnotesPlain), ImportFormat.fitnotes);
+      expect(detectFormat(_fitnotesUnits), ImportFormat.fitnotes);
+      expect(detectFormat(_gymmane), ImportFormat.gymmane);
+      expect(detectFormat('a,b,c\n1,2,3'), ImportFormat.unknown);
+      expect(detectFormat(_generic), ImportFormat.generic);
+      expect(detectFormat(_genericDe), ImportFormat.generic);
+      expect(detectFormat(''), ImportFormat.unknown);
+    });
+
+    test('solo se pregunta la unidad cuando el archivo no la dice', () {
+      expect(needsUnitChoice(_strongPlain), isTrue);
+      expect(needsUnitChoice(_fitnotesPlain), isTrue);
+      expect(needsUnitChoice(_fitnotesUnits), isFalse);
+      expect(needsUnitChoice(_hevy), isFalse);
+      expect(needsUnitChoice(_gymmane), isFalse);
+    });
+  });
+
+  group('CSV genérico de cualquier app', () {
+    test('agrupa por día y respeta las columnas en inglés', () {
+      final r = parseImport(_generic);
+      expect(r.format, ImportFormat.generic);
+      expect(r.sessions.length, 1);
+      final s = r.sessions.first;
+      expect(s.exercises.length, 2);
+      expect(s.exercises.first.name, 'Bench Press');
+      expect(s.exercises.first.sets.length, 2);
+      expect(s.exercises.first.sets.first.weightKg, 60);
+      expect(s.exercises.last.sets.single.reps, 5);
+    });
+
+    test('lee cabeceras en otro idioma y con punto y coma', () {
+      final r = parseImport(_genericDe);
+      expect(r.sessions.single.exercises.single.name, 'Kniebeuge');
+      expect(r.sessions.single.exercises.single.sets.single.weightKg, 100);
+    });
+
+    test('pregunta la unidad porque la columna no la dice', () {
+      expect(needsUnitChoice(_generic), isTrue);
+    });
+  });
+
+  group('parseo', () {
+    test('Hevy agrupa la sesión y saca la duración de start/end', () {
+      final r = parseImport(_hevy);
+      expect(r.sessions.length, 1);
+      final s = r.sessions.first;
+      expect(s.durationSec, 45 * 60);
+      expect(s.exercises.length, 2);
+      expect(s.exercises.first.sets.length, 2, reason: 'la serie de calentamiento no cuenta');
+      expect(s.exercises.first.sets.first.weightKg, 60);
+      expect(s.exercises.first.sets.first.reps, 10);
+      expect(s.exercises[1].sets.single.weightKg, 100);
+    });
+
+    test('Hevy sin weight_kg cae a weight_lbs', () {
+      final r = parseImport(_hevyLb);
+      expect(r.sessions.single.exercises.single.sets.single.weightKg, closeTo(99.79, 0.05));
+      expect(r.sessions.single.durationSec, 1800);
+    });
+
+    test('Strong con ; y kg', () {
+      final r = parseImport(_strongPlain);
+      expect(r.sessions.length, 1);
+      final s = r.sessions.first;
+      expect(s.durationSec, 3900);
+      expect(s.exercises.single.sets.length, 2);
+      expect(s.exercises.single.sets.first.weightKg, 100);
+    });
+
+    test('Strong en lb convierte a kg', () {
+      final r = parseImport(_strongLb, isLb: true);
+      final w = r.sessions.single.exercises.single.sets.single.weightKg;
+      expect(w, closeTo(99.79, 0.05));
+      expect(r.sessions.single.durationSec, 1800);
+    });
+
+    test('FitNotes agrupa por día y trae la categoría', () {
+      final r = parseImport(_fitnotesPlain);
+      expect(r.sessions.length, 1);
+      expect(r.sessions.single.exercises.length, 2);
+      expect(r.sessions.single.exercises.first.muscle, 'Chest');
+    });
+
+    test('FitNotes moderno usa la columna en kg y ignora la de lb', () {
+      final r = parseImport(_fitnotesUnits, isLb: true);
+      expect(r.sessions.single.exercises.single.sets.single.weightKg, 100);
+    });
+
+    test('GymMane propio', () {
+      final r = parseImport(_gymmane);
+      expect(r.sessions.single.exercises.single.sets.single.weightKg, 60);
+    });
+
+    test('un archivo sin filas útiles no rompe nada', () {
+      expect(parseImport(_hevy.split('\n').first).sessions, isEmpty);
+      expect(parseImport('cualquier cosa').sessions, isEmpty);
+    });
+  });
+
+  group('StrongLifts', () {
+    const csv = 'Date (yyyy/mm/dd),Workout,Workout Name,Exercise,Start Time (h:mm),End Time (h:mm),Notes,'
+        'Set 1 (Reps),Set 1 (KG),Set 2 (Reps),Set 2 (KG),Set 3 (Reps),Set 3 (KG)\n'
+        '2024/03/05,1,Workout A,Squat,6:30 PM,7:15 PM,felt strong,5,100,5,100,3,100\n'
+        '2024/03/05,1,Workout A,Bench Press,6:30 PM,7:15 PM,,5,60,5,60,0,60\n'
+        '2024/03/07,1,Workout B,Deadlift,7:00 AM,,,5,140,,,,\n';
+
+    test('una fila por ejercicio con sus series en columnas', () {
+      expect(detectFormat(csv), ImportFormat.stronglifts);
+      expect(needsUnitChoice(csv), isFalse);
+      final r = parseImport(csv);
+      expect(r.sessions.length, 2);
+      final a = r.sessions.first;
+      expect(a.date, DateTime(2024, 3, 5, 18, 30));
+      expect(a.durationSec, 45 * 60);
+      expect(a.exercises.first.name, 'Squat');
+      expect(a.exercises.first.sets.length, 3);
+      expect(a.exercises.first.sets.first.note, 'felt strong');
+      expect(a.exercises[1].sets.length, 2, reason: 'la serie con 0 reps no se hizo');
+      expect(r.sessions.last.date, DateTime(2024, 3, 7, 7));
+      expect(r.sessions.last.exercises.single.sets.single.weightKg, 140);
+    });
+
+    test('pasa a kg las columnas en libras', () {
+      const lb = 'Date (yyyy/mm/dd),Workout,Exercise,Set 1 (Reps),Set 1 (LB)\n2024/03/05,1,Squat,5,225\n';
+      expect(parseImport(lb).sessions.single.exercises.single.sets.single.weightKg, closeTo(102.06, 0.05));
+    });
+  });
+
+  group('JEFIT', () {
+    const text = '### WORKOUT SESSIONS ###\n'
+        '_id,starttime,total_time\n'
+        '7,1709661600,3600\n'
+        '\n'
+        '### EXERCISE LOGS ###\n'
+        '_id,belongsession,ename,mydate,logs\n'
+        '1,7,Barbell Bench Press,2024-03-05,"60x10,65x8,65x6"\n'
+        '2,7,Pull Up,2024-03-05,"0x12,0x10"\n'
+        '3,,Barbell Squat,2024-03-07,"100x5"\n';
+
+    test('lee las secciones y las series peso x reps', () {
+      expect(detectFormat(text), ImportFormat.jefit);
+      expect(needsUnitChoice(text), isTrue, reason: 'JEFIT no dice la unidad');
+      final r = parseImport(text);
+      expect(r.sessions.length, 2);
+      final s = r.sessions.first;
+      expect(s.date, DateTime.fromMillisecondsSinceEpoch(1709661600 * 1000));
+      expect(s.durationSec, 3600);
+      expect(s.exercises.first.sets.map((e) => e.reps), [10, 8, 6]);
+      expect(s.exercises.first.sets.last.weightKg, 65);
+      expect(s.exercises.last.sets.first.weightKg, 0);
+      expect(r.sessions.last.date, DateTime(2024, 3, 7));
+    });
+
+    test('convierte a kg si el usuario dice que eran libras', () {
+      final r = parseImport(text, isLb: true);
+      expect(r.sessions.first.exercises.first.sets.first.weightKg, closeTo(27.22, 0.05));
+    });
+
+    test('recognises section headings with decorative hashes', () {
+      const csv = '''
+    ### WORKOUT SESSIONS #################################
+    _id,starttime,total_time
+    7,1709661600,3600
+
+    ### EXERCISE LOGS ####################################
+    _id,belongsession,ename,mydate,logs
+    1,7,Barbell Bench Press,2024-03-05,"60x10,65x8"
+    ''';
+
+      expect(detectFormat(csv), ImportFormat.jefit);
+
+      final result = parseImport(csv);
+
+      expect(result.sessions, hasLength(1));
+      expect(result.sessions.first.exercises, hasLength(1));
+      expect(result.sessions.first.exercises.first.name, 'Barbell Bench Press');
+      expect(result.sessions.first.exercises.first.sets, hasLength(2));
+    });
+  });
+
+  group('openGym', () {
+    test('reconoce el backup y lo parsea', () {
+      expect(detectFormat(_openGym), ImportFormat.openGym);
+      expect(needsUnitChoice(_openGym), isFalse);
+      final r = parseImport(_openGym);
+      final s = r.sessions.single;
+      expect(s.date, DateTime.fromMillisecondsSinceEpoch(1705750000000));
+      expect(s.durationSec, 3600);
+      expect(s.exercises.length, 3, reason: 'el ejercicio que no está en el catálogo se cae');
+      expect(s.exercises.first.id, 'EIeI8Vf');
+      expect(s.exercises.first.sets.length, 2,
+          reason: 'fuera el calentamiento y la serie sin marcar');
+      expect(s.exercises.first.sets.first.weightKg, 60);
+      expect(s.exercises[1].id, 'NbVPDMW');
+      expect(s.exercises.last.name, 'Sled Drag');
+      expect(r.weights.single.kg, 81.4);
+    });
+
+    test('convierte a kg cuando el backup está en libras', () {
+      final r = parseImport(_openGymLb);
+      expect(r.sessions.single.exercises.single.sets.single.weightKg, closeTo(99.79, 0.05));
+      expect(r.sessions.single.durationSec, 0);
+      expect(r.weights.single.kg, closeTo(81.65, 0.05));
+    });
+
+    test('saca el backup del zip con fotos y vídeos de openGym', () {
+      final data = utf8.encode(_openGym);
+      final zip = ZipEncoder().encode(Archive()
+        ..addFile(ArchiveFile('README.txt', 4, utf8.encode('hola')))
+        ..addFile(ArchiveFile('media/abc.jpg', 3, [1, 2, 3]))
+        ..addFile(ArchiveFile('opengym-backup.json', data.length, data)));
+      final raw = openGymBackupFromZip(zip)!;
+      expect(detectFormat(raw), ImportFormat.openGym);
+      expect(parseImport(raw).sessions.single.exercises.length, 3);
+      expect(openGymBackupFromZip(ZipEncoder().encode(Archive()..addFile(ArchiveFile('weight.csv', 3, [1, 2, 3])))), isNull);
+    });
+
+    test('no confunde un backup de GymMane con uno de openGym', () {
+      expect(detectFormat('{"sessions": [], "routines": []}'), ImportFormat.unknown);
+    });
+  });
+
+  group('fusión en el estado', () {
+    setUp(() => fit.sessions.clear());
+
+    test('empareja con el catálogo, salta duplicados y marca los no encontrados', () {
+      final known = fit.allExercises.first;
+      final ps = ParsedSession(DateTime(2024, 1, 1), 0)
+        ..exercises.add(ParsedExercise(known.name, null)..sets.add(ParsedSet(5, 100)));
+
+      expect(fit.importParsedSessions([ps]), 1);
+      expect(fit.sessions.last.exercises.first.id, known.id);
+      expect(fit.importParsedSessions([ps]), 0);
+
+      final ps2 = ParsedSession(DateTime(2024, 1, 2), 0)
+        ..exercises.add(ParsedExercise('Zzz Nonexistent Lift 9000', null)..sets.add(ParsedSet(5, 50)));
+      expect(fit.importParsedSessions([ps2]), 1);
+      expect(fit.sessions.last.exercises.first.id, startsWith('imp:'));
+    });
+
+    test('importar un CSV real deja el historial listo para las estadísticas', () {
+      final r = parseImport(_hevy);
+      expect(fit.importParsedSessions(r.sessions), 1);
+      final logged = fit.sessions.single;
+      expect(logged.setCount, 3);
+      expect(logged.volume, 60 * 10 + 60 * 8 + 100 * 5);
+      expect(logged.durationSec, 45 * 60);
+    });
+  });
+
+  group('Fitbod', () {
+    const csv = 'Date,Exercise,Reps,Weight(kg),Duration(s),Distance(m),Incline,Resistance,isWarmup,Note,multiplier\n'
+        '2024-03-04 18:02:11 +0000,Barbell Bench Press,10,40.0,0.0,0.0,0.0,0.0,true,,1.0\n'
+        '2024-03-04 18:02:11 +0000,Barbell Bench Press,8,60.0,0.0,0.0,0.0,0.0,false,,1.0\n'
+        '2024-03-04 18:02:11 +0000,Barbell Bench Press,8,62.5,0.0,0.0,0.0,0.0,false,,1.0\n'
+        '2024-03-06 18:10:00 +0000,Barbell Squat,5,100.0,0.0,0.0,0.0,0.0,false,,1.0\n';
+
+    test('detects the export and skips warm-ups', () {
+      expect(detectFormat(csv), ImportFormat.fitbod);
+      expect(needsUnitChoice(csv), isFalse);
+      final r = parseImport(csv);
+      expect(r.sessions.length, 2);
+      final bench = r.sessions.first.exercises.single;
+      expect(bench.sets.map((s) => s.weightKg), [60.0, 62.5]);
+    });
+  });
+
+  group('deportes y cardio', () {
+    const hevySports = '''
+"title","start_time","end_time","description","exercise_title","superset_id","exercise_notes","set_index","set_type","weight_kg","reps","distance_km","duration_seconds","rpe"
+"Club","10 Feb 2024, 18:00","10 Feb 2024, 19:30","","Badminton",,"",0,"normal",,,,3600,
+"Domingo","11 Feb 2024, 10:00","11 Feb 2024, 11:40","","Soccer",,"",0,"normal",,,6.2,5400,
+"Domingo","11 Feb 2024, 10:00","11 Feb 2024, 11:40","","Juggling Drill",,"",0,"normal",,,,600,
+''';
+
+    test('una fila solo con tiempo o distancia ya no se pierde', () {
+      final r = parseImport(hevySports);
+      expect(r.sessions, hasLength(2));
+      final club = r.sessions.firstWhere((s) => s.exercises.first.name == 'Badminton');
+      expect(club.exercises.single.sets.single.sec, 3600);
+      expect(club.exercises.single.sets.single.reps, 0);
+      final soccer = r.sessions.firstWhere((s) => s.exercises.first.name == 'Soccer');
+      expect(soccer.exercises.first.sets.single.km, closeTo(6.2, 0.001));
+    });
+
+    test('los deportes caen en el catálogo y lo desconocido se guarda igual', () {
+      fit.sessions.clear();
+      expect(fit.importParsedSessions(parseImport(hevySports).sessions), 2);
+      final ids = [for (final s in fit.sessions) for (final e in s.exercises) e.id];
+      expect(ids, containsAll(['badminton', 'football']));
+      expect(ids.where((id) => id.startsWith('imp:')), hasLength(1));
+      final soccer = fit.sessions.expand((s) => s.exercises).firstWhere((e) => e.id == 'football');
+      expect(soccer.sets.single.sec, 5400);
+    });
+  });
+}

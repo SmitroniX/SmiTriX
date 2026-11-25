@@ -11,7 +11,7 @@
       heroL1: 'Lift.', heroL2: 'Log it.', heroL3: 'Grow.',
       heroLead: 'The open-source gym log that asks for nothing on the web: no login in the demo, no ads, no paywall. Tap the muscles you want to train, log your sets and watch your numbers climb.',
       ctaDownload: 'Download APK', ctaDemo: 'Open Live Demo', ctaGithub: 'View on GitHub',
-      heroMeta: 'Android 7.0+ & Self-Host Docker · No login on website/demo · No ads · AGPL-3.0',
+      heroMeta: 'Android 7.0+ & Self-Host Docker · No login on website/demo · No ads · GPL-3.0',
       liveNote: 'Interactive live demo — no login required.',
       liveFull: 'Open fullscreen ↗',
       featTitle: 'What it does',
@@ -34,7 +34,7 @@
       cmp2: 'Web & Demo Login', cmp2a: 'No login on website or demo — app-only account option', cmp2b: 'Account wall before you can even try it',
       cmp3: 'Ads & tracking', cmp3a: 'Zero ads, zero trackers', cmp3b: 'Ads or invasive analytics',
       cmp4: 'Your data', cmp4a: 'Local-first on your device, full JSON export anytime', cmp4b: 'Locked on proprietary servers',
-      cmp5: 'Source code', cmp5a: 'Open source (GNU AGPL-3.0) on GitHub & GitLab', cmp5b: 'Closed source',
+      cmp5: 'Source code', cmp5a: 'Open source (GNU GPL-3.0) on GitHub & GitLab', cmp5b: 'Closed source',
       cmp6: 'Limits', cmp6a: 'Unlimited routines, charts, history & exports', cmp6b: 'Capped routines behind paywall',
       cmp7: 'All in one', cmp7a: 'Workouts, progress, nutrition, recovery, journal & 12 tools', cmp7b: 'Usually workouts only',
       cmp8: 'Switching over', cmp8a: 'Import from Hevy, Strong, FitNotes & CSV in seconds', cmp8b: 'Exporting often costs extra',
@@ -48,11 +48,11 @@
       privTitle: 'Your data stays under your control',
       privP1: 'On the website and live demo, SmiTriX asks for zero login and saves everything strictly in your browser. Nothing is sent anywhere.',
       privP2: 'Inside the Android app you can train with optional cloud sync or pair to your own self-hosted Docker instance — and export your complete JSON vault anytime.',
-      privOpen: 'Open Source on GitHub', privOpenSub: 'Audit every line of code (AGPL-3.0)',
+      privOpen: 'Open Source on GitHub', privOpenSub: 'Audit every line of code (GPL-3.0)',
       privDoc: 'Self-Hosting & Docs', privDocSub: 'Run SmiTriX on your own server with Docker',
       whyTitle: 'Why it exists',
       whyP1: 'Built by Asmit Jogdand (SmitroniX) for lifters who want a fast, tactile gym log without paywalls, cluttered social feeds, or forced logins on the web.',
-      whyP2: 'Licensed under GNU AGPL-3.0 (with UI/UX inspiration and attribution to GymMane by InlitX under GPL-3.0). Contributions, translations and bug reports are always welcome.',
+      whyP2: 'Licensed under GNU GPL-3.0 (with UI/UX inspiration and attribution to GymMane by InlitX under GPL-3.0). Contributions, translations and bug reports are always welcome.',
       supTitle: 'Support the project',
       supP1: 'SmiTriX is free and open source — no ads, no paywalls, ever. If it helps you hit PRs, consider buying Asmit a coffee or starring the repository on GitHub.',
       supP2: 'Bug reports, feature ideas and community feedback on Discord help just as much.',
@@ -72,7 +72,7 @@
       heroL1: 'Levanta.', heroL2: 'Anota.', heroL3: 'Mejora.',
       heroLead: 'El diario de gimnasio abierto que no pide nada en la web: sin login en la demo, sin anuncios ni suscripción. Toca los músculos, apunta tus series y sube tus números.',
       ctaDownload: 'Descargar APK', ctaDemo: 'Abrir Demo', ctaGithub: 'Ver en GitHub',
-      heroMeta: 'Android 7.0+ y Docker · Sin login en web/demo · Sin anuncios · AGPL-3.0',
+      heroMeta: 'Android 7.0+ y Docker · Sin login en web/demo · Sin anuncios · GPL-3.0',
       liveNote: 'Demo interactiva en vivo — sin iniciar sesión.',
       liveFull: 'Pantalla completa ↗',
       featTitle: 'Qué hace',
@@ -95,7 +95,7 @@
       cmp2: 'Login en Web/Demo', cmp2a: 'Sin login en web ni demo — cuenta opcional solo en app', cmp2b: 'Cuenta obligatoria incluso para probar',
       cmp3: 'Anuncios y rastreo', cmp3a: 'Cero anuncios y cero rastreo', cmp3b: 'Anuncios o analítica habitual',
       cmp4: 'Tus datos', cmp4a: 'En tu dispositivo con copia JSON completa', cmp4b: 'Encerrados en sus servidores',
-      cmp5: 'Código fuente', cmp5a: 'Abierto (GNU AGPL-3.0) en GitHub y GitLab', cmp5b: 'Cerrado',
+      cmp5: 'Código fuente', cmp5a: 'Abierto (GNU GPL-3.0) en GitHub y GitLab', cmp5b: 'Cerrado',
       cmp6: 'Límites', cmp6a: 'Rutinas, gráficas e historial ilimitados', cmp6b: 'Límites detrás de pago',
       cmp7: 'Todo en uno', cmp7a: 'Entreno, progreso, nutrición, recuperación, diario y 12 herramientas', cmp7b: 'Normalmente solo entreno',
       cmp8: 'Migrar tus datos', cmp8a: 'Importa Hevy, Strong, FitNotes y CSV al instante', cmp8b: 'Exportar suele ser de pago',
@@ -109,11 +109,11 @@
       privTitle: 'Tus datos siempre bajo tu control',
       privP1: 'En la web y la demo en vivo, SmiTriX no pide inicio de sesión y guarda todo localmente en tu navegador.',
       privP2: 'En la app Android puedes usar sincronización opcional en la nube o conectar tu propio servidor Docker — y exportar tu copia JSON cuando quieras.',
-      privOpen: 'Código abierto en GitHub', privOpenSub: 'Audita cada línea (AGPL-3.0)',
+      privOpen: 'Código abierto en GitHub', privOpenSub: 'Audita cada línea (GPL-3.0)',
       privDoc: 'Documentación y Docker', privDocSub: 'Despliega SmiTriX en tu propio servidor',
       whyTitle: 'Por qué existe',
       whyP1: 'Creado por Asmit Jogdand (SmitroniX) para entrenar rápido y sin distracciones, sin suscripciones ni registros obligatorios en la web.',
-      whyP2: 'Licencia GNU AGPL-3.0 (basado en GymMane de InlitX bajo GPL-3.0). Aportes, traducciones y reportes de errores son bienvenidos.',
+      whyP2: 'Licencia GNU GPL-3.0 (basado en GymMane de InlitX bajo GPL-3.0). Aportes, traducciones y reportes de errores son bienvenidos.',
       supTitle: 'Apoya el proyecto',
       supP1: 'SmiTriX es gratis y abierto para siempre. Si te ayuda a entrenar, invita un café a Asmit o dale una estrella en GitHub.',
       supP2: 'Un reporte claro o unirte a la comunidad en Discord ayuda muchísimo.',
@@ -338,9 +338,9 @@
         var n = 0;
         rs.forEach(function (r) { (r.assets || []).forEach(function (a) { n += a.download_count || 0; }); });
         if (n > 0) saveDl(n);
-        else if (dlNum && !dlShown) dlNum.textContent = 'AGPL-3.0';
+        else if (dlNum && !dlShown) dlNum.textContent = 'GPL-3.0';
       })
-      .catch(function () { if (dlNum && !dlShown) dlNum.textContent = 'AGPL-3.0'; });
+      .catch(function () { if (dlNum && !dlShown) dlNum.textContent = 'GPL-3.0'; });
   }
 
   // Copy checksum / docker command buttons

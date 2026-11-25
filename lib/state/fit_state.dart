@@ -1,0 +1,1566 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
+import 'dart:ui' show PlatformDispatcher;
+
+import 'package:app_settings/app_settings.dart';
+import 'package:flutter/foundation.dart' show listEquals, setEquals;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../widgets/glass.dart';
+import '../catalog/exercise_catalog.dart';
+import '../catalog/program_templates.dart';
+import '../l10n/l10n.dart';
+import '../models/exercise.dart';
+import '../models/gym_pass.dart';
+import '../models/live_session.dart';
+import '../models/circuit.dart';
+import '../models/measure.dart';
+import '../models/note.dart';
+import '../models/nutrition.dart';
+import '../models/place.dart';
+import '../models/profile.dart';
+import '../models/progression.dart';
+import '../models/progress_shot.dart';
+import '../models/recovery.dart';
+import '../models/workout.dart';
+import '../services/alarm_store.dart';
+import '../services/beeper.dart';
+import '../services/device_kind.dart';
+import '../services/exercise_match.dart';
+import '../services/food_library.dart';
+import '../services/health_metrics.dart';
+import '../services/health_steps.dart';
+import '../services/local_store.dart';
+import '../services/media_store.dart';
+import '../services/merged_ids.dart';
+import '../services/notif_sound.dart';
+import '../services/progress_reminder.dart';
+import '../services/plan_share.dart';
+import '../services/rest_alarm.dart';
+import '../services/supplement_reminder.dart';
+import '../services/train_reminder.dart';
+import '../services/voice_coach.dart';
+import '../services/workout_import.dart';
+
+part 'awards_state.dart';
+part 'circuit_state.dart';
+part 'fit_core.dart';
+part 'gym_pass_state.dart';
+part 'health_state.dart';
+part 'library_state.dart';
+part 'measures_state.dart';
+part 'moments_state.dart';
+part 'notes_state.dart';
+part 'nutrition_state.dart';
+part 'places_state.dart';
+part 'recovery_state.dart';
+part 'report_state.dart';
+part 'routines_state.dart';
+part 'settings_state.dart';
+part 'stats_state.dart';
+part 'steps_state.dart';
+part 'timeline_state.dart';
+part 'tools_state.dart';
+part 'workout_state.dart';
+
+class FitState extends FitCore
+    with ToolsState, LibraryState, SettingsState, NotesState, PlacesState, GymPassState, MeasuresState, MomentsState, TimelineState, StatsState, StepsState, RecoveryState, HealthState, CircuitState, NutritionState, ReportState, AwardsState, RoutinesState, WorkoutState {
+  FitState() {
+    setLoad = loadOf;
+  }
+
+  final Map<SoundGroup, String> notifSoundNames = {};
+
+  void _loadNotifSounds(Object? raw) {
+    NotifSound.uris.clear();
+    notifSoundNames.clear();
+    if (raw is! Map) return;
+    for (final g in SoundGroup.values) {
+      final v = raw[g.name];
+      if (v is! List || v.isEmpty || v.first is! String || (v.first as String).isEmpty) continue;
+      NotifSound.uris[g] = v.first as String;
+      notifSoundNames[g] = v.length > 1 && v[1] is String ? v[1] as String : '';
+    }
+  }
+
+  static const _soundChannels = ['train_reminder', 'supplement_reminder', 'fasting', 'progress_photo', 'measures'];
+
+  Future<void> setNotifSound(SoundGroup g, String uri, {String name = ''}) async {
+    if (uri.isEmpty) {
+      NotifSound.uris.remove(g);
+      notifSoundNames.remove(g);
+    } else {
+      NotifSound.uris[g] = uri;
+      notifSoundNames[g] = name;
+    }
+    _persist();
+    notifyListeners();
+    await NotifSound.dropOld(_soundChannels, {
+      NotifSound.channelOf('train_reminder', SoundGroup.train),
+      NotifSound.channelOf('supplement_reminder', SoundGroup.food),
+      NotifSound.channelOf('fasting', SoundGroup.food),
+      NotifSound.channelOf('progress_photo', SoundGroup.other),
+      NotifSound.channelOf('measures', SoundGroup.other),
+      'fasting_live',
+    });
+    switch (g) {
+      case SoundGroup.train:
+        syncTrainReminder();
+      case SoundGroup.food:
+        syncSupplementReminder();
+        _syncFast();
+      case SoundGroup.other:
+        syncPhotoReminder();
+        syncMeasureReminder();
+    }
+  }
+
+  void loadFromStore() {
+    final data = withMergedExercises(Store.instance.load());
+    _loading = true;
+    if (data['language'] == null) _adoptDeviceLanguage();
+    if (data.isNotEmpty) {
+      profile = Profile.fromJson((data['profile'] as Map?)?.cast<String, dynamic>() ?? {});
+      if (const {'Athlete', 'Atleta', 'Name'}.contains(profile.name)) {
+        profile.name = kDefaultName;
+      }
+
+      themePref = _themeFrom(data, fallback: 'dark');
+      units = data['units'] as String? ?? 'kg';
+      lengthUnits = FitCore._lengthFrom(data['lengthUnits']);
+
+      _applyLanguage(data['language'] as String? ?? language);
+      restSeconds = (data['rest'] as num?)?.toInt() ?? 90;
+      miniRestSeconds = (data['miniRest'] as num?)?.toInt() ?? 20;
+      changeRestSeconds = (data['changeRest'] as num?)?.toInt() ?? 0;
+      sideRestSeconds = (data['sideRest'] as num?)?.toInt() ?? 0;
+      alarmSound = data['alarmSound'] as String?;
+      alarmSoundName = data['alarmSoundName'] as String?;
+      RestAlarm.instance.customSoundPath = alarmSoundPath;
+      _loadNotifSounds(data['notifSounds']);
+
+      if (alarmSoundPath == null) {
+        alarmSound = null;
+        alarmSoundName = null;
+      }
+      bgPattern = data['bg'] as String? ?? 'dots';
+      heatTone = data['heatTone'] as String? ?? 'ember';
+      _loadToggles(data);
+      alarmAskedAt = (data['alarmAskedAt'] as num?)?.toInt();
+      onboarded = data['onboarded'] as bool? ?? false;
+      favorites
+        ..clear()
+        ..addAll(((data['favorites'] as Map?) ?? {}).map((k, v) => MapEntry(k as String, v as bool)));
+      _loadNotes(data);
+      _loadPlaces(data);
+      _loadGymPasses(data);
+      checkins
+        ..clear()
+        ..addAll(((data['checkins'] as List?) ?? []).cast<String>());
+      daysOff
+        ..clear()
+        ..addAll(((data['daysOff'] as Map?) ?? const {}).map((k, v) => MapEntry(k as String, v as String)));
+      routines
+        ..clear()
+        ..addAll(((data['routines'] as List?) ?? [])
+            .map((e) => Routine.fromJson((e as Map).cast<String, dynamic>())));
+      weeklyPlan
+        ..clear()
+        ..addAll(((data['weeklyPlan'] as Map?) ?? {})
+            .map((k, v) => MapEntry(int.parse(k as String), v as String)));
+      _loadPlanExtras(data);
+      customExercises
+        ..clear()
+        ..addAll(((data['custom'] as List?) ?? [])
+            .map((e) => Exercise.fromJson((e as Map).cast<String, dynamic>())));
+      _loadMedia(data);
+      _loadRepsOnly(data);
+      _loadExerciseRest(data);
+      _loadExerciseUnits(data);
+      sessions
+        ..clear()
+        ..addAll(((data['sessions'] as List?) ?? [])
+            .map((e) => LoggedSession.fromJson((e as Map).cast<String, dynamic>())));
+      bodyweight
+        ..clear()
+        ..addAll(((data['bodyweight'] as List?) ?? [])
+            .map((e) => BodyweightEntry.fromJson((e as Map).cast<String, dynamic>())));
+      _loadMeasures(data);
+      _loadShots(data);
+      awards
+        ..clear()
+        ..addAll(((data['awards'] as Map?) ?? const {}).map((k, v) =>
+            MapEntry(k as String, DateTime.tryParse(v as String? ?? '') ?? DateTime.now())));
+      awardsSeen
+        ..clear()
+        ..addAll(((data['awardsSeen'] as List?) ?? const []).cast<String>());
+      moments
+        ..clear()
+        ..addAll(((data['moments'] as List?) ?? const [])
+            .map((e) => Moment.fromJson((e as Map).cast<String, dynamic>())));
+      photoIntervalDays = (data['photoEvery'] as num?)?.toInt() ?? 30;
+      bodyTimeline = data['bodyTl'] as bool? ?? false;
+      loadNutrition((data['nutrition'] as Map?)?.cast<String, dynamic>());
+      loadSteps((data['steps'] as Map?)?.cast<String, dynamic>());
+      loadRecovery((data['recovery'] as Map?)?.cast<String, dynamic>());
+      loadHealth((data['health'] as Map?)?.cast<String, dynamic>());
+      loadCircuits(data['circuits'] as List?);
+      _restoreLiveSession(data);
+    }
+    _stampMemberSince();
+    _seedCalculatorsFromProfile();
+    _loading = false;
+    refreshAwards(silent: true);
+    pendingAwards.clear();
+    if (gamification) pendingAwards.addAll(unseenAwards);
+    notifyListeners();
+  }
+
+  void _stampMemberSince() {
+    if (profile.since != null) return;
+    var first = DateTime.now();
+    for (final s in sessions) {
+      if (s.date.isBefore(first)) first = s.date;
+    }
+    profile.since = DateTime(first.year, first.month, first.day);
+  }
+
+  static String _themeFrom(Map<String, dynamic> data, {required String fallback}) {
+    final pref = data['theme'];
+    if (pref is String && const ['system', 'dark', 'amoled', 'light'].contains(pref)) return pref;
+    final dark = data['dark'];
+    if (dark is bool) return dark ? 'dark' : 'light';
+    return fallback;
+  }
+
+  static double _stepFrom(Object? raw, List<double> allowed, double fallback) {
+    final v = (raw as num?)?.toDouble();
+    return v != null && allowed.contains(v) ? v : fallback;
+  }
+
+  void _loadToggles(Map<String, dynamic> data) {
+    demoSize = data['demo'] as String? ?? 'large';
+    demoLoop = data['demoLoop'] as String? ?? 'always';
+    sessionLayout = data['layout'] == 'list' ? 'list' : 'cards';
+    heatmapRange = data['heatRange'] == 'year' ? 'year' : 'weeks';
+    alarmStyle = data['alarmStyle'] as String? ?? 'quiet';
+    RestAlarm.instance.style = alarmStyle;
+    Beeper.instance.loud = alarmStyle == 'loud';
+    noSuggest
+      ..clear()
+      ..addAll(((data['noSuggest'] as List?) ?? const []).cast<String>());
+    archived
+      ..clear()
+      ..addAll(((data['archived'] as List?) ?? const []).cast<String>());
+    levelStay
+      ..clear()
+      ..addAll(((data['levelStay'] as List?) ?? const []).cast<String>());
+    levelSeen
+      ..clear()
+      ..addAll(((data['levelSeen'] as Map?) ?? const {}).map((k, v) => MapEntry(k as String, (v as num).toInt())));
+    exerciseGoals
+      ..clear()
+      ..addAll(((data['goals'] as Map?) ?? const {}).map((k, v) {
+        final g = (v as Map).cast<String, dynamic>();
+        final due = (g['d'] as num?)?.toInt();
+        return MapEntry(k as String,
+            (target: (g['t'] as num).toDouble(), due: due == null ? null : DateTime.fromMillisecondsSinceEpoch(due)));
+      }));
+    muscleGoalAll = ((data['muscleGoal'] as num?)?.toInt() ?? 12).clamp(1, StatsState.muscleGoalMax);
+    recoverySpeed = ((data['recoverySpeed'] as num?)?.toInt() ?? 1).clamp(0, 2);
+    muscleGoals
+      ..clear()
+      ..addAll({
+        for (final MapEntry(:key, :value) in ((data['muscleGoals'] as Map?) ?? const {}).entries)
+          if (key is String && value is num) key: value.toInt().clamp(0, StatsState.muscleGoalMax),
+      });
+    levelShown
+      ..clear()
+      ..addAll(((data['levelShown'] as Map?) ?? const {})
+          .map((k, v) => MapEntry(k as String, (v as List).map((x) => (x as num).toInt()).toList())));
+    exerciseBar
+      ..clear()
+      ..addAll(((data['barKg'] as Map?) ?? const {})
+          .map((k, v) => MapEntry(k as String, (v as num).toDouble())));
+    weightStacks
+      ..clear()
+      ..addAll(((data['stacks'] as Map?) ?? const {}).map((k, v) => MapEntry(
+          k as String,
+          ([for (final x in (v as List)) if (x is num && x.isFinite && x > 0) x.toDouble()]..sort()).take(60).toList())));
+    videoMarks
+      ..clear()
+      ..addAll(((data['marks'] as Map?) ?? const {}).map((k, v) => MapEntry(
+            k as String,
+            (v as Map).map((i, ms) => MapEntry(int.parse(i as String), (ms as num).toInt())),
+          )));
+    modeOverride
+      ..clear()
+      ..addAll(((data['exMode'] as Map?) ?? const {}).map((k, v) => MapEntry(k as String, v as String))
+        ..removeWhere((_, v) => !const ['weight', 'cardio', 'time'].contains(v)));
+    secondaryOverride
+      ..clear()
+      ..addAll(((data['exSecondary'] as Map?) ?? const {})
+          .map((k, v) => MapEntry(k as String, (v as List).whereType<String>().toList())));
+    plateBar = (data['plateBar'] as num?)?.toDouble();
+    _builtInExercises = null;
+    bgDim = (data['bgDim'] as num?)?.toDouble() ?? 0.55;
+    showFocus = data['showFocus'] as bool? ?? true;
+    showRecommended = data['showRecs'] as bool? ?? true;
+    showWeekStats = data['showWeek'] as bool? ?? true;
+    showRoutineRow = data['showRoutineRow'] as bool? ?? true;
+    homeOrder = [...((data['homeOrder'] as List?) ?? const []).whereType<String>()];
+    customGear = [...((data['customGear'] as List?) ?? const []).whereType<String>()];
+    levelHints = data['levelHints'] as bool? ?? true;
+    toastSound = data['toastSound'] as bool? ?? true;
+    restGlow = data['restGlow'] == true;
+    final auto = data['autoProgress'] as String? ?? 'off';
+    autoProgress = SettingsState.autoProgressModes.contains(auto) ? auto : 'off';
+    Beeper.instance.chimeOn = toastSound;
+    heatmapLabels = data['heatLabels'] as bool? ?? true;
+    hideShots = data['hideShots'] as bool? ?? false;
+    multiPlan = data['multiPlan'] as bool? ?? false;
+    savedPlans
+      ..clear()
+      ..addAll(((data['savedPlans'] as List?) ?? const [])
+          .map((e) => SavedPlan.fromJson((e as Map).cast<String, dynamic>())));
+    currentPlanId = data['planId'] as String? ?? '';
+    if (!savedPlans.any((p) => p.id == currentPlanId)) currentPlanId = '';
+    final weekStart = data['weekStart'];
+    weekStartDay = SettingsState.weekStarts.contains(weekStart) ? weekStart as int : DateTime.monday;
+    autoAdvance = data['autoAdvance'] as bool? ?? true;
+    autoHold = data['autoHold'] as bool? ?? false;
+    keepScreenOn = data['keepAwake'] as bool? ?? true;
+    blurOn = data['blur'] as bool? ?? true;
+    final size = data['textSize'];
+    textSize = SettingsState.textSizes.contains(size) ? size as String : 'normal';
+    calmMotion = data['calm'] as bool? ?? false;
+    fineOn = data['fine'] as bool? ?? false;
+    fineEffects = fineOn;
+    highRefresh = data['hz'] as bool? ?? !(calmMotion && !blurOn);
+    if (highRefresh) DeviceKind.setHighRefresh(true);
+    showMiniBody = data['miniBody'] as bool? ?? true;
+    askCheckIn = data['checkIn'] as bool? ?? true;
+    muscleTune = data['mTune'] as bool? ?? true;
+    voiceCoach = data['voice'] as bool? ?? false;
+    nfcTag = data['nfc'] as bool? ?? false;
+    final every = (data['deload'] as num?)?.toInt() ?? 0;
+    deloadEvery = SettingsState.deloadChoices.contains(every) ? every : 0;
+    deloadFrom = deloadEvery > 0 ? DateTime.tryParse((data['deloadFrom'] as String?) ?? '') ?? DateTime.now() : null;
+    blurEffects = blurOn;
+    lowEndAsked = data['lowEndAsked'] as bool? ?? false;
+    startCountdown = data['countdown'] as bool? ?? true;
+    gamification = data['gamify'] as bool? ?? true;
+    passOn = data['pass'] as bool? ?? true;
+    logRpe = data['rpe'] as bool? ?? false;
+    effortScale = data['effort'] == 'rir' ? 'rir' : 'rpe';
+    stepKg = _stepFrom(data['stepKg'], SettingsState.kgSteps, 2.5);
+    stepLb = _stepFrom(data['stepLb'], SettingsState.lbSteps, 5);
+    trainReminderMin = (data['trainAt'] as num?)?.toInt();
+    smartReminder = data['trainSmart'] as bool? ?? false;
+    final again = (data['trainAgain'] as num?)?.toInt() ?? 0;
+    trainAgainMin = SettingsState.trainAgainOptions.contains(again) ? again : 0;
+    progressStep
+      ..clear()
+      ..addAll(((data['progress'] as Map?) ?? const {})
+          .map((k, v) => MapEntry(k as String, (v as num).toDouble())));
+    holdStep
+      ..clear()
+      ..addAll(((data['holdStep'] as Map?) ?? const {})
+          .map((k, v) => MapEntry(k as String, (v as num).toInt().clamp(0, 60))));
+    progressRules
+      ..clear()
+      ..addAll(((data['progressRules'] as Map?) ?? const {}).map(
+          (k, v) => MapEntry(k as String, ProgressRule.fromJson(Map<String, dynamic>.from(v as Map)))));
+    autoWarmup
+      ..clear()
+      ..addAll(((data['warmup'] as List?) ?? const []).cast<String>());
+  }
+
+  void _loadPlanExtras(Map<String, dynamic> data) {
+    planExtras
+      ..clear()
+      ..addAll(((data['planExtras'] as Map?) ?? const {}).map((k, v) => MapEntry(
+            int.parse(k as String),
+            (v as List).cast<String>().where((id) => id != weeklyPlan[int.parse(k)]).toList(),
+          )))
+      ..removeWhere((_, v) => v.isEmpty);
+    rotation = data['rotation'] as bool? ?? false;
+    rotationIds
+      ..clear()
+      ..addAll(((data['rotationIds'] as List?) ?? const []).cast<String>());
+    rotationNextId = data['rotationNext'] as String? ?? '';
+    rotationRestDay = DateTime.tryParse(data['rotationRest'] as String? ?? '');
+    planMoves
+      ..clear()
+      ..addAll(((data['planMoves'] as Map?) ?? const {})
+          .map((k, v) => MapEntry(k as String, (v as List).cast<String>().toList())));
+  }
+
+  void _restoreLiveSession(Map<String, dynamic> data) {
+    final live = data['live'] as Map?;
+    if (live == null) return;
+    session = WorkoutSession.fromJson(live.cast<String, dynamic>());
+    _elapsedBefore = (data['liveElapsed'] as num?)?.toInt() ?? 0;
+    sessionPaused = data['livePaused'] as bool? ?? false;
+    final started = data['liveStart'] as String?;
+    final since = started == null ? null : DateTime.tryParse(started);
+    if (!sessionPaused && since != null && DateTime.now().difference(since) > const Duration(hours: 6)) {
+      _elapsedBefore += const Duration(hours: 3).inSeconds;
+      sessionPaused = true;
+      _runningSince = null;
+      resetRoute('home');
+      return;
+    }
+    if (sessionPaused || since == null) {
+      _runningSince = null;
+    } else {
+      _runningSince = since;
+      _startTicking(from: _runningSince);
+    }
+    if (!sessionPaused) syncRest();
+    resetRoute('session');
+  }
+
+  void _loadMedia(Map<String, dynamic> data, {Map<String, String>? restored}) {
+    exerciseMedia.clear();
+    if (restored != null) {
+      exerciseMedia.addAll(restored);
+      return;
+    }
+    ((data['media'] as Map?) ?? {}).forEach((k, v) {
+      if (v is String && v.isNotEmpty) exerciseMedia[k as String] = v;
+    });
+    for (final e in (data['custom'] as List?) ?? const []) {
+      final legacy = (e as Map)['m'];
+      final id = e['id'];
+      if (id is String && legacy is String && legacy.isNotEmpty) {
+        exerciseMedia.putIfAbsent(id, () => legacy);
+      }
+    }
+  }
+
+  void _loadExerciseRest(Map<String, dynamic> data) {
+    exerciseRest.clear();
+    ((data['exRest'] as Map?) ?? const {}).forEach((k, v) {
+      final n = (v as num?)?.toInt();
+      if (k is String && n != null) exerciseRest[k] = n <= 0 ? 0 : n.clamp(15, 600);
+    });
+  }
+
+  void _loadExerciseUnits(Map<String, dynamic> data) {
+    collapsedGroups
+      ..clear()
+      ..addAll(((data['collapsedGroups'] as List?) ?? const []).whereType<String>());
+    groupNames
+      ..clear()
+      ..addAll(((data['groupNames'] as List?) ?? const []).whereType<String>().where((g) => g.trim().isNotEmpty));
+    exerciseUnits.clear();
+    ((data['exUnits'] as Map?) ?? const {}).forEach((k, v) {
+      if (k is String && (v == 'kg' || v == 'lb')) exerciseUnits[k] = v as String;
+    });
+    exerciseDistance.clear();
+    ((data['exDist'] as Map?) ?? const {}).forEach((k, v) {
+      if (k is String && (v == 'km' || v == 'mi')) exerciseDistance[k] = v as String;
+    });
+  }
+
+  void _loadRepsOnly(Map<String, dynamic> data) {
+    repsOnly
+      ..clear()
+      ..addAll(((data['repsOnly'] as List?) ?? const []).cast<String>());
+    repsOnlyOff
+      ..clear()
+      ..addAll(((data['repsOnlyOff'] as List?) ?? const []).cast<String>());
+    eachSide
+      ..clear()
+      ..addAll(((data['eachSide'] as List?) ?? const []).cast<String>());
+    eachSideOff
+      ..clear()
+      ..addAll(((data['eachSideOff'] as List?) ?? const []).cast<String>());
+    keepCounting
+      ..clear()
+      ..addAll(((data['keepCounting'] as List?) ?? const []).cast<String>());
+    pairOn
+      ..clear()
+      ..addAll(((data['pairOn'] as List?) ?? const []).cast<String>());
+    assistedOn
+      ..clear()
+      ..addAll(((data['assisted'] as List?) ?? const []).cast<String>());
+    assistedOff
+      ..clear()
+      ..addAll(((data['assistedOff'] as List?) ?? const []).cast<String>());
+    bodyOn
+      ..clear()
+      ..addAll(((data['bodyOn'] as List?) ?? const []).cast<String>());
+    bodyOff
+      ..clear()
+      ..addAll(((data['bodyOff'] as List?) ?? const []).cast<String>());
+    bodyShare.clear();
+    final share = data['bodyShare'];
+    if (share is Map) {
+      for (final e in share.entries) {
+        final v = e.value;
+        if (e.key is String && v is num && v >= 1 && v <= 100) bodyShare[e.key as String] = v.round();
+      }
+    }
+  }
+
+  void _loadShots(Map<String, dynamic> data, {Map<String, String>? restored}) {
+    shots
+      ..clear()
+      ..addAll(((data['shots'] as List?) ?? const [])
+          .map((e) => ProgressEntry.fromJson((e as Map).cast<String, dynamic>()))
+          .where((e) => !e.isEmpty));
+    if (restored == null) return;
+    for (var i = 0; i < shots.length; i++) {
+      final e = shots[i];
+      final kept = <String, String>{};
+      e.shots.forEach((pose, name) {
+        final now = restored[name];
+        if (now != null) kept[pose] = now;
+      });
+      shots[i] = e.copyWith(shots: kept);
+    }
+    shots.removeWhere((e) => e.isEmpty);
+  }
+
+  void _loadMeasures(Map<String, dynamic> data) {
+    loadCustomMeasures(data);
+    final keys = allMeasureKeys.toSet();
+    measures
+      ..clear()
+      ..addAll(((data['measures'] as List?) ?? const [])
+          .map((e) => BodyMeasure.fromJson((e as Map).cast<String, dynamic>()))
+          .where((m) => keys.contains(m.key)));
+  }
+
+  void _loadPlaces(Map<String, dynamic> data) {
+    places.clear();
+    final raw = data['places'];
+    if (raw is List) {
+      places.addAll(raw.map((e) => GymPlace.fromJson((e as Map).cast<String, dynamic>())));
+    }
+    activePlaceId = data['place'] as String? ?? '';
+    if (places.every((p) => p.id != activePlaceId)) activePlaceId = '';
+  }
+
+  void _loadNotes(Map<String, dynamic> data) {
+    notes.clear();
+    noteFolders
+      ..clear()
+      ..addAll([
+        for (final f in (data['noteFolders'] as List?) ?? const [])
+          if (f is Map) NoteFolder.fromJson(f.cast<String, dynamic>()),
+      ]);
+    final raw = data['notes'];
+    if (raw is List) {
+      notes.addAll(raw.map((e) => GymNote.fromJson((e as Map).cast<String, dynamic>())));
+      return;
+    }
+
+    var seq = 0;
+    GymNote legacy(String exId, DateTime when, String text) => GymNote(
+          id: 'n${when.microsecondsSinceEpoch}${seq++}',
+          exerciseId: exId,
+          date: _dayKey(when),
+          kind: NoteKind.note,
+          text: text,
+          createdAt: when,
+        );
+
+    (data['exNotes'] as Map?)?.forEach((k, v) {
+      for (final e in (v as List)) {
+        final m = (e as Map).cast<String, dynamic>();
+        final text = ((m['t'] ?? '') as String).trim();
+        if (text.isEmpty) continue;
+        notes.add(legacy(
+            k as String, DateTime.tryParse((m['d'] ?? '') as String) ?? DateTime.now(), text));
+      }
+    });
+    if (raw is Map) {
+      raw.forEach((k, v) {
+        final text = (v as String).trim();
+        if (text.isNotEmpty) notes.add(legacy(k as String, DateTime.now(), text));
+      });
+    }
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'profile': profile.toJson(),
+        'dark': dark,
+        'theme': themePref,
+        'units': units,
+        if (lengthUnits.isNotEmpty) 'lengthUnits': lengthUnits,
+        'language': language,
+        'rest': restSeconds,
+        'miniRest': miniRestSeconds,
+        'changeRest': changeRestSeconds,
+        'sideRest': sideRestSeconds,
+        'alarmSound': alarmSound,
+        'alarmSoundName': alarmSoundName,
+        if (NotifSound.uris.isNotEmpty)
+          'notifSounds': {
+            for (final g in NotifSound.uris.keys) g.name: [NotifSound.uris[g], notifSoundNames[g] ?? ''],
+          },
+        'bg': bgPattern,
+        'heatTone': heatTone,
+        'bgDim': bgDim,
+        'showFocus': showFocus,
+        'showRecs': showRecommended,
+        'showWeek': showWeekStats,
+        'showRoutineRow': showRoutineRow,
+        if (homeOrder.isNotEmpty) 'homeOrder': homeOrder,
+        if (customGear.isNotEmpty) 'customGear': customGear,
+        'levelHints': levelHints,
+        'toastSound': toastSound,
+        if (restGlow) 'restGlow': true,
+        if (autoProgress != 'off') 'autoProgress': autoProgress,
+        'heatLabels': heatmapLabels,
+        if (hideShots) 'hideShots': true,
+        'weekStart': weekStartDay,
+        'autoAdvance': autoAdvance,
+        if (autoHold) 'autoHold': true,
+        'keepAwake': keepScreenOn,
+        if (!blurOn) 'blur': false,
+        if (textSize != 'normal') 'textSize': textSize,
+        if (calmMotion) 'calm': true,
+        if (fineOn) 'fine': true,
+        'hz': highRefresh,
+        if (!showMiniBody) 'miniBody': false,
+        if (!askCheckIn) 'checkIn': false,
+        if (!muscleTune) 'mTune': false,
+        if (voiceCoach) 'voice': true,
+        if (nfcTag) 'nfc': true,
+        if (deloadEvery > 0) 'deload': deloadEvery,
+        if (deloadFrom != null) 'deloadFrom': deloadFrom!.toIso8601String(),
+        if (lowEndAsked) 'lowEndAsked': true,
+        'countdown': startCountdown,
+        'gamify': gamification,
+        'pass': passOn,
+        'rpe': logRpe,
+        'effort': effortScale,
+        'stepKg': stepKg,
+        'stepLb': stepLb,
+        'demo': demoSize,
+        'demoLoop': demoLoop,
+        'layout': sessionLayout,
+        'heatRange': heatmapRange,
+        'alarmStyle': alarmStyle,
+        'noSuggest': noSuggest.toList(),
+        'archived': archived.toList(),
+        'levelStay': levelStay.toList(),
+        'levelSeen': Map.of(levelSeen),
+        'levelShown': Map.of(levelShown),
+        'goals': exerciseGoals.map((k, g) => MapEntry(k, {'t': g.target, if (g.due != null) 'd': g.due!.millisecondsSinceEpoch})),
+        if (muscleGoalAll != 12) 'muscleGoal': muscleGoalAll,
+        if (recoverySpeed != 1) 'recoverySpeed': recoverySpeed,
+        if (muscleGoals.isNotEmpty) 'muscleGoals': Map.of(muscleGoals),
+        'barKg': exerciseBar,
+        if (weightStacks.isNotEmpty) 'stacks': weightStacks,
+        if (plateBar != null) 'plateBar': plateBar,
+        'marks': videoMarks.map((k, v) => MapEntry(k, v.map((i, ms) => MapEntry('$i', ms)))),
+        'exMode': modeOverride,
+        'exSecondary': secondaryOverride,
+        'trainAt': trainReminderMin,
+        'trainSmart': smartReminder,
+        if (trainAgainMin > 0) 'trainAgain': trainAgainMin,
+        'alarmAskedAt': alarmAskedAt,
+        'onboarded': onboarded,
+        'favorites': favorites,
+        'notes': notes.map((n) => n.toJson()).toList(),
+        if (noteFolders.isNotEmpty) 'noteFolders': noteFolders.map((f) => f.toJson()).toList(),
+        'places': places.map((p) => p.toJson()).toList(),
+        'place': activePlaceId,
+        if (gymPasses.isNotEmpty) 'passes': gymPasses.map((p) => p.toJson()).toList(),
+        if (lastPassId.isNotEmpty) 'lastPass': lastPassId,
+        if (quickPassId.isNotEmpty) 'quickPass': quickPassId,
+        'checkins': checkins.toList(),
+        if (daysOff.isNotEmpty) 'daysOff': daysOff,
+        'routines': routines.map((r) => r.toJson()).toList(),
+        'weeklyPlan': weeklyPlan.map((k, v) => MapEntry(k.toString(), v)),
+        'planExtras': planExtras.map((k, v) => MapEntry(k.toString(), v)),
+        'multiPlan': multiPlan,
+        if (savedPlans.isNotEmpty) 'savedPlans': savedPlansLive.map((p) => p.toJson()).toList(),
+        if (currentPlanId.isNotEmpty) 'planId': currentPlanId,
+        if (rotation) 'rotation': rotation,
+        if (rotationIds.isNotEmpty) 'rotationIds': rotationIds,
+        if (rotationNextId.isNotEmpty) 'rotationNext': rotationNextId,
+        if (rotationRestDay != null) 'rotationRest': RoutinesState._moveKey(rotationRestDay!),
+        if (planMoves.isNotEmpty) 'planMoves': planMoves,
+        'custom': customExercises.map((e) => e.toJson()).toList(),
+        'media': exerciseMedia,
+        'exRest': exerciseRest,
+        if (exerciseUnits.isNotEmpty) 'exUnits': exerciseUnits,
+        if (exerciseDistance.isNotEmpty) 'exDist': exerciseDistance,
+        if (collapsedGroups.isNotEmpty) 'collapsedGroups': collapsedGroups.toList(),
+        if (groupNames.isNotEmpty) 'groupNames': groupNames,
+        'progress': progressStep,
+        if (holdStep.isNotEmpty) 'holdStep': holdStep,
+        if (progressRules.isNotEmpty)
+          'progressRules': progressRules.map((k, v) => MapEntry(k, v.toJson())),
+        'warmup': autoWarmup.toList(),
+        'repsOnly': repsOnly.toList(),
+        'repsOnlyOff': repsOnlyOff.toList(),
+        'eachSide': eachSide.toList(),
+        'eachSideOff': eachSideOff.toList(),
+        if (keepCounting.isNotEmpty) 'keepCounting': keepCounting.toList(),
+        if (pairOn.isNotEmpty) 'pairOn': pairOn.toList(),
+        if (assistedOn.isNotEmpty) 'assisted': assistedOn.toList(),
+        if (assistedOff.isNotEmpty) 'assistedOff': assistedOff.toList(),
+        if (bodyOn.isNotEmpty) 'bodyOn': bodyOn.toList(),
+        if (bodyOff.isNotEmpty) 'bodyOff': bodyOff.toList(),
+        if (bodyShare.isNotEmpty) 'bodyShare': Map.of(bodyShare),
+        'sessions': _stored('sessions', sessions, (s) => s.toJson(), parts: _sessionParts),
+        'bodyweight': bodyweight.map((b) => b.toJson()).toList(),
+        'measures': measures.map((m) => m.toJson()).toList(),
+        ...customMeasuresJson(),
+        'shots': shots.map((s) => s.toJson()).toList(),
+        'awards': awards.map((k, v) => MapEntry(k, v.toIso8601String())),
+        'awardsSeen': awardsSeen.toList(),
+        'moments': moments.map((m) => m.toJson()).toList(),
+        'photoEvery': photoIntervalDays,
+        'bodyTl': bodyTimeline,
+        'nutrition': nutritionJson(),
+        'steps': stepsJson(),
+        'recovery': recoveryJson(),
+        'health': healthJson(),
+        if (circuits.isNotEmpty) 'circuits': circuitsJson(),
+        if (session != null && !session!.complete) ...{
+          'live': session!.toJson(),
+          'liveStart': _runningSince?.toIso8601String(),
+          'liveElapsed': _elapsedBefore,
+          'livePaused': sessionPaused,
+        },
+      };
+
+  static List<Object?> _sessionParts(LoggedSession s) => [
+        s.date,
+        s.durationSec,
+        s.routineId,
+        s.name,
+        s.hrAvg,
+        s.hrMax,
+        s.sleep,
+        s.energy,
+        s.deload,
+        for (final e in s.exercises) ...[e, e.incline, e.kcal, e.sets.length, ...e.sets],
+      ];
+
+  void clearWorkouts() {
+    sessions.clear();
+    _filed = null;
+    awards.clear();
+    awardsSeen.clear();
+    pendingAwards.clear();
+    levelStay.clear();
+    levelSeen.clear();
+    levelShown.clear();
+    strengthExerciseId = null;
+    _memo.clear();
+    persistNow();
+    _refreshWidgets();
+    syncTrainReminder();
+    refreshAwards(silent: true);
+    notifyListeners();
+  }
+
+  void resetAllData() {
+    _saveDebounce?.cancel();
+    _sessionTimer?.cancel();
+    _restTimer?.cancel();
+    RestAlarm.instance.cancel();
+    ProgressReminder.instance.cancel();
+    session = null;
+    _runningSince = null;
+    _elapsedBefore = 0;
+    sessionPaused = false;
+    sessions.clear();
+    bodyweight.clear();
+    measures.clear();
+    customMeasures.clear();
+    measureEveryDays = 0;
+    ProgressReminder.instance.cancelMeasure();
+    shots.clear();
+    compareFromId = null;
+    compareToId = null;
+    notes.clear();
+    noteFolders.clear();
+    moments.clear();
+    loadNutrition(null);
+    loadSteps(null);
+    loadRecovery(null);
+    loadHealth(null);
+    circuits.clear();
+    healthGranted = {};
+    awards.clear();
+    awardsSeen.clear();
+    pendingAwards.clear();
+    places.clear();
+    activePlaceId = '';
+    gymPasses.clear();
+    lastPassId = '';
+    quickPassId = '';
+    checkins.clear();
+    daysOff.clear();
+    routines.clear();
+    weeklyPlan.clear();
+    planExtras.clear();
+    multiPlan = false;
+    savedPlans.clear();
+    currentPlanId = '';
+    rotation = false;
+    rotationIds.clear();
+    rotationNextId = '';
+    rotationRestDay = null;
+    planMoves.clear();
+    customExercises.clear();
+    exerciseMedia.clear();
+    repsOnly.clear();
+    repsOnlyOff.clear();
+    eachSide.clear();
+    eachSideOff.clear();
+    keepCounting.clear();
+    pairOn.clear();
+    assistedOn.clear();
+    assistedOff.clear();
+    bodyOn.clear();
+    bodyOff.clear();
+    bodyShare.clear();
+    exerciseRest.clear();
+    exerciseUnits.clear();
+    exerciseDistance.clear();
+    collapsedGroups.clear();
+    groupNames.clear();
+    progressStep.clear();
+    holdStep.clear();
+    progressRules.clear();
+    autoWarmup.clear();
+    noSuggest.clear();
+    archived.clear();
+    levelStay.clear();
+    levelSeen.clear();
+    levelShown.clear();
+    exerciseGoals.clear();
+    muscleGoals.clear();
+    muscleGoalAll = 12;
+    recoverySpeed = 1;
+    videoMarks.clear();
+    exerciseBar.clear();
+    weightStacks.clear();
+    plateBar = null;
+    modeOverride.clear();
+    secondaryOverride.clear();
+    _builtInExercises = null;
+    demoSize = 'large';
+    demoLoop = 'always';
+    sessionLayout = 'cards';
+    heatmapRange = 'weeks';
+    MediaStore.clearAll();
+    favorites.clear();
+    sessionPicks.clear();
+    selectedMuscles.clear();
+    profile = Profile();
+    showFocus = true;
+    showRecommended = true;
+    textSize = 'normal';
+    calmMotion = false;
+    fineOn = false;
+    fineEffects = false;
+    if (!highRefresh) DeviceKind.setHighRefresh(true);
+    highRefresh = true;
+    showWeekStats = true;
+    showRoutineRow = true;
+    homeOrder = List.of(kHomeBlocks);
+    customGear = [];
+    levelHints = true;
+    toastSound = true;
+    restGlow = false;
+    autoProgress = 'off';
+    Beeper.instance.chimeOn = true;
+    heatmapLabels = true;
+    hideShots = false;
+    weekStartDay = DateTime.monday;
+    autoAdvance = true;
+    autoHold = false;
+    startCountdown = true;
+    gamification = true;
+    passOn = true;
+    logRpe = false;
+    effortScale = 'rpe';
+    stepKg = 2.5;
+    stepLb = 5;
+    trainReminderMin = null;
+    smartReminder = false;
+    trainAgainMin = 0;
+    TrainReminder.instance.cancel();
+    onboarded = false;
+    strengthExerciseId = null;
+    _photoBytes = null;
+    _photoCacheKey = null;
+    _bannerBytes = null;
+    _bannerCacheKey = null;
+    _seedCalculatorsFromProfile();
+    resetRoute('home');
+    trainStep = 'select';
+    persistNow();
+    _refreshWidgets();
+    notifyListeners();
+  }
+
+  String exportJson() => Store.instance.exportJson(toJson());
+
+  String exportCsv() => Store.instance.exportCsv(sessions);
+
+  bool importJson(String raw) {
+    final map = Store.instance.tryParse(raw);
+    if (map == null) return false;
+    return tryApplyBackup(map);
+  }
+
+  bool tryApplyBackup(Map<String, dynamic> backup,
+      {Map<String, String>? restoredMedia,
+      Map<String, String>? restoredNoteMedia,
+      Map<String, String>? restoredShots,
+      Map<String, String>? restoredMoments,
+      Map<String, String>? restoredFoods,
+      Map<String, String>? restoredPasses}) {
+    final before = jsonDecode(jsonEncode(Store.finite(toJson()))) as Map<String, dynamic>;
+    try {
+      applyBackup(backup,
+          restoredMedia: restoredMedia,
+          restoredNoteMedia: restoredNoteMedia,
+          restoredShots: restoredShots,
+          restoredMoments: restoredMoments,
+          restoredFoods: restoredFoods,
+          restoredPasses: restoredPasses);
+      return true;
+    } catch (e) {
+      debugPrint('applyBackup failed: $e');
+      applyBackup(before);
+      return false;
+    }
+  }
+
+  void applyBackup(Map<String, dynamic> backup,
+      {Map<String, String>? restoredMedia,
+      Map<String, String>? restoredNoteMedia,
+      Map<String, String>? restoredShots,
+      Map<String, String>? restoredMoments,
+      Map<String, String>? restoredFoods,
+      Map<String, String>? restoredPasses}) {
+    final map = withMergedExercises(backup);
+    if (restoredMedia != null) restoredMedia = withMergedExercises(restoredMedia).cast<String, String>();
+    _loading = true;
+    profile = Profile.fromJson((map['profile'] as Map?)?.cast<String, dynamic>() ?? {});
+    themePref = _themeFrom(map, fallback: themePref);
+    units = map['units'] as String? ?? units;
+    lengthUnits = map.containsKey('lengthUnits') ? FitCore._lengthFrom(map['lengthUnits']) : lengthUnits;
+    _applyLanguage(map['language'] as String? ?? language);
+    restSeconds = (map['rest'] as num?)?.toInt() ?? restSeconds;
+    miniRestSeconds = (map['miniRest'] as num?)?.toInt() ?? miniRestSeconds;
+    changeRestSeconds = (map['changeRest'] as num?)?.toInt() ?? changeRestSeconds;
+    sideRestSeconds = (map['sideRest'] as num?)?.toInt() ?? sideRestSeconds;
+    bgPattern = map['bg'] as String? ?? bgPattern;
+    heatTone = map['heatTone'] as String? ?? heatTone;
+    _loadToggles(map);
+    onboarded = map['onboarded'] as bool? ?? onboarded;
+    favorites
+      ..clear()
+      ..addAll(((map['favorites'] as Map?) ?? {}).map((k, v) => MapEntry(k as String, v as bool)));
+    _loadPlaces(map);
+    _loadGymPasses(map, restored: restoredPasses);
+    _loadNotes(map);
+    if (restoredNoteMedia != null) _remapNoteMedia(restoredNoteMedia);
+    checkins
+      ..clear()
+      ..addAll(((map['checkins'] as List?) ?? []).cast<String>());
+    daysOff
+      ..clear()
+      ..addAll(((map['daysOff'] as Map?) ?? const {}).map((k, v) => MapEntry(k as String, v as String)));
+    routines
+      ..clear()
+      ..addAll(((map['routines'] as List?) ?? [])
+          .map((e) => Routine.fromJson((e as Map).cast<String, dynamic>())));
+    weeklyPlan
+      ..clear()
+      ..addAll(((map['weeklyPlan'] as Map?) ?? {})
+          .map((k, v) => MapEntry(int.parse(k as String), v as String)));
+    _loadPlanExtras(map);
+    customExercises
+      ..clear()
+      ..addAll(((map['custom'] as List?) ?? [])
+          .map((e) => Exercise.fromJson((e as Map).cast<String, dynamic>())));
+    _loadMedia(map, restored: restoredMedia);
+    _loadRepsOnly(map);
+    _loadExerciseRest(map);
+    _loadExerciseUnits(map);
+    sessions
+      ..clear()
+      ..addAll(((map['sessions'] as List?) ?? [])
+          .map((e) => LoggedSession.fromJson((e as Map).cast<String, dynamic>())));
+    bodyweight
+      ..clear()
+      ..addAll(((map['bodyweight'] as List?) ?? [])
+          .map((e) => BodyweightEntry.fromJson((e as Map).cast<String, dynamic>())));
+    _loadMeasures(map);
+    _loadShots(map, restored: restoredShots);
+    _loadAwards(map);
+    _loadMoments(map, restored: restoredMoments);
+    photoIntervalDays = (map['photoEvery'] as num?)?.toInt() ?? photoIntervalDays;
+    bodyTimeline = map['bodyTl'] as bool? ?? bodyTimeline;
+    loadNutrition((map['nutrition'] as Map?)?.cast<String, dynamic>(), restored: restoredFoods);
+    loadSteps((map['steps'] as Map?)?.cast<String, dynamic>());
+    loadRecovery((map['recovery'] as Map?)?.cast<String, dynamic>());
+    loadHealth((map['health'] as Map?)?.cast<String, dynamic>());
+    loadCircuits(map['circuits'] as List?);
+    _seedCalculatorsFromProfile();
+    _loading = false;
+    _persist();
+    syncTrainReminder();
+    syncPhotoReminder();
+    syncMeasureReminder();
+    _refreshWidgets();
+    notifyListeners();
+  }
+
+  void _loadAwards(Map<String, dynamic> map) {
+    awards
+      ..clear()
+      ..addAll(((map['awards'] as Map?) ?? const {}).map((k, v) =>
+          MapEntry(k as String, DateTime.tryParse(v as String? ?? '') ?? DateTime.now())));
+    awardsSeen
+      ..clear()
+      ..addAll(((map['awardsSeen'] as List?) ?? const []).cast<String>());
+    pendingAwards.clear();
+  }
+
+  void _loadMoments(Map<String, dynamic> map, {Map<String, String>? restored}) {
+    moments
+      ..clear()
+      ..addAll(((map['moments'] as List?) ?? const [])
+          .map((e) => Moment.fromJson((e as Map).cast<String, dynamic>()))
+          .map((m) => restored == null
+              ? m
+              : Moment(m.date, restored[m.file] ?? m.file, note: m.note))
+          .where((m) => m.file.isNotEmpty));
+  }
+
+  void _remapNoteMedia(Map<String, String> restored) {
+    for (var i = 0; i < notes.length; i++) {
+      final n = notes[i];
+      if (n.media.isEmpty) continue;
+      final kept = [
+        for (final m in n.media)
+          if (restored[m] != null) restored[m]!,
+      ];
+      notes[i] = n.copyWith(media: kept);
+    }
+  }
+
+  static String _normName(String s) =>
+      s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+
+  @override
+  void syncTrainReminder() {
+    if (trainReminderMin == null) {
+      TrainReminder.instance.cancel();
+      return;
+    }
+    TrainReminder.instance.schedule(
+      minuteOfDay: reminderMinute,
+      weekdays: reminderWeekdays,
+      skipToday: trainedToday,
+      againMinutes: trainAgainMin,
+      restOn: (day) => daysOff.containsKey(dayIdOf(day)) || (rotating && rotationRestOn(day)),
+    );
+  }
+
+  int get reminderMinute =>
+      (smartReminder ? usualStartMinute : null) ?? trainReminderMin ?? 19 * 60;
+
+  Set<int> get reminderWeekdays {
+    if (smartReminder) {
+      final days = usualWeekdays;
+      if (days.isNotEmpty) return days.toSet();
+    }
+    if (rotating) return const {};
+    return weeklyPlan.keys.toSet();
+  }
+
+  Exercise? matchExerciseByName(String name) => matchExercise(name, allExercises);
+
+  int applyTemplate(ProgramTemplate template) {
+    final planWasEmpty = weeklyPlan.isEmpty;
+    var made = 0;
+    final sameDay = <String, String>{};
+    for (final day in template.days) {
+      final ids = <String, int>{};
+      for (final (name, sets) in day.exercises) {
+        final found = matchExerciseByName(name);
+        if (found == null) continue;
+        final ex = fitsHere(found) ? found : (alternativesHere(found, 1).firstOrNull ?? found);
+        if (ids.containsKey(ex.id)) continue;
+        ids[ex.id] = sets;
+      }
+      if (ids.isEmpty) continue;
+      final key = '${day.name}|${ids.entries.map((e) => '${e.key}:${e.value}').join(',')}';
+      final twin = sameDay[key];
+      if (twin != null) {
+        if (planWasEmpty && day.weekday != null) weeklyPlan[day.weekday!] = twin;
+        continue;
+      }
+      final id = createRoutine(day.name);
+      sameDay[key] = id;
+      setRoutineGroup(id, template.name);
+      for (final entry in ids.entries) {
+        toggleRoutineExercise(id, entry.key);
+        bumpRoutineSets(id, entry.key, entry.value - kDefaultRoutineSets);
+      }
+      if (planWasEmpty && day.weekday != null) weeklyPlan[day.weekday!] = id;
+      made++;
+    }
+    if (made == 0) return 0;
+    persistNow();
+    syncTrainReminder();
+    notifyListeners();
+    return made;
+  }
+
+  static const planTemplate = '{\n'
+      '  "program": "Upper Lower",\n'
+      '  "unit": "kg",\n'
+      '  "routines": [\n'
+      '    {\n'
+      '      "name": "Upper A",\n'
+      '      "days": ["Monday", "Thursday"],\n'
+      '      "exercises": [\n'
+      '        {"name": "Barbell Bench Press", "sets": 4, "reps": 8, "weight": 60, "rest": 120,\n'
+      '         "plan": [{"type": "warmup", "reps": 10, "weight": 30}]},\n'
+      '        {"name": "Barbell Bent Over Row", "reps": 8, "superset": true,\n'
+      '         "plan": [{"reps": 8, "weight": 50}, {"reps": 8, "weight": 50}, {"reps": 6, "weight": 45}]},\n'
+      '        {"name": "Dumbbell Biceps Curl", "sets": 3, "reps": 12,\n'
+      '         "logging_note": "Log reps per arm and weight per dumbbell."}\n'
+      '      ]\n'
+      '    },\n'
+      '    {\n'
+      '      "name": "Cardio and core",\n'
+      '      "days": ["Saturday"],\n'
+      '      "exercises": [\n'
+      '        {"name": "Treadmill Run", "sets": 1, "time": 1800, "distance": 5},\n'
+      '        {"name": "Hollow Body Hold", "sets": 3, "time": 45}\n'
+      '      ]\n'
+      '    }\n'
+      '  ]\n'
+      '}';
+
+  static const planWeeksTemplate = '{"program": "12 weeks", "weeks": [\n'
+      '  {"name": "Week 1", "routines": [{"name": "Day A", "exercises": [{"name": "Barbell Full Squat", "sets": 3, "reps": 8}]}]},\n'
+      '  {"name": "Week 2", "routines": [{"name": "Day A", "exercises": [{"name": "Barbell Full Squat", "sets": 4, "reps": 8}]}]}\n'
+      ']}';
+
+  String planRequestText() {
+    final here = allExercises.where((e) => fitsHere(e) && !isArchived(e.id)).toList();
+    final month = DateTime.now().subtract(const Duration(days: 30));
+    final recent = sessions.where((s) => s.date.isAfter(month)).length;
+    final records = personalRecords.take(5).toList();
+    final lines = <String>[
+      'SmiTriX · ${activePlace?.name ?? t.placeAll}',
+      t.planAboutMe,
+      '- ${t.planBody(profile.sex == 'female' ? t.female : t.male, profile.age, heightLabel(profile.heightCm), weightLabel(profile.weightKg))}',
+      '- ${t.planDays(weeklyTarget)}',
+      if (sessions.isEmpty) '- ${t.planNoHistory}' else '- ${t.planHistory(recent)}',
+      if (records.isNotEmpty) '- ${t.planBestLifts}: ${records.map((r) => '${r.name} ${recordLabel(r)}').join('; ')}',
+      t.planAskFirst,
+      '',
+      t.planIntro,
+      t.planFormat,
+      planTemplate,
+      t.planFormatNotes,
+      planWeeksTemplate,
+      '',
+    ];
+    for (final ex in here) {
+      final local = exerciseName(ex);
+      final label = local == ex.name ? ex.name : '${ex.name} ($local)';
+      final mode = modeOf(ex.id);
+      lines.add('$label | ${ex.primary} | ${ex.equipment} | ${ex.difficulty}${mode.isEmpty ? '' : ' | $mode'}');
+    }
+    return lines.join('\n');
+  }
+
+  ({int added, List<String> missed, bool readable}) importPlan(String raw, {bool schedule = false}) {
+    final plans = parsePlan(raw);
+    if (plans.isEmpty) return (added: 0, missed: const [], readable: false);
+    final result = applyPlan(plans, schedule: schedule);
+    return (added: result.added, missed: result.missed, readable: true);
+  }
+
+  Exercise? _planExercise(PlanItem item, {bool create = false}) {
+    final byId = item.id == null ? null : exerciseById(item.id!);
+    if (byId != null && (item.name.isEmpty || !isCustom(byId.id) || byId.name == item.name)) return byId;
+    final byName = matchExerciseByName(item.name);
+    if (byName != null) return byName;
+    if (!create || (item.muscle ?? '').isEmpty) return null;
+    final muscle = kMuscles.any((m) => m.id == item.muscle) ? item.muscle! : 'chest';
+    final gear = kEquipment.contains(item.equipment) ? item.equipment! : 'Other';
+    final level = kDifficulties.contains(item.level) ? item.level! : 'Beginner';
+    final id = addCustomExercise(
+        name: item.name,
+        primary: muscle,
+        equipment: gear,
+        difficulty: level,
+        steps: item.steps,
+        mode: item.mode,
+        secondary: item.secondary);
+    return exerciseById(id);
+  }
+
+  ({int routines, int added, List<String> missed, int owned, bool hasNewNotes}) previewPlan(
+    List<PlanRoutine> plans,
+  ) {
+    var made = 0, added = 0, owned = 0;
+    var hasNewNotes = false;
+    final missed = <String>[];
+    for (final plan in plans) {
+      var found = 0;
+      for (final item in plan.items) {
+        final known = _planExercise(item) != null || (item.muscle ?? '').isNotEmpty;
+        if (known) {
+          found++;
+        } else if (!missed.contains(item.name)) {
+          missed.add(item.name);
+        }
+      }
+      if (found == 0) continue;
+      made++;
+      added += found;
+      final existing = _matchingRoutine(plan);
+      if (existing == null) continue;
+      owned++;
+      final known = [for (final item in plan.items) if (_planExercise(item) != null) item];
+      for (var i = 0; i < known.length && i < existing.exerciseIds.length; i++) {
+        if (known[i].loggingNote.isNotEmpty && !existing.exerciseNotes.containsKey(existing.exerciseIds[i])) {
+          hasNewNotes = true;
+        }
+      }
+    }
+    return (routines: made, added: added, missed: missed, owned: owned, hasNewNotes: hasNewNotes);
+  }
+
+  Routine? _ownedRoutine(PlanRoutine plan, List<String> ids) {
+    final name = plan.name.isEmpty ? t.newRoutineName : plan.name;
+    return routines.where((r) => _sameRoutine(r, name, ids) && r.group == plan.group).firstOrNull;
+  }
+
+  bool ownsPlan(PlanRoutine plan) => _matchingRoutine(plan) != null;
+
+  Routine? _matchingRoutine(PlanRoutine plan) {
+    final ids = <String>[];
+    for (final item in plan.items) {
+      final ex = _planExercise(item);
+      if (ex == null) {
+        if ((item.muscle ?? '').isNotEmpty) return null;
+        continue;
+      }
+      ids.add(ex.id);
+    }
+    return ids.isEmpty ? null : _ownedRoutine(plan, ids);
+  }
+
+  bool _sameRoutine(Routine r, String name, List<String> ids) =>
+      r.name.trim().toLowerCase() == name.trim().toLowerCase() &&
+      r.exerciseIds.length == ids.length &&
+      [for (var i = 0; i < ids.length; i++) slotExercise(r.exerciseIds[i]) == ids[i]].every((x) => x);
+
+  ({int routines, int added, List<String> missed, int notesAdded}) applyPlan(List<PlanRoutine> plans,
+      {bool schedule = false, bool copies = false}) {
+    var made = 0, added = 0, notesAdded = 0;
+    final missed = <String>[];
+    for (final plan in plans) {
+      final picked = <(Exercise, PlanItem)>[];
+      for (final item in plan.items) {
+        final ex = _planExercise(item, create: true);
+        if (ex == null) {
+          if (!missed.contains(item.name)) missed.add(item.name);
+          continue;
+        }
+        picked.add((ex, item));
+      }
+      if (picked.isEmpty) continue;
+      final name = plan.name.isEmpty ? t.newRoutineName : plan.name;
+      final existing = copies ? null : _ownedRoutine(plan, [for (final p in picked) p.$1.id]);
+      final id = existing?.id ?? createRoutine(name);
+      final slots = <String>[...?existing?.exerciseIds];
+      if (existing == null) {
+        setRoutineGroup(id, plan.group);
+        for (final (ex, item) in picked) {
+          final slot = addRoutineSlot(id, ex.id);
+          slots.add(slot);
+          final sets = _plannedFrom(item);
+          if (sets.isNotEmpty) {
+            setPlannedSets(id, slot, sets);
+          } else if (item.sets != null) {
+            setRoutineSetCount(id, slot, item.sets!);
+          }
+          if (item.superset && !identical(item, picked.last.$2)) toggleChain(id, slot);
+          if (item.jump && !identical(item, picked.last.$2)) toggleJump(id, slot);
+          if (item.ladder.isNotEmpty) {
+            final steps = [
+              for (final name in item.ladder) ?_planExercise(PlanItem(name, null))?.id,
+            ];
+            setLadder(id, ex.id, steps.contains(ex.id) ? steps : [ex.id, ...steps]);
+          }
+          final rest = item.restSec;
+          if (rest != null) setRoutineRest(id, slot, rest);
+        }
+        made++;
+        added += picked.length;
+      }
+      final notes = routineById(id)!.exerciseNotes;
+      for (var i = 0; i < picked.length && i < slots.length; i++) {
+        final note = picked[i].$2.loggingNote;
+        if (note.isEmpty || notes.containsKey(slots[i])) continue;
+        notes[slots[i]] = note;
+        notesAdded++;
+      }
+      if (schedule) {
+        for (final d in plan.days) {
+          weeklyPlan[d] = id;
+        }
+      }
+    }
+    if (added > 0 || notesAdded > 0 || schedule) {
+      persistNow();
+      syncTrainReminder();
+      notifyListeners();
+    }
+    return (routines: made, added: added, missed: missed, notesAdded: notesAdded);
+  }
+
+  List<PlannedSet> _plannedFrom(PlanItem item) {
+    final explicit = [
+      for (final p in item.plan)
+        PlannedSet(
+          reps: p.reps ?? item.reps,
+          repsMax: p.reps == null ? item.repsMax : p.repsMax,
+          weightKg: p.weightKg ?? (p.kind == SetKind.warmup.index ? null : item.weightKg),
+          kind: setKindFrom(p.kind),
+          sec: p.sec ?? item.sec,
+          km: p.km ?? item.km,
+        ),
+    ];
+    final working = explicit.where((p) => p.kind != SetKind.warmup).length;
+    final simple = item.reps == null && item.weightKg == null && item.sec == null && item.km == null;
+    final wanted = item.sets ?? (working > 0 || simple ? working : kDefaultRoutineSets);
+    if (simple && explicit.isEmpty) return const [];
+    return [
+      ...explicit,
+      for (var i = working; i < wanted.clamp(0, 20); i++)
+        PlannedSet(
+          reps: item.reps,
+          repsMax: item.repsMax,
+          weightKg: item.weightKg,
+          kind: setKindFrom(item.kind),
+          sec: item.sec,
+          km: item.km,
+        ),
+    ];
+  }
+
+  static const _kindNames = ['normal', 'warmup', 'drop', 'failure', 'restpause', 'cluster'];
+
+  String exportPlanJson(List<Routine> list, {bool withSchedule = true}) {
+    return encodePlan({
+      'gymmane': 'plan',
+      'v': 1,
+      'unit': 'kg',
+      'routines': [
+        for (final r in list)
+          {
+            'name': routineTitle(r),
+            if (r.group.isNotEmpty) 'group': r.group,
+            if (withSchedule)
+              'days': [for (var d = 1; d <= 7; d++) if (plannedOn(d, r.id)) d],
+            'exercises': [
+              for (final (:slot, :ex) in routineSlots(r))
+                if (ex.id case final id)
+                  {
+                    'id': id,
+                    'name': ex.name,
+                    'sets': routineSets(r, slot),
+                    'logging_note': ?r.exerciseNotes[slot],
+                    if (hasPlan(r, slot))
+                      'plan': [
+                        for (final p in plannedSets(r, slot))
+                          {
+                            if (p.kind != SetKind.normal) 'type': _kindNames[p.kind.index],
+                            if (p.reps != null) 'reps': p.reps,
+                            if (p.repsMax != null) 'repsMax': p.repsMax,
+                            if (p.weightKg != null) 'weight': _round3(p.weightKg!),
+                            if (p.sec != null) 'time': p.sec,
+                            if (p.km != null) 'distance': p.km,
+                          },
+                      ],
+                    if (chainsToNext(r, slot)) 'superset': true,
+                    if (jumpsToNext(r, slot)) 'jumpset': true,
+                    if (ladderIn(r, id) case final steps?)
+                      'progression': [for (final s in steps) ?exerciseById(s)?.name],
+                    'rest': ?(routineRest(r.id, slot) ?? (hasCustomRest(id) ? restFor(id) : null)),
+                    if (isCustom(id))
+                      'custom': {
+                        'muscle': ex.primary,
+                        if (ex.secondary.isNotEmpty) 'secondary': ex.secondary,
+                        'equipment': ex.equipment,
+                        'level': ex.difficulty,
+                        if (ex.steps.isNotEmpty) 'steps': ex.steps,
+                        if (modeOf(id).isNotEmpty) 'track': modeOf(id),
+                      },
+                  },
+            ],
+          },
+      ],
+    });
+  }
+
+  String planSummaryText(List<Routine> list) {
+    final out = <String>[];
+    for (final r in list) {
+      final days = [for (var d = 1; d <= 7; d++) if (plannedOn(d, r.id)) t.weekdayShort(d)];
+      out.add(days.isEmpty ? routineTitle(r) : '${routineTitle(r)} · ${days.join(', ')}');
+      for (final (:slot, :ex) in routineSlots(r)) {
+        final planned = plannedSets(r, slot).where((p) => p.kind != SetKind.warmup).toList();
+        final reps = planned.isEmpty ? null : planned.first.reps;
+        final kg = planned.isEmpty ? null : planned.first.weightKg;
+        final detail = StringBuffer('${routineSets(r, slot)}')..write(reps == null ? '' : ' × $reps');
+        if (kg != null) detail.write(' @ ${weightLabel(kg)}');
+        out.add('• ${exerciseName(ex)} — $detail${chainsToNext(r, slot) ? ' +' : ''}');
+      }
+      out.add('');
+    }
+    return out.join('\n').trim();
+  }
+
+  static String _sessionKey(LoggedSession s) =>
+      '${s.date.toIso8601String()}|${s.exercises.map((e) => '${e.id}:${e.sets.length}').join(',')}';
+  int importParsedSessions(List<ParsedSession> parsed) {
+    final seen = sessions.map(_sessionKey).toSet();
+    var added = 0;
+    for (final ps in parsed) {
+      final exs = <LoggedExercise>[];
+      for (final pe in ps.exercises) {
+        if (pe.sets.isEmpty) continue;
+        final match = (pe.id == null ? null : exerciseById(pe.id!)) ?? matchExerciseByName(pe.name);
+        final id = match?.id ?? 'imp:${_normName(pe.name).replaceAll(' ', '-')}';
+        final hint = (pe.muscle ?? '').toLowerCase();
+        final primary =
+            match?.primary ?? (kFilterMuscles.contains(hint) ? hint : guessMuscle(pe.name) ?? 'other');
+        exs.add(LoggedExercise(id, match?.name ?? pe.name, primary,
+            [for (final s in pe.sets) LoggedSet(s.reps, s.weightKg, rpe: s.rpe, note: s.note, sec: s.sec, km: s.km)]));
+      }
+      if (exs.isEmpty) continue;
+      final ls = LoggedSession(ps.date, ps.durationSec, exs);
+      final key = _sessionKey(ls);
+      if (seen.contains(key)) continue;
+      sessions.add(ls);
+      seen.add(key);
+      added++;
+    }
+    if (added > 0) {
+      sessions.sort((a, b) => a.date.compareTo(b.date));
+      _persist();
+      _refreshWidgets();
+      notifyListeners();
+    }
+    return added;
+  }
+
+  int importParsedWeights(List<ParsedWeight> parsed) {
+    final seen = bodyweight.map((e) => _dayKey(e.date)).toSet();
+    var added = 0;
+    for (final w in parsed) {
+      if (w.kg <= 0) continue;
+      if (!seen.add(_dayKey(w.date))) continue;
+      bodyweight.add(BodyweightEntry(w.date, _round3(w.kg)));
+      added++;
+    }
+    if (added > 0) {
+      bodyweight.sort((a, b) => a.date.compareTo(b.date));
+      final latest = latestBodyweight;
+      if (latest != null) {
+        profile.weightKg = latest.kg;
+        _seedCalculatorsFromProfile();
+      }
+      _persist();
+      notifyListeners();
+    }
+    return added;
+  }
+
+  bool handleBack() {
+    switch (route) {
+      case 'exercise-detail':
+        closeExerciseDetail();
+      case 'about':
+        backFromAbout();
+      case 'tools':
+        backFromTools();
+      case 'tools-detail':
+        closeTool();
+      case 'routines':
+        backFromRoutines();
+      case 'routine-edit':
+        closeRoutineEdit();
+      case 'measures':
+        backFromMeasures();
+      case 'places':
+        backFromPlaces();
+      case 'passes':
+        backFromGymPasses();
+      case 'timeline':
+        backFromTimeline();
+      case 'compare':
+        backFromCompare();
+      case 'notes':
+        backFromNotes();
+      case 'nutrition':
+        backFromNutrition();
+      case 'note-edit':
+        closeNoteEditor();
+      case 'train':
+        trainStep == 'review' ? trainBack() : closeTrain();
+      case 'preferences':
+        backFromPreferences();
+      case 'moments':
+        backFromMoments();
+      case 'awards':
+        backFromAwards();
+      case 'ai-plan':
+        backFromAiPlan();
+      case 'progress':
+      case 'exercises':
+      case 'settings':
+        goHome();
+      case 'home':
+        return false;
+      default:
+        popRoute();
+    }
+    return true;
+  }
+
+  void goAbout() => pushRoute('about');
+
+  void backFromAbout() => popRoute(fallback: 'settings');
+
+  @override
+  void dispose() {
+    _sessionTimer?.cancel();
+    _restTimer?.cancel();
+    super.dispose();
+  }
+}
+
+final fit = FitState();

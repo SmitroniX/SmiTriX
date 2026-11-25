@@ -1,0 +1,605 @@
+part of 'fit_state.dart';
+
+mixin LibraryState on FitCore {
+  String exSearch = '';
+  String? exMuscleFilter;
+  String? exZoneFilter;
+  String? exDifficultyFilter;
+  String? exEquipmentFilter;
+  String? exKindFilter;
+  String? activeExerciseId;
+  int _customSeq = 0;
+  List<Exercise>? _builtInExercises;
+
+  List<Exercise> get allExercises => [
+        ...(_builtInExercises ??= [
+          for (final e in kExercises)
+            if (secondaryOverride[e.id] case final s?) e.copyWith(secondary: _cleanSecondary(e.primary, s)) else e,
+        ]),
+        ...customExercises,
+      ];
+
+  bool hasSecondaryOverride(String id) => secondaryOverride.containsKey(id);
+
+  void setSecondary(String id, List<String> muscles) {
+    final ex = exerciseById(id);
+    if (ex == null) return;
+    final clean = _cleanSecondary(ex.primary, muscles);
+    final i = customExercises.indexWhere((e) => e.id == id);
+    if (i >= 0) {
+      customExercises[i] = customExercises[i].copyWith(secondary: clean);
+    } else {
+      final base = kExercises.firstWhere((e) => e.id == id);
+      if (_sameMuscles(clean, _cleanSecondary(base.primary, base.secondary))) {
+        secondaryOverride.remove(id);
+      } else {
+        secondaryOverride[id] = clean;
+      }
+      _builtInExercises = null;
+    }
+    _persist();
+    notifyListeners();
+  }
+
+  void resetSecondary(String id) {
+    if (secondaryOverride.remove(id) == null) return;
+    _builtInExercises = null;
+    _persist();
+    notifyListeners();
+  }
+
+  static bool _sameMuscles(List<String> a, List<String> b) => a.length == b.length && a.toSet().containsAll(b);
+
+  bool fitsHere(Exercise ex) => true;
+
+  bool exArchivedOnly = false;
+
+  bool isArchived(String id) => archived.contains(id);
+
+  void toggleArchived(String id) {
+    if (!archived.remove(id)) archived.add(id);
+    if (archived.isEmpty) exArchivedOnly = false;
+    _persist();
+    notifyListeners();
+  }
+
+  void toggleArchivedFilter() {
+    exArchivedOnly = !exArchivedOnly;
+    notifyListeners();
+  }
+
+  Exercise? exerciseById(String id) {
+    for (final e in allExercises) {
+      if (e.id == id) return e;
+    }
+    return null;
+  }
+
+  final List<String> _exerciseTrail = [];
+
+  void openExercise(String id) {
+    final from = activeExerciseId;
+    if (route == 'exercise-detail' && from != null && from != id) {
+      _exerciseTrail.add(from);
+    } else if (route != 'exercise-detail') {
+      _exerciseTrail.clear();
+    }
+    activeExerciseId = id;
+    pushRoute('exercise-detail');
+  }
+
+  void closeExerciseDetail() {
+    while (route == 'exercise-detail' && _exerciseTrail.isNotEmpty) {
+      final id = _exerciseTrail.removeLast();
+      if (id == activeExerciseId || exerciseById(id) == null) continue;
+      activeExerciseId = id;
+      notifyListeners();
+      return;
+    }
+    _exerciseTrail.clear();
+    popRoute(fallback: 'exercises');
+  }
+
+  void toggleFavorite(String id) {
+    favorites[id] = !(favorites[id] ?? false);
+    _persist();
+    notifyListeners();
+  }
+
+  void setExSearch(String v) {
+    exSearch = v;
+    notifyListeners();
+  }
+
+  void clearExFilters() {
+    exSearch = '';
+    exMuscleFilter = null;
+    exZoneFilter = null;
+    exDifficultyFilter = null;
+    exEquipmentFilter = null;
+    exKindFilter = null;
+    exFavouritesOnly = false;
+    exArchivedOnly = false;
+    notifyListeners();
+  }
+
+  void setMuscleFilter(String id) {
+    exMuscleFilter = exMuscleFilter == id ? null : id;
+    exZoneFilter = null;
+    notifyListeners();
+  }
+
+  void setZoneFilter(String? zone) {
+    exZoneFilter = zone;
+    exMuscleFilter = null;
+    notifyListeners();
+  }
+
+  int zoneCount(String zone) => musclesCount(kBodyZones[zone] ?? const []);
+
+  int musclesCount(List<String> muscles) =>
+      allExercises.where((ex) => !isArchived(ex.id) && muscles.contains(ex.primary)).length;
+
+  void setDifficultyFilter(String d) {
+    exDifficultyFilter = exDifficultyFilter == d ? null : d;
+    notifyListeners();
+  }
+
+  void setKindFilter(String k) {
+    exKindFilter = exKindFilter == k ? null : k;
+    notifyListeners();
+  }
+
+  String kindOf(Exercise ex) {
+    if (ex.kind.isNotEmpty) return ex.kind;
+    if (kStretchIds.contains(ex.id)) return 'stretch';
+    if (isCardio(ex.id) || kCardioExtras.contains(ex.id)) return 'cardio';
+    return kCalisthenicsEquipment.contains(ex.equipment) ? 'calisthenics' : 'strength';
+  }
+
+  void setEquipmentFilter(String e) {
+    exEquipmentFilter = exEquipmentFilter == e ? null : e;
+    notifyListeners();
+  }
+
+  bool exFavouritesOnly = false;
+
+  void toggleFavouritesFilter() {
+    exFavouritesOnly = !exFavouritesOnly;
+    notifyListeners();
+  }
+
+  int get favouriteCount => favorites.values.where((v) => v).length;
+
+  List<Exercise> get exercisesFiltered => exercisesMatching(exSearch);
+
+  List<Exercise> exercisesMatching(String query) {
+    final matchesSearch = exerciseSearch(query);
+    final list = allExercises.where((ex) {
+      if (isArchived(ex.id) != exArchivedOnly) return false;
+      if (exFavouritesOnly && favorites[ex.id] != true) return false;
+      if (!matchesSearch(ex)) return false;
+      if (exMuscleFilter != null &&
+          ex.primary != exMuscleFilter &&
+          !ex.secondary.contains(exMuscleFilter)) {
+        return false;
+      }
+      final zone = kBodyZones[exZoneFilter];
+      if (zone != null && !zone.contains(ex.primary) && !ex.secondary.any(zone.contains)) return false;
+      if (exDifficultyFilter != null && ex.difficulty != exDifficultyFilter) return false;
+      if (exEquipmentFilter != null && ex.equipment != exEquipmentFilter) return false;
+      if (exKindFilter != null && kindOf(ex) != exKindFilter) return false;
+      return true;
+    }).toList();
+    final zone = kBodyZones[exZoneFilter];
+    if (zone != null) {
+      final inside = _groupedByMuscle(list.where((ex) => zone.contains(ex.primary)).toList());
+      return [...inside, ..._groupedByMuscle(list.where((ex) => !zone.contains(ex.primary)).toList())];
+    }
+    final muscle = exMuscleFilter;
+    if (muscle == null) return _groupedByMuscle(list);
+    final primary = list.where((ex) => ex.primary == muscle);
+    final secondary = _groupedByMuscle(list.where((ex) => ex.primary != muscle).toList());
+    return [...primary, ...secondary];
+  }
+
+  List<Exercise> _groupedByMuscle(List<Exercise> list) {
+    final order = {for (var i = 0; i < kMuscles.length; i++) kMuscles[i].id: i};
+    final seats = [
+      for (var i = 0; i < list.length; i++)
+        (ex: list[i], muscle: order[list[i].primary] ?? kMuscles.length, seat: i),
+    ]..sort((a, b) =>
+        a.muscle == b.muscle ? a.seat.compareTo(b.seat) : a.muscle.compareTo(b.muscle));
+    return [for (final s in seats) s.ex];
+  }
+
+  Exercise get activeExercise =>
+      exerciseById(activeExerciseId ?? '') ?? kExercises.first;
+
+  List<String> activeExerciseSteps(Exercise ex) => exerciseSteps(ex);
+
+  List<Exercise> similarExercises(Exercise ex, int n) => allExercises
+      .where((e) => e.id != ex.id && e.primary == ex.primary)
+      .take(n)
+      .toList();
+
+  String addCustomExercise({
+    required String name,
+    required String primary,
+    required String equipment,
+    String difficulty = 'Beginner',
+    List<String> steps = const [],
+    String mode = '',
+    List<String> secondary = const [],
+    List<String> aliases = const [],
+    String kind = '',
+    String art = '',
+  }) {
+    final id = 'c${DateTime.now().microsecondsSinceEpoch}-${_customSeq++}';
+    customExercises.add(Exercise(
+      id: id,
+      name: name.trim(),
+      primary: primary,
+      secondary: _cleanSecondary(primary, secondary),
+      equipment: equipment,
+      difficulty: difficulty,
+      art: art,
+      steps: _cleanSteps(steps),
+      mode: kExerciseModeIds.contains(mode) ? mode : '',
+      aliases: _cleanAliases(name, aliases),
+      kind: kExerciseKinds.contains(kind) ? kind : '',
+    ));
+    _persist();
+    notifyListeners();
+    return id;
+  }
+
+  void updateCustomExercise(
+    String id, {
+    required String name,
+    required String primary,
+    required String equipment,
+    required String difficulty,
+    required List<String> steps,
+    required String mode,
+    List<String> secondary = const [],
+    List<String>? aliases,
+    String? kind,
+  }) {
+    final i = customExercises.indexWhere((e) => e.id == id);
+    if (i < 0 || name.trim().isEmpty) return;
+    customExercises[i] = customExercises[i].copyWith(
+      name: name.trim(),
+      primary: primary,
+      secondary: _cleanSecondary(primary, secondary),
+      equipment: equipment,
+      difficulty: difficulty,
+      steps: _cleanSteps(steps),
+      mode: kExerciseModeIds.contains(mode) ? mode : '',
+      aliases: _cleanAliases(name, aliases ?? customExercises[i].aliases),
+      kind: kind == null ? null : (kExerciseKinds.contains(kind) ? kind : ''),
+    );
+    modeOverride.remove(id);
+    _persist();
+    notifyListeners();
+  }
+
+  static List<String> _cleanSecondary(String primary, List<String> raw) => [
+        for (final m in kMuscles)
+          if (m.id != primary && raw.contains(m.id)) m.id,
+      ];
+
+  static List<String> _cleanAliases(String name, List<String> raw) {
+    final seen = {name.trim().toLowerCase()};
+    return [
+      for (final a in raw.map((a) => a.trim()))
+        if (a.isNotEmpty && seen.add(a.toLowerCase())) a,
+    ];
+  }
+
+  static final _bullet = RegExp(r'^(\d+[.)]|[-•*])\s*');
+
+  static List<String> _cleanSteps(List<String> raw) => [
+        for (final s in raw.map((s) => s.trim().replaceFirst(_bullet, '')))
+          if (s.isNotEmpty) s,
+      ];
+
+  String modeOf(String id) {
+    final forced = modeOverride[id];
+    if (forced != null) return forced == 'weight' ? '' : forced;
+    for (final e in customExercises) {
+      if (e.id == id) return e.mode;
+    }
+    return kExerciseModes[id] ?? '';
+  }
+
+  bool isCardio(String id) => modeOf(id) == 'cardio';
+
+  bool isTimed(String id) => modeOf(id) == 'time';
+
+  bool runsClock(String id) => modeOf(id).isNotEmpty;
+
+  void setExerciseMode(String id, String mode) {
+    final base = customExercises.where((e) => e.id == id).map((e) => e.mode).firstOrNull ??
+        kExerciseModes[id] ??
+        '';
+    final wanted = mode == 'weight' ? '' : mode;
+    if (wanted == base) {
+      modeOverride.remove(id);
+    } else {
+      modeOverride[id] = mode.isEmpty ? 'weight' : mode;
+    }
+    _persist();
+    notifyListeners();
+  }
+
+  void deleteCustomExercise(String id) {
+    clearExerciseMedia(id);
+    customExercises.removeWhere((e) => e.id == id);
+    modeOverride.remove(id);
+    for (final r in routines) {
+      for (final slot in r.slotsOf(id)) {
+        r.dropSlot(slot);
+      }
+    }
+    favorites.remove(id);
+    _persist();
+    notifyListeners();
+  }
+
+  List<Exercise> mergeTargets(String fromId) => [
+        for (final e in allExercises)
+          if (e.id != fromId && modeOf(e.id) == modeOf(fromId)) e,
+      ];
+
+  void mergeExerciseInto(String fromId, String toId) {
+    final to = exerciseById(toId);
+    if (to == null || fromId == toId || !isCustom(fromId) || modeOf(fromId) != modeOf(toId)) return;
+    for (final s in sessions) {
+      final i = s.exercises.indexWhere((e) => e.id == fromId);
+      if (i < 0) continue;
+      final from = s.exercises[i];
+      final j = s.exercises.indexWhere((e) => e.id == toId);
+      if (j < 0) {
+        s.exercises[i] = LoggedExercise(to.id, to.name, to.primary, from.sets, incline: from.incline, kcal: from.kcal);
+      } else {
+        s.exercises[j].sets.addAll(from.sets);
+        s.exercises.removeAt(i);
+      }
+    }
+    persistNow();
+    _refreshWidgets();
+    notifyListeners();
+  }
+
+  String mediaFor(String id) => exerciseMedia[id] ?? '';
+
+  bool hasCustomMedia(String id) => mediaFor(id).isNotEmpty;
+
+  int? videoMark(String id, int step) => videoMarks[id]?[step];
+
+  void setVideoMark(String id, int step, int? ms) {
+    final marks = videoMarks.putIfAbsent(id, () => {});
+    if (ms == null) {
+      marks.remove(step);
+    } else {
+      marks[step] = ms;
+    }
+    if (marks.isEmpty) videoMarks.remove(id);
+    _persist();
+    notifyListeners();
+  }
+
+  Future<void> attachExerciseMedia(String id, String srcPath) async {
+    final base = await MediaStore.importFor(id, srcPath);
+    if (base == null) return;
+    final old = mediaFor(id);
+    if (old.isNotEmpty && old != base) await MediaStore.delete(old);
+    exerciseMedia[id] = base;
+    videoMarks.remove(id);
+    _persist();
+    notifyListeners();
+  }
+
+  void clearExerciseMedia(String id) {
+    videoMarks.remove(id);
+    final old = exerciseMedia.remove(id);
+    if (old != null && old.isNotEmpty) MediaStore.delete(old);
+    _persist();
+    notifyListeners();
+  }
+
+  bool isRepsOnly(String id) {
+    if (repsOnly.contains(id)) return true;
+    if (repsOnlyOff.contains(id)) return false;
+    final equipment = exerciseById(id)?.equipment;
+    final bare = modeOf(id) == 'time' ? !_loadedHolds.contains(equipment) : equipment == 'Bodyweight';
+    if (!bare) return false;
+    return !_hasLoadedHistory(id);
+  }
+
+  static const _loadedHolds = {'Dumbbell', 'Kettlebell', 'Cable', 'Machine', 'Weighted'};
+
+  bool _hasLoadedHistory(String id) {
+    for (final s in sessions) {
+      for (final e in s.exercises) {
+        if (e.id == id && e.sets.any((st) => st.weight > 0)) return true;
+      }
+    }
+    return false;
+  }
+
+  static const _sidedByDefault = {
+    'side-plank-hold',
+    'cable-pallof-hold',
+    'cross-body-shoulder-stretch',
+    'standing-quad-stretch',
+    'kneeling-hip-flexor-stretch',
+    'wall-calf-stretch',
+  };
+
+  bool isEachSide(String id) {
+    if (!isTimed(id)) return false;
+    if (eachSide.contains(id)) return true;
+    if (eachSideOff.contains(id)) return false;
+    return _sidedByDefault.contains(id);
+  }
+
+  bool isSidedReps(String id) => !isTimed(id) && modeOf(id) != 'cardio' && eachSide.contains(id);
+
+  void toggleEachSide(String id) {
+    final on = !isEachSide(id);
+    eachSide.remove(id);
+    eachSideOff.remove(id);
+    if (on != _sidedByDefault.contains(id)) (on ? eachSide : eachSideOff).add(id);
+    _persist();
+    notifyListeners();
+  }
+
+  bool canPair(String id) =>
+      modeOf(id).isEmpty && !isRepsOnly(id) && exerciseById(id)?.equipment == 'Dumbbell';
+
+  bool isPaired(String id) => pairOn.contains(id);
+
+  void togglePaired(String id) {
+    if (!pairOn.remove(id)) pairOn.add(id);
+    _persist();
+    notifyListeners();
+  }
+
+  bool keepsCounting(String id) => runsClock(id) && keepCounting.contains(id);
+
+  void toggleKeepCounting(String id) {
+    if (!keepCounting.remove(id)) keepCounting.add(id);
+    _persist();
+    notifyListeners();
+  }
+
+  static const _assistedByDefault = {'kiJ4Z2K', '7OeHptV', 'PAgTVaK'};
+
+  bool _assistedName(String id) {
+    for (final e in customExercises) {
+      if (e.id == id) {
+        final n = e.name.toLowerCase();
+        return n.contains('assist') || n.contains('asistid');
+      }
+    }
+    return false;
+  }
+
+  bool _assistedDefault(String id) => _assistedByDefault.contains(id) || _assistedName(id);
+
+  bool isAssisted(String id) {
+    if (modeOf(id).isNotEmpty || isRepsOnly(id)) return false;
+    if (assistedOn.contains(id)) return true;
+    if (assistedOff.contains(id)) return false;
+    return _assistedDefault(id);
+  }
+
+  void toggleAssisted(String id) {
+    final on = !isAssisted(id);
+    assistedOn.remove(id);
+    assistedOff.remove(id);
+    if (on != _assistedDefault(id)) (on ? assistedOn : assistedOff).add(id);
+    _persist();
+    notifyListeners();
+  }
+
+  static const _wholeBody = {
+    '9WTm7dq', 'lBDjFxJ', 'T2mxWqc', 'X6C6i5Y', 'Gk1r408', 'HMzLjXx', 'bZq4bwK', 'rNG1dip', 'rNG5pul',
+    'rNG6chi', 'rNGemus', 'neutral-grip-pull-up', 'negative-pull-up', 'commando-pull-up', 'l-sit-pull-up',
+    'towel-pull-up', 'negative-dip', ..._assistedByDefault,
+  };
+
+  bool canCarryBody(String id) {
+    if (modeOf(id).isNotEmpty) return false;
+    final eq = exerciseById(id)?.equipment;
+    return _wholeBody.contains(id) || isAssisted(id) || eq == 'Bodyweight' || eq == 'Weighted' || eq == 'Rings';
+  }
+
+  bool carriesBody(String id) {
+    if (modeOf(id).isNotEmpty) return false;
+    if (bodyOn.contains(id)) return true;
+    if (bodyOff.contains(id)) return false;
+    return _wholeBody.contains(id);
+  }
+
+  void toggleCarriesBody(String id) {
+    final on = !carriesBody(id);
+    bodyOn.remove(id);
+    bodyOff.remove(id);
+    if (on != _wholeBody.contains(id)) (on ? bodyOn : bodyOff).add(id);
+    _bodyCache = null;
+    _persist();
+    notifyListeners();
+  }
+
+  int bodyShareDefault(String id) {
+    if (_wholeBody.contains(id) || isAssisted(id)) return 100;
+    final name = (exerciseById(id)?.name ?? '').toLowerCase();
+    return name.contains('push-up') || name.contains('push up') || name.contains('pushup') ? 65 : 100;
+  }
+
+  int bodyShareOf(String id) => bodyShare[id] ?? bodyShareDefault(id);
+
+  bool hasOwnBodyShare(String id) => bodyShare.containsKey(id);
+
+  void setBodyShare(String id, int? percent) {
+    final v = percent?.clamp(5, 100);
+    if (v == null || v == bodyShareDefault(id)) {
+      bodyShare.remove(id);
+    } else {
+      bodyShare[id] = v;
+    }
+    _persist();
+    notifyListeners();
+  }
+
+  List<BodyweightEntry>? _bodyCache;
+  int _bodyCacheOf = -1;
+
+  double bodyweightKgOn(DateTime day) {
+    final key = bodyweight.isEmpty
+        ? 0
+        : Object.hash(bodyweight.length, identityHashCode(bodyweight.first), identityHashCode(bodyweight.last));
+    if (_bodyCache == null || _bodyCacheOf != key) {
+      _bodyCache = [...bodyweight]..sort((a, b) => a.date.compareTo(b.date));
+      _bodyCacheOf = key;
+    }
+    final list = _bodyCache!;
+    var lo = 0, hi = list.length - 1, found = -1;
+    while (lo <= hi) {
+      final mid = (lo + hi) >> 1;
+      if (list[mid].date.isAfter(day)) {
+        hi = mid - 1;
+      } else {
+        found = mid;
+        lo = mid + 1;
+      }
+    }
+    if (found >= 0) return list[found].kg;
+    if (list.isNotEmpty) return list.first.kg;
+    return profile.weightKg > 0 ? profile.weightKg : 0;
+  }
+
+  double loadOf(String id, double weight, DateTime day) {
+    if (!carriesBody(id)) return weight;
+    final body = bodyweightKgOn(day) * bodyShareOf(id) / 100;
+    if (body <= 0) return weight;
+    return isAssisted(id) ? math.max(0.0, body - weight) : body + weight;
+  }
+
+  void toggleRepsOnly(String id) {
+    if (isRepsOnly(id)) {
+      repsOnly.remove(id);
+      repsOnlyOff.add(id);
+    } else {
+      repsOnlyOff.remove(id);
+      repsOnly.add(id);
+    }
+    _persist();
+    notifyListeners();
+  }
+
+  bool isCustom(String id) => customExercises.any((e) => e.id == id);
+}

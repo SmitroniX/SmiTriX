@@ -1,0 +1,778 @@
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../app/desktop.dart';
+import '../l10n/l10n.dart';
+import '../models/nutrition.dart';
+import '../services/food_library.dart';
+import '../services/meal_ai.dart';
+import '../services/report_content.dart' show dayHasMore, dayMarkdown;
+import '../services/media_store.dart';
+import '../services/sticker_cutout.dart';
+import '../state/fit_state.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_theme.dart';
+import '../widgets/entrance.dart';
+import '../widgets/charts.dart';
+import '../widgets/dialogs.dart';
+import '../widgets/glass.dart';
+import '../widgets/home_folder.dart';
+import '../widgets/liquid_notch.dart';
+import '../widgets/nutrition_art.dart';
+import '../widgets/photo_source_sheet.dart';
+import '../widgets/rolling_text.dart';
+import '../widgets/cutout_editor.dart';
+import '../widgets/ruler_picker.dart';
+import '../widgets/ui_kit.dart';
+import '../services/file_share.dart';
+import '../services/community_apps.dart';
+import 'plan_import_sheet.dart' show pickTextFile;
+import 'progress_screen.dart' show showBodyweightSheet;
+
+part 'nutrition/cards.dart';
+part 'nutrition/prep.dart';
+part 'nutrition/settings.dart';
+part 'nutrition/meals.dart';
+part 'nutrition/food.dart';
+part 'nutrition/plans.dart';
+part 'nutrition/ai.dart';
+part 'nutrition/fasting.dart';
+part 'nutrition/supp_progress.dart';
+
+String mealInSentence(Meal m) {
+  final name = mealName(m);
+  if ((fit.slotOf(m)?.name ?? '').isNotEmpty || appLanguage == 'de') return name;
+  return name.toLowerCase();
+}
+
+String mealName(Meal m) => fit.mealLabel(m);
+
+IconData _mealIcon(Meal m) => switch (m) {
+      Meal.breakfast => PhosphorIconsRegular.coffee,
+      Meal.lunch => PhosphorIconsRegular.forkKnife,
+      Meal.dinner => PhosphorIconsRegular.bowlFood,
+      Meal.snacks => PhosphorIconsRegular.cookie,
+      _ => PhosphorIconsRegular.bowlSteam,
+    };
+
+String _g(double v) => fmt((v * 10).round() / 10);
+
+String _unitOf(bool liquid) => liquid ? 'ml' : 'g';
+
+double _ozOf(bool liquid) => liquid ? 29.5735 : 28.3495;
+
+double _snapAmt(double grams, bool liquid) =>
+    fit.isLb ? (grams / _ozOf(liquid) * 2).round() / 2 * _ozOf(liquid) : grams;
+
+String _amtUnit(bool liquid) => fit.isLb ? (liquid ? 'fl oz' : 'oz') : _unitOf(liquid);
+
+String _amount(double grams, bool liquid) => fit.amountLabel(grams, liquid);
+
+String _energy(num kcal) => ltr('${fit.energyOf(kcal)} ${fit.energyUnit}');
+
+String portionName(PortionKind k, [int n = 1]) => switch (k) {
+      PortionKind.unit => t.portionUnit(n),
+      PortionKind.slice => t.portionSlice(n),
+      PortionKind.scoop => t.portionScoop(n),
+      PortionKind.tbsp => t.portionTbsp(n),
+      PortionKind.tsp => t.portionTsp(n),
+      PortionKind.cup => t.portionCup(n),
+      PortionKind.glass => t.portionGlass(n),
+    };
+
+String _servingLine(FoodEntry e, FoodItem? food) => fit.servingLabel(e);
+
+Future<void> _copyDay(BuildContext context) async {
+  final gc = context.gc;
+  final day = fit.nutritionDay;
+  final food = fit.entriesOn(day).isNotEmpty || fit.waterOn(day) > 0;
+  final more = dayHasMore(day);
+  if (!food && !more) {
+    showNotchToast(context, t.nothingLogged, icon: PhosphorIconsRegular.copy, accent: gc.textSecondary);
+    return;
+  }
+  final full = food && more
+      ? await _sheet<bool>(
+          context,
+          (sheet) => _sheetFrame(sheet, [
+            SheetTitle(t.nutritionCopyDay),
+            const SizedBox(height: 16),
+            OptionGroup([
+              OptionItem(t.nutritionCopyFood,
+                  icon: PhosphorIconsRegular.forkKnife,
+                  detail: t.nutritionCopyFoodHint,
+                  onTap: () => Navigator.of(sheet).pop(false)),
+              OptionItem(t.nutritionCopyAll,
+                  icon: PhosphorIconsRegular.calendarDots,
+                  detail: t.nutritionCopyAllHint,
+                  onTap: () => Navigator.of(sheet).pop(true)),
+            ]),
+          ]))
+      : more;
+  if (full == null || !context.mounted) return;
+  HapticFeedback.lightImpact();
+  await Clipboard.setData(ClipboardData(text: dayMarkdown(day, full: full)));
+  if (!context.mounted) return;
+  showNotchToast(context, t.copiedDone, subtitle: _dayName(day), icon: PhosphorIconsRegular.copy, accent: gc.accent);
+}
+
+String _dayName(DateTime day) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  if (day == today) return t.nutritionToday;
+  if (day == shiftDays(today, -1)) return t.nutritionYesterday;
+  return t.longDate(day);
+}
+
+class NutritionScreen extends StatefulWidget {
+  const NutritionScreen({super.key});
+
+  @override
+  State<NutritionScreen> createState() => _NutritionScreenState();
+}
+
+class _NutritionScreenState extends State<NutritionScreen> {
+  @override
+  void initState() {
+    super.initState();
+    FoodLibrary.load().then((_) {
+      if (!mounted) return;
+      setState(() {});
+      WidgetsBinding.instance.addPostFrameCallback((_) => _warm());
+    });
+  }
+
+  void _warm() {
+    if (!mounted) return;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final photos = <(String, double)>[
+      for (final c in FoodCat.values) (catPhoto(c), 46),
+      for (final f in fit.foodsByUse.take(8)) (f.photo, 62),
+      for (final f in fit.recentLibraryFoods.take(8)) (f.photo, 62),
+    ];
+    for (final (photo, size) in photos) {
+      if (!isAssetPhoto(photo)) continue;
+      precacheImage(ResizeImage(AssetImage(assetOfPhoto(photo)), width: (size * dpr).round()), context);
+    }
+  }
+
+  String get _dayLabel {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = fit.nutritionDay;
+    if (day == today) return t.nutritionToday;
+    if (day == shiftDays(today, -1)) return t.nutritionYesterday;
+    return t.longDate(day);
+  }
+
+  Widget _pair(Widget? a, Widget? b) {
+    if (a == null || b == null) return a ?? b ?? const SizedBox.shrink();
+    return IntrinsicHeight(
+      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Expanded(child: a),
+        const SizedBox(width: 12),
+        Expanded(child: b),
+      ]),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final gc = context.gc;
+    bool on(Tracker x) => fit.trackerOn(x);
+    final cards = <Widget>[
+      if (on(Tracker.fasting) && fit.nutritionOnToday) _FastingCard(),
+      if (on(Tracker.water) || on(Tracker.shake))
+        _pair(on(Tracker.water) ? _WaterTile() : null, on(Tracker.shake) ? _ShakeTile() : null),
+      if (on(Tracker.supplements)) _SupplementsCard(),
+    ];
+    final planned = on(Tracker.plans) ? fit.planOn(fit.nutritionDay) : null;
+    final todayPlan = planned != null && planned.items.isNotEmpty ? planned : null;
+    final detail = <Widget>[
+      if (on(Tracker.animal) || on(Tracker.fiber) || on(Tracker.sugarSodium) || on(Tracker.minerals)) _DetailGrid(),
+      if (on(Tracker.quality)) _QualityCard(),
+      if (on(Tracker.fats)) _FatTypesCard(),
+      if (on(Tracker.week)) _WeekTile(),
+      if (on(Tracker.weight)) _WeightTile(),
+    ];
+    final header = ScreenHeader(
+      title: t.nutrition,
+      subtitle: _dayLabel,
+      onBack: fit.backFromNutrition,
+      badge: BetaTag(t.sectionBeta),
+      actions: [
+        RoundAction(
+          label: t.nutritionCopyDay,
+          onTap: () => _copyDay(context),
+          child: Icon(PhosphorIconsRegular.copy, size: 17, color: gc.textSecondary),
+        ),
+        const SizedBox(width: 8),
+        RoundAction(
+          label: t.trackersTitle,
+          onTap: () => showTrackersSheet(context),
+          child: Icon(PhosphorIconsRegular.slidersHorizontal, size: 17, color: gc.textSecondary),
+        ),
+        const SizedBox(width: 8),
+        RoundAction(
+          label: t.nutritionGoals,
+          onTap: () => showGoalsSheet(context),
+          child: Icon(PhosphorIconsRegular.target, size: 17, color: gc.textSecondary),
+        ),
+      ],
+    );
+    if (DesktopScope.of(context)) {
+      Widget stack(List<Widget> ws, {double gap = 12}) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < ws.length; i++) ...[if (i > 0) SizedBox(height: gap), ws[i]],
+            ],
+          );
+      final tiles = <(int, Widget)>[
+        (0, stack([
+          if (on(Tracker.calories) || on(Tracker.protein) || on(Tracker.carbs) || on(Tracker.fat)) _HeroCard(),
+          const _SearchBar(),
+          if (on(Tracker.foods)) _FoodShelf(),
+        ])),
+        if (on(Tracker.week)) (0, _WeekTile()),
+        for (final c in cards) (1, c),
+        if (todayPlan != null) (2, _TodayPlanCard(plan: todayPlan)),
+        if (on(Tracker.prep))
+          (2, stack([
+            _Heading(t.prepTitle, action: t.prepNewShort, onAction: () => showBatchEditor(context)),
+            _PrepShelf(),
+          ])),
+        if (on(Tracker.plans))
+          (2, stack([
+            _Heading(t.mealPlansTitle, action: t.mealPlanNew, onAction: () => showNewPlanSheet(context)),
+            _PlansSection(),
+          ])),
+        if (on(Tracker.foods)) (2, _Folders()),
+      ];
+      final rest = [for (final d in detail) if (d is! _WeekTile) d];
+      var at = 2;
+      Widget rise(Widget w) => Rise(index: at++, child: w);
+      final top = [for (final x in tiles) FlowSlot(column: x.$1, stretch: x.$2 is _WeekTile || x.$2 is _SupplementsCard, child: rise(x.$2))];
+      final meals = rise(const _MealGrid());
+      final low = [for (final d in rest) rest.length == 1 ? FlowWide(child: rise(d)) : rise(d)];
+      return RiseScope(
+        id: 'nutrition',
+        child: SingleChildScrollView(
+          clipBehavior: Clip.none,
+          padding: const EdgeInsets.fromLTRB(32, 30, 32, 48),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Rise(index: 0, child: header),
+            const SizedBox(height: 16),
+            Rise(index: 1, child: _WeekStrip()),
+            const SizedBox(height: 18),
+            CardFlow(minColumn: 340, gap: 20, children: top),
+            const SizedBox(height: 30),
+            meals,
+            if (low.isNotEmpty) ...[
+              const SizedBox(height: 30),
+              _Heading(t.trackersDetail),
+              const SizedBox(height: 12),
+              CardFlow(minColumn: 340, gap: 20, children: low),
+            ],
+          ]),
+        ),
+      );
+    }
+    var order = 0;
+    return RiseScope(
+      id: 'nutrition',
+      child: SafeArea(
+      bottom: false,
+      child: ListView(
+        clipBehavior: Clip.none,
+        cacheExtent: 600,
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+        children: [
+          for (final w in <Widget>[
+            header,
+            const SizedBox(height: 16),
+            _WeekStrip(),
+            if (on(Tracker.calories) || on(Tracker.protein) || on(Tracker.carbs) || on(Tracker.fat)) ...[
+              const SizedBox(height: 12),
+              _HeroCard(),
+            ],
+            const SizedBox(height: 12),
+            const _SearchBar(),
+            if (on(Tracker.foods)) ...[
+              const SizedBox(height: 14),
+              _FoodShelf(),
+              const SizedBox(height: 6),
+              _Folders(),
+            ],
+            if (todayPlan != null) ...[
+              const SizedBox(height: 22),
+              _TodayPlanCard(plan: todayPlan),
+            ],
+            const SizedBox(height: 22),
+            _MealTabs(),
+            for (final c in cards) ...[const SizedBox(height: 12), c],
+            if (on(Tracker.prep)) ...[
+              const SizedBox(height: 26),
+              _Heading(t.prepTitle, action: t.prepNewShort, onAction: () => showBatchEditor(context)),
+              const SizedBox(height: 12),
+              _PrepShelf(),
+            ],
+            if (on(Tracker.plans)) ...[
+              const SizedBox(height: 26),
+              _Heading(t.mealPlansTitle, action: t.mealPlanNew, onAction: () => showNewPlanSheet(context)),
+              const SizedBox(height: 12),
+              _PlansSection(),
+            ],
+            if (detail.isNotEmpty) ...[
+              const SizedBox(height: 26),
+              _Heading(t.trackersDetail),
+              for (final d in detail) ...[const SizedBox(height: 12), d],
+            ],
+          ])
+            w is SizedBox ? w : _Keep(child: Rise(index: order++, child: w)),
+        ],
+      ),
+      ),
+    );
+  }
+}
+
+class _Keep extends StatefulWidget {
+  const _Keep({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_Keep> createState() => _KeepState();
+}
+
+class _KeepState extends State<_Keep> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+}
+
+class _Heading extends StatelessWidget {
+  const _Heading(this.title, {this.action, this.onAction});
+
+  final String title;
+  final String? action;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final gc = context.gc;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(start: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(title.toUpperCase(),
+                style: AppTheme.f(10.5, weight: FontWeight.w700, color: gc.textTertiary, letterSpacing: 1.4)),
+          ),
+          if (action != null)
+            Pressable(
+              onTap: onAction!,
+              scale: 0.94,
+              child: Container(
+                height: 30,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(color: gc.bgRaised, borderRadius: BorderRadius.circular(15)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(PhosphorIconsBold.plus, size: 12, color: gc.text),
+                  const SizedBox(width: 5),
+                  Text(action!, style: AppTheme.f(12.5, weight: FontWeight.w700, color: gc.text)),
+                ]),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+List<(String, String)> _plateOf(Iterable<FoodEntry> items) => [
+      for (final e in [...items]..sort((a, b) => b.shownGrams.compareTo(a.shownGrams))) (fit.photoForEntry(e), e.name),
+    ];
+
+Widget _kicker(GymColors gc, String text) =>
+    Text(text, style: AppTheme.f(10.5, weight: FontWeight.w700, color: gc.textTertiary, letterSpacing: 1.4));
+
+class _WeekStrip extends StatefulWidget {
+  const _WeekStrip();
+
+  @override
+  State<_WeekStrip> createState() => _WeekStripState();
+}
+
+class _WeekStripState extends State<_WeekStrip> {
+  static const _back = 1040;
+
+  late final PageController _pages = PageController(initialPage: _pageOf(fit.nutritionDay));
+  bool _moving = false;
+
+  DateTime get _today {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  DateTime _startOf(DateTime day) => shiftDays(day, -((day.weekday - fit.weekStartDay + 7) % 7));
+
+  int _pageOf(DateTime day) => _back + _startOf(day).difference(_startOf(_today)).inDays ~/ 7;
+
+  DateTime _weekAt(int page) => shiftDays(_startOf(_today), (page - _back) * 7);
+
+  int get _lastPage => _pageOf(shiftDays(_today, NutritionState.kNutritionDaysAhead));
+
+  @override
+  void dispose() {
+    _pages.dispose();
+    super.dispose();
+  }
+
+  bool _settled(ScrollNotification n) {
+    if (n is ScrollStartNotification && n.dragDetails != null) _moving = true;
+    if (n is! ScrollEndNotification || !_moving) return false;
+    _moving = false;
+    final page = (_pages.page ?? _pages.initialPage.toDouble()).round();
+    final shift = page - _pageOf(fit.nutritionDay);
+    if (shift != 0) {
+      HapticFeedback.selectionClick();
+      fit.setNutritionDay(shiftDays(fit.nutritionDay, shift * 7));
+    }
+    return false;
+  }
+
+  void _follow() {
+    if (_moving || !_pages.hasClients) return;
+    final want = _pageOf(fit.nutritionDay);
+    final at = _pages.page?.round() ?? want;
+    if (at == want) return;
+    if ((at - want).abs() > 1) {
+      _pages.jumpToPage(want);
+    } else {
+      _pages.animateToPage(want, duration: const Duration(milliseconds: 320), curve: Curves.easeOutCubic);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _follow();
+    });
+    final last = shiftDays(_today, NutritionState.kNutritionDaysAhead);
+    return SizedBox(
+      height: 62,
+      child: ClipRect(
+        clipper: const _SidesOnly(),
+        child: NotificationListener<ScrollNotification>(
+          onNotification: _settled,
+          child: PageView.builder(
+            controller: _pages,
+            itemCount: _lastPage + 1,
+            clipBehavior: Clip.none,
+            itemBuilder: (context, page) {
+              final start = _weekAt(page);
+              return _WeekRow(days: [for (var i = 0; i < 7; i++) shiftDays(start, i)], today: _today, last: last);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SidesOnly extends CustomClipper<Rect> {
+  const _SidesOnly();
+
+  @override
+  Rect getClip(Size size) => Rect.fromLTRB(0, -40, size.width, size.height + 40);
+
+  @override
+  bool shouldReclip(_SidesOnly oldClipper) => false;
+}
+
+class _WeekRow extends StatelessWidget {
+  const _WeekRow({required this.days, required this.today, required this.last});
+
+  final List<DateTime> days;
+  final DateTime today;
+  final DateTime last;
+
+  @override
+  Widget build(BuildContext context) {
+    final gc = context.gc;
+    return Row(
+      children: [
+        for (final d in days)
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: d.isAfter(last) ? null : () => fit.setNutritionDay(d),
+              child: Column(children: [
+                SizedBox(
+                  height: 17,
+                  child: Text(
+                    d == today ? t.nutritionToday : t.weekdayInitial(d.weekday),
+                    maxLines: 1,
+                    style: d == today
+                        ? AppTheme.f(12.5, weight: FontWeight.w800, color: gc.text)
+                        : AppTheme.f(10.5, weight: FontWeight.w700, color: gc.textTertiary, letterSpacing: 0.6),
+                  ),
+                ),
+                const SizedBox(height: 7),
+                _DayDot(day: d, selected: d == fit.nutritionDay, future: d.isAfter(today)),
+              ]),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _DayDot extends StatelessWidget {
+  const _DayDot({required this.day, required this.selected, required this.future});
+
+  final DateTime day;
+  final bool selected;
+  final bool future;
+
+  @override
+  Widget build(BuildContext context) {
+    final gc = context.gc;
+    const size = 38.0;
+    final pct = fit.kcalPctOn(day);
+    final ringColor = pct > 1.1
+        ? gc.danger
+        : pct >= 0.9
+            ? gc.sage
+            : gc.accent;
+    final label = Text('${day.day}',
+        style: AppTheme.f(13,
+            weight: FontWeight.w800, color: selected ? gc.onEmber : (future ? gc.textTertiary : gc.text)));
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: selected ? gc.ember : Colors.transparent,
+        shape: BoxShape.circle,
+        boxShadow: selected ? [BoxShadow(color: gc.emberShadow, blurRadius: 10, offset: const Offset(0, 3))] : null,
+      ),
+      child: selected || future
+          ? Center(child: label)
+          : Stack(alignment: Alignment.center, children: [
+              GoalRing(pct: (pct * 100).clamp(0, 100).toDouble(), size: size, color: ringColor),
+              label,
+            ]),
+    );
+  }
+}
+
+Widget _sheetFrame(BuildContext context, List<Widget> children, {double heightFactor = 0}) {
+  final gc = context.gc;
+  final pad = sheetPad(context, bottom: 18);
+  return Padding(
+    padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+    child: Container(
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
+      height: heightFactor > 0 ? MediaQuery.of(context).size.height * heightFactor : null,
+      padding: EdgeInsets.only(top: pad.top, bottom: pad.bottom),
+      decoration: sheetDecoration(gc),
+      child: SingleChildScrollView(
+        padding: EdgeInsets.only(left: pad.left, right: pad.right),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [const SheetHandle(), const SizedBox(height: 16), ...children],
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _sheetSlivers(BuildContext context, List<Widget> slivers, {double heightFactor = 0}) {
+  final gc = context.gc;
+  return Padding(
+    padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+    child: Container(
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
+      height: heightFactor > 0 ? MediaQuery.of(context).size.height * heightFactor : null,
+      padding: sheetPad(context, bottom: 18),
+      decoration: sheetDecoration(gc),
+      child: CustomScrollView(
+        shrinkWrap: heightFactor <= 0,
+        slivers: [
+          const SliverToBoxAdapter(child: Column(children: [SheetHandle(), SizedBox(height: 16)])),
+          for (final s in slivers) s is SliverGrid || s is SliverList ? s : SliverToBoxAdapter(child: s),
+        ],
+      ),
+    ),
+  );
+}
+
+Future<T?> _sheet<T>(BuildContext context, WidgetBuilder builder) => showAppSheet<T>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheet) => _LiveSheet(builder: builder),
+    );
+
+class _LiveSheet extends StatefulWidget {
+  const _LiveSheet({required this.builder});
+
+  final WidgetBuilder builder;
+
+  @override
+  State<_LiveSheet> createState() => _LiveSheetState();
+}
+
+class _LiveSheetState extends State<_LiveSheet> {
+  @override
+  void initState() {
+    super.initState();
+    fit.addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    fit.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _changed() {
+    if (!mounted) return;
+    if (ModalRoute.isCurrentOf(context) ?? true) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ModalRoute.isCurrentOf(context);
+    return widget.builder(context);
+  }
+}
+
+Widget _macroSummary(BuildContext context, Macros m) {
+  final gc = context.gc;
+  Widget cell(String label, String value, Color color) => Expanded(
+        child: Column(children: [
+          Text(value, style: AppTheme.f(17, weight: FontWeight.w800, color: color)),
+          const SizedBox(height: 2),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: FitText(label, style: AppTheme.f(9.5, weight: FontWeight.w700, color: gc.textTertiary, letterSpacing: 0.9)),
+          ),
+        ]),
+      );
+  return Container(
+    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+    decoration: BoxDecoration(color: gc.bgRaised2, borderRadius: BorderRadius.circular(18)),
+    child: Column(children: [
+      Row(children: [
+        cell(fit.energyUnit.toUpperCase(), '${fit.energyOf(m.kcal)}', gc.text),
+        cell(t.macroProtein, '${_g(m.protein)} g', gc.protein),
+        cell(t.macroCarbs, '${_g(m.carbs)} g', gc.carbs),
+        cell(t.macroFat, '${_g(m.fat)} g', gc.fat),
+      ]),
+      if (m.hasExtras || (fit.trackerOn(Tracker.minerals) && m.hasMinerals)) ...[
+        const SizedBox(height: 10),
+        Text(_extrasLine(m), style: AppTheme.f(11.5, weight: FontWeight.w600, color: gc.textSecondary)),
+      ],
+    ]),
+  );
+}
+
+void _loggedToast(BuildContext context, FoodEntry e) {
+  HapticFeedback.lightImpact();
+  final day = DateTime(e.at.year, e.at.month, e.at.day);
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final when = day == fit.nutritionDay
+      ? null
+      : day == shiftDays(today, 1)
+          ? t.tomorrow
+          : day == today
+              ? t.nutritionToday
+              : t.longDate(day);
+  showNotchToast(
+    context,
+    t.loggedToast(mealInSentence(e.meal)),
+    subtitle: e.name.isEmpty && when == null ? null : [if (e.name.isNotEmpty) e.name, ?when].join(' · '),
+    icon: PhosphorIconsFill.forkKnife,
+    accent: context.gc.accent,
+    action: t.undo,
+    onTap: () => fit.removeEntry(e.id),
+  );
+}
+
+class _CappedList extends StatelessWidget {
+  const _CappedList({
+    required this.count,
+    required this.itemBuilder,
+    required this.rowHeight,
+    required this.gap,
+    required this.maxRows,
+    required this.fade,
+  });
+
+  final int count;
+  final IndexedWidgetBuilder itemBuilder;
+  final double rowHeight;
+  final double gap;
+  final int maxRows;
+  final Color fade;
+
+  @override
+  Widget build(BuildContext context) {
+    if (count <= maxRows) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        for (var i = 0; i < count; i++) ...[
+          if (i > 0) SizedBox(height: gap),
+          itemBuilder(context, i),
+        ],
+      ]);
+    }
+    return SizedBox(
+      height: (maxRows - 0.5) * (rowHeight + gap),
+      child: Stack(children: [
+        Positioned.fill(
+          child: ListView.separated(
+            padding: EdgeInsets.only(bottom: rowHeight / 2),
+            physics: const ClampingScrollPhysics(),
+            itemCount: count,
+            separatorBuilder: (_, _) => SizedBox(height: gap),
+            itemBuilder: itemBuilder,
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: rowHeight * 0.7,
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [fade.withValues(alpha: 0), fade],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}

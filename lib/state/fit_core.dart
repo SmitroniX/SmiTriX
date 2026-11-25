@@ -1,0 +1,425 @@
+part of 'fit_state.dart';
+
+String fmt(num n) {
+  if (n == n.round()) return n.round().toString();
+  return decimalText(n.toString());
+}
+
+double _round1(double n) => (n * 10).round() / 10;
+double _roundWeight(double n) {
+  final quarter = (n * 4).round() / 4;
+  return (n - quarter).abs() < 0.005 ? quarter : _round1(n);
+}
+double _round3(double n) => (n * 1000).round() / 1000;
+double _roundTo(double n, double step) => (n / step).round() * step;
+DateTime _dayKey(DateTime d) => DateTime(d.year, d.month, d.day);
+
+DateTime shiftDays(DateTime d, int n) => DateTime(d.year, d.month, d.day + n);
+
+int daysBetween(DateTime from, DateTime to) =>
+    DateTime.utc(to.year, to.month, to.day)
+        .difference(DateTime.utc(from.year, from.month, from.day))
+        .inDays;
+
+const int kHeatmapDays = 84;
+
+const int heatLevels = 4;
+
+int heatLevel(double v) {
+  if (v <= 0) return 0;
+  if (v < 0.25) return 1;
+  if (v < 0.5) return 2;
+  if (v < 0.75) return 3;
+  return 4;
+}
+
+abstract class FitCore extends ChangeNotifier {
+  Map<String, dynamic> toJson();
+
+  void healthSave(LoggedSession s) {}
+
+  void healthForget(LoggedSession s) {}
+
+  Future<void> stepsAllowed() async {}
+
+  String route = 'home';
+  final List<String> _routeStack = [];
+  final Map<String, bool> favorites = {};
+
+  Profile profile = Profile();
+
+  final List<LoggedSession> sessions = [];
+  final List<BodyweightEntry> bodyweight = [];
+  final List<GymNote> notes = [];
+  final List<NoteFolder> noteFolders = [];
+  final List<BodyMeasure> measures = [];
+  final List<ProgressEntry> shots = [];
+  final Set<String> checkins = {};
+  final Map<String, String> daysOff = {};
+  final List<Routine> routines = [];
+  final Map<int, String> weeklyPlan = {};
+  final Map<int, List<String>> planExtras = {};
+  bool multiPlan = false;
+  bool rotation = false;
+  final List<String> rotationIds = [];
+  String rotationNextId = '';
+  DateTime? rotationRestDay;
+  final Map<String, List<String>> planMoves = {};
+  final List<Exercise> customExercises = [];
+  final List<GymPlace> places = [];
+
+  final Map<String, String> exerciseMedia = {};
+
+  final Map<String, int> exerciseRest = {};
+  final Map<String, String> exerciseUnits = {};
+  final Map<String, String> exerciseDistance = {};
+
+  final Map<String, double> progressStep = {};
+  final Map<String, int> holdStep = {};
+
+  final Map<String, ProgressRule> progressRules = {};
+
+  final Set<String> autoWarmup = {};
+
+  final Set<String> repsOnly = {};
+
+  final Set<String> repsOnlyOff = {};
+
+  final Set<String> eachSide = {};
+
+  final Set<String> eachSideOff = {};
+  final Set<String> keepCounting = {};
+  final Set<String> pairOn = pairedDumbbells;
+  final Set<String> assistedOn = {};
+  final Set<String> assistedOff = {};
+  final Set<String> bodyOn = {};
+  final Set<String> bodyOff = {};
+  final Map<String, int> bodyShare = {};
+
+  final Set<String> noSuggest = {};
+
+  final Set<String> archived = {};
+
+  final Set<String> levelStay = {};
+
+  final Map<String, int> levelSeen = {};
+
+  final Map<String, List<int>> levelShown = {};
+
+  final Map<String, ({double target, DateTime? due})> exerciseGoals = {};
+
+  final Map<String, int> muscleGoals = {};
+
+  int muscleGoalAll = 12;
+  int recoverySpeed = 1;
+
+  final Map<String, Map<int, int>> videoMarks = {};
+
+  final Map<String, double> exerciseBar = {};
+  final Map<String, List<double>> weightStacks = {};
+
+  List<double>? stackFor(String id) {
+    final s = weightStacks[id];
+    return s == null || s.isEmpty ? dumbbellStockFor(id) : s;
+  }
+
+  List<double>? dumbbellStockFor(String id) => null;
+
+  List<double>? ownStackFor(String id) {
+    final s = weightStacks[id];
+    return s == null || s.isEmpty ? null : s;
+  }
+
+  double snapToStack(String id, double kg, {int dir = 0}) {
+    final s = stackFor(id);
+    if (s == null) return kg;
+    if (dir > 0) {
+      for (final v in s) {
+        if (v > kg + 0.001) return v;
+      }
+      return s.last;
+    }
+    if (dir < 0) {
+      for (final v in s.reversed) {
+        if (v < kg - 0.001) return v;
+      }
+      return s.first;
+    }
+    var best = s.first;
+    for (final v in s) {
+      if ((v - kg).abs() < (best - kg).abs()) best = v;
+    }
+    return best;
+  }
+
+  double floorToStack(String id, double kg) {
+    final s = stackFor(id);
+    if (s == null) return kg;
+    var out = s.first;
+    for (final v in s) {
+      if (v <= kg + 0.001) out = v;
+    }
+    return out;
+  }
+
+  final Map<String, String> modeOverride = {};
+
+  final Map<String, List<String>> secondaryOverride = {};
+  VoidCallback? onWidgetsShouldUpdate;
+
+  void refreshWidgets() => _refreshWidgets();
+
+  void _refreshWidgets() {
+    try {
+      onWidgetsShouldUpdate?.call();
+    } catch (_) {}
+  }
+
+  void syncTrainReminder() {}
+
+  bool get rotating => false;
+
+  bool hasPlanOn(DateTime day) => false;
+
+  Map<double, int>? get plateStockKg => null;
+
+  double? get placeBarKg => null;
+
+  String units = 'kg';
+  String lengthUnits = '';
+  double stepKg = 2.5;
+  double stepLb = 5;
+  int weekStartDay = DateTime.monday;
+  bool _loading = false;
+  Timer? _saveDebounce;
+
+  void refreshAwards({bool silent = false}) {}
+
+  int _dataRev = 0;
+  final Map<Object, (Object?, Object?)> _memo = {};
+
+  bool countsForMuscles(String id) => true;
+
+  T _remember<T>(Object key, T Function() build, [Object? extra]) {
+    final stamp = (
+      _dataRev,
+      sessions.length,
+      sessions.isEmpty ? 0 : identityHashCode(sessions.first),
+      sessions.isEmpty ? 0 : identityHashCode(sessions.last),
+      checkins.length,
+      daysOff.length,
+      extra,
+    );
+    final hit = _memo[key];
+    if (hit != null && hit.$1 == stamp) return hit.$2 as T;
+    final value = build();
+    _memo[key] = (stamp, value);
+    return value;
+  }
+
+  Map<DateTime, List<LoggedSession>> get _sessionDays => _remember('sessionDays', () {
+        final out = <DateTime, List<LoggedSession>>{};
+        for (final s in sessions) {
+          (out[_dayKey(s.day)] ??= []).add(s);
+        }
+        return out;
+      });
+
+  List<LoggedSession> _sessionsOnDay(DateTime day) => _sessionDays[_dayKey(day)] ?? const [];
+
+  void _persist() {
+    _dataRev++;
+    if (_loading) return;
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(milliseconds: 400), persistNow);
+  }
+
+  void persistNow() {
+    _dataRev++;
+    _saveDebounce?.cancel();
+    _saveDebounce = null;
+    if (_loading) return;
+    _storing = {};
+    try {
+      final data = toJson();
+      Store.instance.save(data, raw: _storing!);
+    } finally {
+      _storing = null;
+    }
+  }
+
+  Map<String, String>? _storing;
+  final _sessionText = Expando<(List<Object?>, String)>();
+  final _itemText = Expando<String>();
+
+  Object _stored<T extends Object>(String tag, List<T> items, Map<String, dynamic> Function(T) json,
+      {List<Object?> Function(T)? parts}) {
+    final raw = _storing;
+    if (raw == null) return [for (final i in items) json(i)];
+    final out = StringBuffer('[');
+    for (var i = 0; i < items.length; i++) {
+      if (i > 0) out.write(',');
+      out.write(parts == null ? _textOf(items[i], json) : _textByParts(items[i], json, parts));
+    }
+    out.write(']');
+    raw[tag] = out.toString();
+    return Store.rawMark(tag);
+  }
+
+  String _textOf<T extends Object>(T item, Map<String, dynamic> Function(T) json) =>
+      _itemText[item] ??= Store.encode(json(item));
+
+  String _textByParts<T extends Object>(
+      T item, Map<String, dynamic> Function(T) json, List<Object?> Function(T) parts) {
+    final now = parts(item);
+    final hit = _sessionText[item];
+    if (hit != null && listEquals(hit.$1, now)) return hit.$2;
+    final text = Store.encode(json(item));
+    _sessionText[item] = (now, text);
+    return text;
+  }
+
+  void goHome() => _setRoute('home', reset: true);
+
+  void goProgress() => _setRoute('progress', reset: true);
+
+  void goExercises() => _setRoute('exercises', reset: true);
+
+  void goSettings() => _setRoute('settings', reset: true);
+
+  void goPreferences() => pushRoute('preferences');
+
+  void backFromPreferences() => popRoute(fallback: 'settings');
+
+  void _setRoute(String r, {bool reset = false}) {
+    if (reset) _routeStack.clear();
+    route = r;
+    notifyListeners();
+  }
+
+  void pushRoute(String r) {
+    if (route != r) _routeStack.add(route);
+    route = r;
+    notifyListeners();
+  }
+
+  void resetRoute(String r) {
+    _routeStack.clear();
+    route = r;
+  }
+
+  void popRoute({String fallback = 'home'}) {
+    while (_routeStack.isNotEmpty) {
+      final r = _routeStack.removeLast();
+      if (r != route) {
+        route = r;
+        notifyListeners();
+        return;
+      }
+    }
+    route = fallback == route ? 'home' : fallback;
+    notifyListeners();
+  }
+
+  int get routeDepth => _routeStack.length;
+
+  bool get showNav => const ['home', 'progress', 'exercises', 'settings'].contains(route);
+
+  void setUnits(String u) {
+    units = u;
+    _persist();
+    notifyListeners();
+  }
+
+  static String _lengthFrom(Object? raw) => raw == 'cm' || raw == 'in' ? raw as String : '';
+
+  void setLengthUnits(String u) {
+    lengthUnits = _lengthFrom(u);
+    _persist();
+    notifyListeners();
+  }
+
+  static const _lbPerKg = 2.20462;
+  bool get isLb => units == 'lb';
+
+  double toDisplayWeight(double kg) => isLb ? kg * _lbPerKg : kg;
+
+  double fromDisplayWeight(double shown) => isLb ? shown / _lbPerKg : shown;
+
+  String weightLabel(double kg) => '${fmt(_roundWeight(toDisplayWeight(kg)))} $units';
+
+  String weightValue(double kg) => fmt(_roundWeight(toDisplayWeight(kg)));
+
+  double get weightStep => isLb ? stepLb : stepKg;
+
+  double get rulerStep => isLb ? (stepLb == 2.5 ? 0.5 : 1) : (stepKg == 1.25 ? 0.25 : 0.5);
+  double get plateStep => isLb ? 5 : 2.5;
+
+  String unitsFor(String id) => exerciseUnits[id] ?? units;
+
+  bool isLbFor(String id) => unitsFor(id) == 'lb';
+
+  double toShownFor(String id, double kg) => isLbFor(id) ? kg * _lbPerKg : kg;
+
+  double fromShownFor(String id, double shown) => isLbFor(id) ? shown / _lbPerKg : shown;
+
+  String weightValueFor(String id, double kg) => fmt(_roundWeight(toShownFor(id, kg)));
+
+  double weightStepFor(String id) => isLbFor(id) ? stepLb : stepKg;
+
+  double rulerStepFor(String id) => isLbFor(id) ? (stepLb == 2.5 ? 0.5 : 1) : (stepKg == 1.25 ? 0.25 : 0.5);
+
+  void setExerciseUnits(String id, String unit) {
+    unit == units ? exerciseUnits.remove(id) : exerciseUnits[id] = unit;
+    _persist();
+    notifyListeners();
+  }
+  String get volumeUnit => isLb ? 'k lb' : 't';
+
+  String volumeValue(double kg) {
+    final v = _round1(toDisplayWeight(kg) / 1000);
+    return v >= 1000 ? groupedInt(v.round()) : fmt(v);
+  }
+
+  String volumeLabel(double kg) => '${volumeValue(kg)} $volumeUnit';
+
+  static const _kmPerMile = 1.609344;
+
+  String get distanceUnit => isLb ? 'mi' : 'km';
+
+  double toDisplayKm(double km) => isLb ? km / _kmPerMile : km;
+
+  double fromDisplayKm(double shown) => isLb ? shown * _kmPerMile : shown;
+
+  String distanceValue(double km) => fmt((toDisplayKm(km) * 100).round() / 100);
+
+  String distanceLabel(double km) => '${distanceValue(km)} $distanceUnit';
+
+  double get distanceStep => 0.1;
+
+  String distanceUnitFor(String id) => exerciseDistance[id] ?? distanceUnit;
+
+  bool isMiFor(String id) => distanceUnitFor(id) == 'mi';
+
+  double toDisplayKmFor(String id, double km) => isMiFor(id) ? km / _kmPerMile : km;
+
+  double fromDisplayKmFor(String id, double shown) => isMiFor(id) ? shown * _kmPerMile : shown;
+
+  String distanceValueFor(String id, double km) => fmt((toDisplayKmFor(id, km) * 100).round() / 100);
+
+  String distanceLabelFor(String id, double km) => '${distanceValueFor(id, km)} ${distanceUnitFor(id)}';
+
+  void setExerciseDistance(String id, String unit) {
+    unit == distanceUnit ? exerciseDistance.remove(id) : exerciseDistance[id] = unit;
+    _persist();
+    notifyListeners();
+  }
+}
+
+String durationLabel(int sec) {
+  final s = sec < 0 ? 0 : sec;
+  final h = s ~/ 3600;
+  final m = (s % 3600) ~/ 60;
+  final r = (s % 60).toString().padLeft(2, '0');
+  return h > 0 ? '$h:${m.toString().padLeft(2, '0')}:$r' : '$m:$r';
+}

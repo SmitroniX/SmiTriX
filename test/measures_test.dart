@@ -1,0 +1,179 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:smitrix/services/local_store.dart';
+import 'package:smitrix/state/fit_state.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    await Store.instance.init();
+    fit.resetAllData();
+    fit.setUnits('kg');
+  });
+
+  test('a reading is kept and read back with its unit', () {
+    fit.addMeasure('waist', 82.5);
+    expect(fit.latestMeasure('waist')!.value, closeTo(82.5, 0.001));
+    expect(fit.measureLabel('waist', 82.5), '82.5 cm');
+    expect(fit.measureUnit('bodyfat'), '%');
+  });
+
+  test('two readings the same day replace each other instead of piling up', () {
+    fit.addMeasure('chest', 100);
+    fit.addMeasure('chest', 101);
+    expect(fit.measureHistory('chest'), hasLength(1));
+    expect(fit.latestMeasure('chest')!.value, closeTo(101, 0.001));
+  });
+
+  test('the change compares the last two readings', () {
+    fit.addMeasure('arm', 38, date: DateTime.now().subtract(const Duration(days: 30)));
+    fit.addMeasure('arm', 39.5);
+    expect(fit.measureChange('arm'), closeTo(1.5, 0.001));
+    expect(fit.measureChange('calf'), isNull);
+  });
+
+  test('inches go in and come back out as inches, stored as cm', () {
+    fit.setUnits('lb');
+    fit.addMeasure('waist', 32);
+    expect(fit.lengthUnit, 'in');
+    expect(fit.latestMeasure('waist')!.value, closeTo(81.3, 0.05));
+    expect(fit.measureValue('waist', fit.latestMeasure('waist')!.value), '32');
+
+    fit.setUnits('kg');
+    expect(fit.measureValue('waist', fit.latestMeasure('waist')!.value), '81.3');
+  });
+
+  test('body fat is a percentage and never gets converted', () {
+    fit.setUnits('lb');
+    fit.addMeasure('bodyfat', 14.2);
+    expect(fit.latestMeasure('bodyfat')!.value, closeTo(14.2, 0.001));
+    expect(fit.measureLabel('bodyfat', 14.2), '14.2 %');
+  });
+
+  test('junk readings are turned away', () {
+    fit.addMeasure('waist', 0);
+    fit.addMeasure('waist', -5);
+    fit.addMeasure('nose', 10);
+    expect(fit.measures, isEmpty);
+  });
+
+  test('readings survive a save and a reload', () {
+    fit.addMeasure('thigh', 60);
+    fit.addMeasure('bodyfat', 15);
+    fit.persistNow();
+
+    fit.measures.clear();
+    fit.loadFromStore();
+
+    expect(fit.trackedMeasures, ['thigh', 'bodyfat']);
+    expect(fit.latestMeasure('thigh')!.value, closeTo(60, 0.001));
+  });
+
+  test('a reading can be dropped again', () {
+    fit.addMeasure('neck', 40);
+    fit.deleteMeasure(fit.latestMeasure('neck')!);
+    expect(fit.hasMeasures, false);
+  });
+
+  test('reset takes the readings with it', () {
+    fit.addMeasure('hips', 95);
+    fit.resetAllData();
+    expect(fit.measures, isEmpty);
+  });
+
+  test('a custom length follows the unit setting like the built-in ones', () {
+    final id = fit.addCustomMeasure('Wrist');
+    fit.addMeasure(id, 17);
+    expect(fit.measureTitle(id), 'Wrist');
+    expect(fit.measureLabel(id, 17), '17 cm');
+    fit.setUnits('lb');
+    expect(fit.measureUnit(id), 'in');
+    expect(fit.latestMeasure(id)!.value, closeTo(17, 0.001));
+  });
+
+  test('a custom measure with its own unit is never converted', () {
+    final id = fit.addCustomMeasure('Resting pulse', unit: 'bpm', length: false);
+    fit.setUnits('lb');
+    fit.addMeasure(id, 58);
+    expect(fit.latestMeasure(id)!.value, 58);
+    expect(fit.measureLabel(id, 58), '58 bpm');
+    expect(fit.trackedMeasures, contains(id));
+  });
+
+  test('a blank name makes nothing and a deleted measure takes its values with it', () {
+    expect(fit.addCustomMeasure('   '), isEmpty);
+    expect(fit.customMeasures, isEmpty);
+    final id = fit.addCustomMeasure('Wrist');
+    fit.addMeasure(id, 17);
+    fit.addMeasure('waist', 80);
+    fit.deleteCustomMeasure(id);
+    expect(fit.customMeasures, isEmpty);
+    expect(fit.measures.map((m) => m.key), ['waist']);
+  });
+
+  test('custom measures and the reminder survive a reload', () {
+    final id = fit.addCustomMeasure('Body water', unit: '%', length: false);
+    fit.addMeasure(id, 55.5);
+    fit.setMeasureEvery(14);
+    fit.persistNow();
+    fit.loadFromStore();
+    expect(fit.measureTitle(id), 'Body water');
+    expect(fit.isFreeMeasure(id), isTrue);
+    expect(fit.latestMeasure(id)!.value, closeTo(55.5, 0.001));
+    expect(fit.measureEveryDays, 14);
+  });
+
+  test('the reminder counts from the last reading of any measure', () {
+    expect(fit.nextMeasureDue, isNull);
+    fit.setMeasureEvery(7);
+    expect(fit.nextMeasureDue, isNull, reason: 'sin medidas no hay desde cuándo contar');
+    fit.addMeasure('waist', 80, date: DateTime.now().subtract(const Duration(days: 3)));
+    expect(fit.daysUntilMeasure, 4);
+    fit.setMeasureEvery(0);
+    expect(fit.nextMeasureDue, isNull);
+  });
+  test('a note and both sides are kept, and the average drives the trend (#410)', () {
+    fit.toggleSidedMeasure('arm');
+    expect(fit.isSidedMeasure('arm'), isTrue);
+    expect(fit.canSide('waist'), isFalse);
+    fit.addMeasure('arm', 0, left: 36, right: 37, note: 'morning, pumped');
+    final m = fit.latestMeasure('arm')!;
+    expect(m.left, 36);
+    expect(m.right, 37);
+    expect(m.value, closeTo(36.5, 0.001));
+    expect(m.note, 'morning, pumped');
+    expect(fit.measureEntryLabel(m), contains('36'));
+    expect(fit.measureEntryLabel(m), contains('37'));
+  });
+
+  test('blood pressure keeps the whole reading, the pulse and several a day', () {
+    final morning = DateTime.now().subtract(const Duration(hours: 3));
+    fit.addPressure(128, 84, pulse: 66, note: 'after coffee', date: morning);
+    fit.addPressure(118, 76);
+    expect(fit.measureHistory('bp'), hasLength(2));
+    final first = fit.measureHistory('bp').last;
+    expect(fit.measureHeadline(first), '128/84');
+    expect(fit.measureEntryLabel(first), contains('66'));
+    expect(fit.measureUnit('bp'), 'mmHg');
+    expect(fit.measureChange('bp'), isNull);
+    fit.setUnits('lb');
+    expect(fit.measureHeadline(fit.latestMeasure('bp')!), '118/76');
+  });
+
+  test('notes, sides and blood pressure survive a reload', () {
+    fit.toggleSidedMeasure('thigh');
+    fit.addMeasure('thigh', 0, left: 58, right: 57.5, note: 'n');
+    fit.addPressure(120, 80, pulse: 70);
+    fit.persistNow();
+    fit.loadFromStore();
+    expect(fit.isSidedMeasure('thigh'), isTrue);
+    final th = fit.latestMeasure('thigh')!;
+    expect(th.right, 57.5);
+    expect(th.note, 'n');
+    final bp = fit.latestMeasure('bp')!;
+    expect(bp.low, 80);
+    expect(bp.pulse, 70);
+  });
+}

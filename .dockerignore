@@ -1,7 +1,0 @@
-**/node_modules
-frontend/dist
-media
-data
-.env
-.git
-*.log

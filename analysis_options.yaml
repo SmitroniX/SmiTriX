@@ -1,0 +1,17 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - lib/l10n/app_localizations*.dart
+    - build/**
+    - android/**
+    - server/**
+    - packages/**
+
+formatter:
+  page_width: 110
+
+linter:
+  rules:
+    prefer_single_quotes: true
+    require_trailing_commas: false

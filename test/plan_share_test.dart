@@ -1,0 +1,187 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:smitrix/models/workout.dart';
+import 'package:smitrix/services/plan_share.dart';
+import 'package:smitrix/state/fit_state.dart';
+
+void main() {
+  group('lectura del JSON', () {
+    test('lee una rutina simple', () {
+      final plans = parsePlan('{"name":"Push","exercises":["Barbell Bench Press","Push-Up"]}');
+      expect(plans.length, 1);
+      expect(plans.first.name, 'Push');
+      expect(plans.first.items.length, 2);
+      expect(plans.first.items.first.sets, isNull);
+    });
+
+    test('lee series por ejercicio y varias rutinas', () {
+      final plans = parsePlan(
+          '{"routines":[{"name":"A","exercises":[{"name":"Squat","sets":5}]},'
+          '{"title":"B","ejercicios":[{"exercise":"Deadlift"}]}]}');
+      expect(plans.length, 2);
+      expect(plans.first.items.single.sets, 5);
+      expect(plans.last.name, 'B');
+    });
+
+    test('aguanta la prosa y las vallas de código de una IA', () {
+      final plans = parsePlan('Sure! Here you go:\n```json\n'
+          '{"name":"Full body","exercises":["Squat"]}\n```\nEnjoy.');
+      expect(plans.single.name, 'Full body');
+    });
+
+    test('el mismo ejercicio repetido suma sus series con sus repeticiones', () {
+      final plans = parsePlan('{"program":"Import Test","unit":"kg","routines":[{"name":"Different Rep Targets",'
+          '"exercises":[{"name":"Lever Shoulder Press","sets":1,"reps":8},'
+          '{"name":"Lever Shoulder Press","sets":2,"reps":12}]}]}');
+      final item = plans.single.items.single;
+      expect(item.sets, 3);
+      expect([for (final p in item.plan) p.reps], [8, 12, 12]);
+    });
+
+    test('lee el tiempo y la distancia puestos en el propio ejercicio', () {
+      final plans = parsePlan('{"routines":[{"name":"Cardio","exercises":['
+          '{"name":"Treadmill Run","sets":1,"time":"30:00","distance":"5,2 km"},'
+          '{"name":"Hollow Body Hold","sets":3,"duration":45}]}]}');
+      final run = plans.single.items.first;
+      expect(run.sec, 1800);
+      expect(run.km, 5.2);
+      final hold = plans.single.items.last;
+      expect(hold.sec, 45);
+      expect(hold.km, isNull);
+      expect(hold.sets, 3);
+    });
+
+    test('el tiempo del ejercicio se reparte en las series y una serie puede cambiarlo', () {
+      final item = parsePlan('{"exercises":[{"name":"Hollow Body Hold","sets":3,"time":45,'
+              '"plan":[{"time":60}]}]}')
+          .single
+          .items
+          .single;
+      expect(item.sec, 45);
+      expect(item.plan.single.sec, 60);
+    });
+
+    test('un archivo que no es un plan devuelve nada', () {
+      expect(parsePlan('hola'), isEmpty);
+      expect(parsePlan('{"name":"Push"}'), isEmpty);
+    });
+  });
+
+  group('importar en el estado', () {
+    setUp(() => fit.resetAllData());
+
+    test('crea la rutina, empareja los nombres y guarda las series', () {
+      final result = fit.importPlan(
+          '{"name":"Empuje","exercises":[{"name":"Barbell Bench Press","sets":5},'
+          '{"name":"no existe este ejercicio"}]}');
+      expect(result.added, 1);
+      expect(result.missed, ['no existe este ejercicio']);
+      expect(result.readable, isTrue);
+      final routine = fit.routines.single;
+      expect(routine.name, 'Empuje');
+      expect(routine.exerciseIds.length, 1);
+      expect(fit.routineSets(routine, routine.exerciseIds.first), 5);
+    });
+
+    test('el tiempo y la distancia del ejercicio llegan a todas las series de la rutina', () {
+      final result = fit.importPlan('{"name":"Cardio","exercises":['
+          '{"name":"Treadmill Run","sets":1,"time":1800,"distance":5},'
+          '{"name":"Hollow Body Hold","sets":3,"time":45}]}');
+      expect(result.added, 2);
+      final routine = fit.routines.single;
+      final run = fit.plannedSets(routine, routine.exerciseIds[0]);
+      expect(run.length, 1);
+      expect(run.single.sec, 1800);
+      expect(run.single.km, 5);
+      final hold = fit.plannedSets(routine, routine.exerciseIds[1]);
+      expect(hold.length, 3);
+      expect(hold.every((p) => p.sec == 45 && p.km == null), isTrue);
+    });
+
+    test('sets como lista de series con sus propias repeticiones y peso', () {
+      fit.importPlan('{"name":"X","exercises":[{"name":"Barbell Bent Over Row","sets":[{"reps":12,"weight":50},{"reps":12,"weight":50},{"reps":10,"weight":45},{"reps":8,"weight":40}]}]}');
+      final routine = fit.routines.single;
+      final sets = fit.plannedSets(routine, routine.exerciseIds.single);
+      expect(sets.map((s) => s.reps).toList(), [12, 12, 10, 8]);
+      expect(sets.map((s) => s.weightKg).toList(), [50, 50, 45, 40]);
+    });
+
+    test('rangos de repeticiones: texto, campo aparte y ida y vuelta', () {
+      fit.importPlan('{"name":"X","exercises":[{"name":"Barbell Bent Over Row","sets":3,"reps":"8-12"},{"name":"Dumbbell Biceps Curl","sets":2,"reps":10,"repsMax":15}]}');
+      final routine = fit.routines.single;
+      final row = fit.plannedSets(routine, routine.exerciseIds[0]);
+      expect(row.map((s) => s.repsLabel).toList(), ['8-12', '8-12', '8-12']);
+      final curl = fit.plannedSets(routine, routine.exerciseIds[1]);
+      expect(curl.first.reps, 10);
+      expect(curl.first.repsMax, 15);
+      expect(PlannedSet.fromJson(curl.first.toJson()).repsLabel, '10-15');
+      expect(const PlannedSet(reps: 10, repsMax: 8).repsLabel, '10');
+      final again = parsePlan(fit.exportPlanJson(fit.routines));
+      expect(again.single.items.first.plan.first.repsMax, 12);
+    });
+
+    test('el tipo de serie puesto en el ejercicio llega a sus series de trabajo', () {
+      fit.importPlan('{"name":"X","exercises":[{"name":"Barbell Bench Press","sets":3,"reps":10,"weight":60,"type":"drop"}]}');
+      final routine = fit.routines.single;
+      final sets = fit.plannedSets(routine, routine.exerciseIds.single);
+      expect(sets.map((s) => s.kind).toList(), [SetKind.drop, SetKind.drop, SetKind.drop]);
+      expect(sets.map((s) => s.weightKg).toList(), [60, 60, 60]);
+      final again = parsePlan(fit.exportPlanJson(fit.routines));
+      expect(again.single.items.single.plan.map((p) => p.kind).toList(), [2, 2, 2]);
+    });
+
+    test('una serie del plan conserva su propio tipo y el resto toma el del ejercicio', () {
+      fit.importPlan('{"name":"X","exercises":[{"name":"Barbell Bench Press","sets":3,"reps":8,"type":"restpause",'
+          '"plan":[{"reps":12,"weight":30,"type":"warmup"},{"reps":8}]}]}');
+      final routine = fit.routines.single;
+      final sets = fit.plannedSets(routine, routine.exerciseIds.single);
+      expect(sets.map((s) => s.kind).toList(), [SetKind.warmup, SetKind.normal, SetKind.restPause, SetKind.restPause]);
+      expect(sets.map((s) => s.reps).toList(), [12, 8, 8, 8]);
+    });
+
+    test('jumpset encadena con descanso y hace ida y vuelta', () {
+      fit.importPlan('{"name":"X","exercises":[{"name":"Barbell Bench Press","jumpset":true},{"name":"Barbell Bent Over Row"}]}');
+      final r = fit.routines.single;
+      expect(fit.chainsToNext(r, r.exerciseIds[0]), isTrue);
+      expect(fit.jumpsToNext(r, r.exerciseIds[0]), isTrue);
+      final again = parsePlan(fit.exportPlanJson(fit.routines));
+      expect(again.single.items.first.jump, isTrue);
+      expect(again.single.items.first.superset, isTrue);
+      expect(fit.chainsToNext(r, r.exerciseIds[1]), isFalse, reason: 'el último no enlaza con nada');
+    });
+
+    test('un ejercicio solo con tiempo no se pierde como si no tuviera datos', () {
+      fit.importPlan('{"name":"X","exercises":[{"name":"Treadmill Run","time":600}]}');
+      final routine = fit.routines.single;
+      final sets = fit.plannedSets(routine, routine.exerciseIds.single);
+      expect(sets, isNotEmpty);
+      expect(sets.first.sec, 600);
+    });
+
+    test('el CSV acepta columnas de tiempo y distancia', () {
+      final plans = parsePlan('routine,exercise,sets,time,distance\nCardio,Treadmill Run,1,30:00,5\nCardio,Hollow Body Hold,3,45,');
+      final items = plans.single.items;
+      expect(items.first.sec, 1800);
+      expect(items.first.km, 5);
+      expect(items.last.sec, 45);
+    });
+
+    test('avisa cuando no hay nada que emparejar', () {
+      final result = fit.importPlan('{"name":"X","exercises":["zzzz qqqq"]}');
+      expect(result.added, 0);
+      expect(result.readable, isTrue);
+      expect(result.missed, ['zzzz qqqq']);
+      expect(fit.routines, isEmpty);
+    });
+
+    test('un archivo ilegible se distingue de uno sin coincidencias', () {
+      expect(fit.importPlan('no soy json').readable, isFalse);
+    });
+  });
+
+  test('la lista para la IA lleva cabecera y ejercicios', () {
+    final text = fit.planRequestText();
+    expect(text.contains('SmiTriX'), isTrue);
+    expect(text.contains('Barbell Bench Press'), isTrue);
+    expect(text.split('\n').length, greaterThan(50));
+  });
+}
