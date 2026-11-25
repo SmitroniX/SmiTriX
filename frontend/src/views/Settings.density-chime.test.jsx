@@ -83,12 +83,12 @@ afterEach(() => {
   host.remove()
 })
 
-const mount = () => act(() => root.render(<Settings />))
+const mount = (sec = 'training') => act(() => root.render(<Settings initialSection={sec} />))
 const segButton = label => [...host.querySelectorAll('.seg button')].find(b => b.textContent === label)
 
 describe('Settings — workout density and rest timer chime', () => {
   it('toggles workout density between spacious and compact', () => {
-    mount()
+    mount('training')
     const spaciousBtn = segButton('Spacious')
     const compactBtn = segButton('Compact')
 
@@ -99,7 +99,7 @@ describe('Settings — workout density and rest timer chime', () => {
     act(() => { compactBtn.click() })
     expect(mocks.S.workoutDensity).toBe('compact')
 
-    mount()
+    mount('training')
     expect(segButton('Compact').getAttribute('aria-pressed')).toBe('true')
 
     act(() => { segButton('Spacious').click() })
@@ -107,7 +107,7 @@ describe('Settings — workout density and rest timer chime', () => {
   })
 
   it('displays selected rest chime and opens picker sheet on click', () => {
-    mount()
+    mount('alerts')
     const row = [...host.querySelectorAll('.lrow')].find(r => r.textContent.includes('Rest timer chime'))
     expect(row).toBeTruthy()
     expect(row.textContent).toContain('Bell chime')
@@ -133,7 +133,7 @@ describe('Settings — workout density and rest timer chime', () => {
 
   it('triggers chime test when clicking Test chime button', () => {
     mocks.S.restChime = 'digital'
-    mount()
+    mount('alerts')
 
     const testBtn = [...host.querySelectorAll('button')].find(b => b.textContent.includes('Test chime'))
     expect(testBtn).toBeTruthy()

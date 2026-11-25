@@ -92,6 +92,7 @@ export const DEF = {
   // card and the /checkin route; the saved gymCards stay so turning it back on restores them.
   // Defaults on; an older profile without the key reads as on (`!== false`).
   checkIn: true,
+  onboarded: false,
 }
 const clone = o => JSON.parse(JSON.stringify(o))
 
@@ -128,7 +129,7 @@ function loadState() {
     const raw = localStorage.getItem(KEY)
     if (raw) {
       const parsed = Object.assign(clone(DEF), JSON.parse(raw))
-      if (stripDemoSeed(parsed)) {
+      if (!DEMO && stripDemoSeed(parsed)) {
         try { localStorage.setItem(KEY, JSON.stringify(parsed)) } catch {}
       }
       return parsed
@@ -370,7 +371,8 @@ export const useStore = create((set, get) => {
     async resetDemo() {
       const { buildDemoState } = await import('../lib/demoSeed.js')
       localStorage.removeItem('gym_dirty')
-      persist(Object.assign(clone(DEF), buildDemoState()), false)
+      try { localStorage.setItem(DEMO_SEEDED, '1') } catch {}
+      persist(Object.assign(clone(DEF), buildDemoState(), { onboarded: true }), false)
     },
 
     // Boot: ask the server who we are, then pull.
@@ -417,17 +419,39 @@ export const useStore = create((set, get) => {
         set({ ready: true, needsMobileOnboarding: false })
         return
       }
-      // Website build (!MOBILE):
-      // Website is demo-only with NO login/signup for regular users, EXCEPT:
+      // Website & Demo build (!MOBILE):
+      // No login/signup on website or demo — login is exclusively for the native mobile app,
+      // EXCEPT:
       // 1) Admin account (smitronix0826@gmail.com) accessing the Website Admin Dashboard (/#/admin)
       // 2) Android App opening /login?native_google=1 or /login?oobCode=... as the OAuth bridge.
       const isAppAuthBridge = typeof window !== 'undefined' && (
-        (window.location?.pathname || '').startsWith('/login') ||
+        (window.location?.pathname || '').endsWith('/login') ||
         /native_google=|oobCode=|google_id_token=|uid=|verified=|mode=/i.test((window.location?.search || '') + (window.location?.hash || ''))
       )
       if (!isAppAuthBridge) {
         const curS = get().S
-        if (stripDemoSeed(curS)) persist(curS, false)
+        if (DEMO) {
+          // Demo build: auto-seed rich interactive data on first visit so visitors can explore immediately with zero login
+          if (!hasData(curS) && localStorage.getItem(DEMO_SEEDED) !== 'cleared') {
+            try {
+              const { buildDemoState } = await import('../lib/demoSeed.js')
+              const seeded = Object.assign(clone(DEF), buildDemoState(), {
+                onboarded: true,
+                athleteProfile: { name: 'Alex', handle: 'alex', age: 26, height: 178, sex: 'male' },
+              })
+              // Apply optional ?lang=xx query param when embedded from SmiTriX website
+              try {
+                const sp = new URLSearchParams(window.location?.search || '')
+                const qLang = sp.get('lang')
+                if (qLang && /^[a-z]{2}(-[A-Z]{2})?$/i.test(qLang)) seeded.lang = qLang
+              } catch {}
+              localStorage.setItem(DEMO_SEEDED, '1')
+              persist(seeded, false)
+            } catch {}
+          }
+        } else if (stripDemoSeed(curS)) {
+          persist(curS, false)
+        }
         let keptAdmin = false
         try {
           const savedUser = JSON.parse(localStorage.getItem('gym_user') || 'null')

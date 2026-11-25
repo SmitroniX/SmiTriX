@@ -160,9 +160,11 @@ const P = {
   sliders: <><path d="M4 7h16M4 12h16M4 17h16" /><circle cx="9" cy="7" r="2" fill="var(--bg)" /><circle cx="15" cy="12" r="2" fill="var(--bg)" /><circle cx="10" cy="17" r="2" fill="var(--bg)" /></>,
   grid: <><rect x="4" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" /></>,
   compare: <><rect x="3.8" y="4.8" width="6.8" height="14.4" rx="1.6" /><rect x="13.4" y="4.8" width="6.8" height="14.4" rx="1.6" /></>,
+  chat: <path d="M4.2 6.8a2.8 2.8 0 0 1 2.8-2.8h10a2.8 2.8 0 0 1 2.8 2.8v7.6a2.8 2.8 0 0 1-2.8 2.8H9.8l-4.2 3.2v-3.2H7a2.8 2.8 0 0 1-2.8-2.8Z" />,
 }
 
 // A few keys are aliases so call sites can say what they mean.
+P.home = P.house
 P.search = P.magnifier
 P.settings = P.gear
 P.exercises = P.magnifier

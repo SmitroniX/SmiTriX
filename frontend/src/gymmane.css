@@ -1460,6 +1460,78 @@ body.gm-has-parked #app {
   background: color-mix(in srgb, var(--acc) 28%, var(--surface-2));
 }
 
+/* ---------------------------------- GymMane Active Session 04-session ---- */
+.whdr.stick {
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  border-radius: 0 0 22px 22px;
+  padding-bottom: 10px;
+}
+
+.set-table-card {
+  background: var(--surface) !important;
+  border-radius: 24px !important;
+  padding: 14px 12px 14px !important;
+  border: 1px solid color-mix(in srgb, var(--sep) 38%, transparent) !important;
+}
+
+.sethead {
+  font-size: 10.5px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--label-3) !important;
+  padding-bottom: 6px !important;
+}
+
+.setrow {
+  border-radius: 16px !important;
+  background: var(--card-subtle, var(--surface-2));
+  margin-bottom: 7px !important;
+  padding: 7px 8px !important;
+  border: 1px solid transparent;
+  transition: background 220ms var(--ease), border-color 220ms var(--ease), transform 140ms var(--ease);
+}
+
+.setrow.done {
+  background: color-mix(in srgb, var(--gm-sage) 15%, var(--surface)) !important;
+  border-color: color-mix(in srgb, var(--gm-sage) 34%, transparent) !important;
+}
+
+.setrow .n {
+  border-radius: 50% !important;
+  font-weight: 800 !important;
+}
+
+.setrow.done .n {
+  background: color-mix(in srgb, var(--gm-sage) 24%, transparent) !important;
+  color: var(--gm-sage) !important;
+}
+
+.setrow .stp {
+  border-radius: 12px !important;
+  background: color-mix(in srgb, var(--bg) 52%, var(--surface)) !important;
+  border: 1px solid color-mix(in srgb, var(--sep) 35%, transparent) !important;
+}
+
+.setrow .chk,
+.setrow button.ck {
+  border-radius: 50% !important;
+  transition: transform 160ms var(--spring), background 200ms var(--ease);
+}
+
+.setrow .chk.on,
+.setrow button.ck.on {
+  background: var(--gm-sage) !important;
+  border-color: var(--gm-sage) !important;
+  color: #0A0A0A !important;
+}
+
+.gm-settings-bubble:active {
+  transform: scale(0.975);
+}
+
 /* ------------------------------------------ Reduced Motion --------------- */
 @media (prefers-reduced-motion: reduce) {
   .gm-rise, .gm-roll-char, .gm-rest-glow, .gm-countdown-num,

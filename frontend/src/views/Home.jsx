@@ -2,27 +2,22 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
-import { effectiveRoutine, effectiveRoutineId, nextTrainingDay, lastBW, setsDoneActive, workoutVolume } from '../lib/history.js'
-import { fmtNum, fmtDate, todayISO, isoOf, weekKey, weekStartOf, weekDayOffset, DAYS, DAYN, exCount } from '../lib/format.js'
+import { effectiveRoutine, effectiveRoutineId, nextTrainingDay, setsDoneActive, workoutVolume } from '../lib/history.js'
+import { fmtDate, todayISO, isoOf, weekKey, weekStartOf, weekDayOffset, DAYS, DAYN, exCount } from '../lib/format.js'
 import { exOr } from '../lib/exercises.js'
 import { musclesOf, MUSCLE_NAME } from '../lib/muscles.js'
 import { t, dateLocale } from '../lib/i18n.js'
-import { bwSheet, goalSheet, dayOverrideSheet, calendarSheet, startFlow, starterPlanSheet, bwDeltaColor, menuSheet, confirmSheet, shareRoutineSheet } from '../sheets.jsx'
+import { dayOverrideSheet, calendarSheet, startFlow, starterPlanSheet, menuSheet, confirmSheet, shareRoutineSheet } from '../sheets.jsx'
 import { dayStreakWithOff } from '../lib/gymmane-awards.js'
 import { sumDayMacros } from '../lib/gymmane-nutrition.js'
 import { summarizeRecoveryWeek } from '../lib/gymmane-recovery.js'
 import { nextRotationRoutine } from '../lib/gymmane-measures.js'
 import { Rise, RollIn, RoutineFolder, HomeFolder, CollapsedHeader, MiniBody } from '../components/GymManeMotion.jsx'
 import { openStartSheet } from '../components/StartSheet.jsx'
-import LineChart from '../components/LineChart.jsx'
 import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
 import { tappable } from '../lib/use-sheet-keyboard.js'
-import { openTutorial, TutorialWelcomeCard, hasSeenTutorial } from '../components/TutorialDialog.jsx'
 import ActivityHeatmap from '../components/ActivityHeatmap.jsx'
-import RecoveryMap from '../components/RecoveryMap.jsx'
-import PRWall from '../components/PRWall.jsx'
-import { LB_TO_KG } from '../lib/recovery.js'
 
 function formatElapsed(start) {
   if (!start) return '0:00'
@@ -81,7 +76,6 @@ export default function Home() {
   const S = useStore(s => s.S)
   const user = useStore(s => s.user)
   const update = useStore(s => s.update)
-  const [welcomeDismissed, setWelcomeDismissed] = useState(false)
 
   const today = new Date()
   const todayIso = todayISO()
@@ -90,10 +84,6 @@ export default function Home() {
   const todayOvr = S.dayPlan && S.dayPlan[todayIso] !== undefined
   const isDayOffToday = (S.daysOff || []).includes(todayIso)
   const next = !S.active && !routine ? nextTrainingDay(S, todayIso) : null
-  const bw = lastBW(S)
-  const bodyweightKg = bw && bw.w > 0 ? (S.unit === 'lb' ? bw.w * LB_TO_KG : bw.w) : null
-  const prevBW = (S.bodyweight || []).length > 1 ? S.bodyweight[S.bodyweight.length - 2] : null
-  const delta = bw && prevBW ? bw.w - prevBW.w : null
 
   const ws = weekStartOf(S)
   const wkStart = new Date(today)
@@ -122,7 +112,6 @@ export default function Home() {
   }, [S.workouts, ws, todayIso])
 
   const weeklyGoal = S.weeklyTarget || Math.max(1, Object.keys(S.week || {}).filter(k => S.week[k]).length || 4)
-  const bwPoints = (S.bodyweight || []).slice(-30).map(b => ({ t: b.t || new Date(b.d).getTime(), y: b.w, d: b.d }))
   const activeSetsDone = S.active ? setsDoneActive(S.active) : 0
 
   const targetMuscleSlugs = useMemo(() => {
@@ -160,7 +149,6 @@ export default function Home() {
 
   const longDateLabel = today.toLocaleDateString(dateLocale(), { weekday: 'long', month: 'short', day: 'numeric' })
 
-  // Nutrition & Recovery folder subtitles
   const todayFoodTotals = useMemo(() => {
     const entries = S.nutrition?.entries?.[todayIso] || []
     return sumDayMacros(entries)
@@ -230,45 +218,35 @@ export default function Home() {
     <div className="narrow">
       <CollapsedHeader title={longDateLabel} />
 
-      {/* GymMane Top Bar: TODAY + Bold Date + Streak Pill */}
+      {/* GymMane Top Bar: TODAY + Bold Date + Streak Pill (clean 01-home.png header) */}
       <Rise index={0}>
         <div className="hdr home-sticky-header" style={{ alignItems: 'center', marginBottom: 18 }}>
           <div style={{ minWidth: 0 }}>
             <div className="gm-micro" style={{ marginBottom: 3 }}>
-              {user?.name ? `${t('TODAY')} · ${user.name}` : t('TODAY')}
+              {user?.name || S.athleteProfile?.name ? `${t('TODAY')} · ${user?.name || S.athleteProfile?.name}` : t('TODAY')}
             </div>
             <h1 style={{ fontSize: 29, fontWeight: 800, letterSpacing: '-0.03em' }}>{longDateLabel}</h1>
           </div>
-          <div className="row" style={{ gap: 8, flex: 'none' }}>
-            <button
-              type="button"
-              onClick={() => nav('/stats')}
-              aria-label={t('Streak')}
-              style={{
-                padding: '8px 13px',
-                borderRadius: 999,
-                background: 'var(--surface)',
-                border: '1px solid color-mix(in srgb, var(--sep) 45%, transparent)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                fontSize: 14,
-                fontWeight: 800,
-              }}
-            >
-              <Icon name="flame" style={{ color: 'var(--acc)', fontSize: 15 }} />
-              <span>{streakInfo.current}</span>
-            </button>
-            <button
-              type="button"
-              className="iconbtn"
-              onClick={() => openTutorial(0)}
-              aria-label={t('Tutorial & Guide')}
-              title={t('Tutorial & Guide')}
-            >
-              <Icon name="help" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => nav('/stats')}
+            aria-label={t('Streak')}
+            style={{
+              padding: '8px 14px',
+              borderRadius: 999,
+              background: 'var(--surface)',
+              border: '1px solid color-mix(in srgb, var(--sep) 45%, transparent)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 14.5,
+              fontWeight: 800,
+              flex: 'none',
+            }}
+          >
+            <Icon name="flame" style={{ color: 'var(--acc)', fontSize: 15 }} />
+            <span>{streakInfo.current}</span>
+          </button>
         </div>
       </Rise>
 
@@ -438,11 +416,7 @@ export default function Home() {
         </Rise>
       )}
 
-      {S.workouts.length === 0 && !welcomeDismissed && !hasSeenTutorial() && (
-        <TutorialWelcomeCard onDismiss={() => setWelcomeDismissed(true)} />
-      )}
-
-      {/* GymMane 7-Day Circle Strip (checkmarks for done, bed icon for rest/day off) */}
+      {/* GymMane 7-Day Circle Strip */}
       <Rise index={2}>
         <div className="card" style={{ padding: '14px 12px' }}>
           <div className="gm-week-row">
@@ -473,7 +447,7 @@ export default function Home() {
         </div>
       </Rise>
 
-      {/* This Week Summary Card (Volume, Sets, PRs + Circular Goal Ring) */}
+      {/* This Week Summary Card */}
       <Rise index={3}>
         <div className="gm-heading-row" style={{ marginTop: 18 }}>
           <span className="gm-h-title">{t('This week')}</span>
@@ -597,99 +571,17 @@ export default function Home() {
         </Rise>
       )}
 
-      {/* Gym Check-In + Places Quick Strip */}
-      <Rise index={7}>
-        <div style={{ display: 'grid', gridTemplateColumns: S.checkIn !== false ? '1fr 1fr' : '1fr', gap: 10, marginBottom: 14 }}>
-          {S.checkIn !== false && (
-            <div className="card tappable" style={{ margin: 0, cursor: 'pointer', padding: '14px 16px' }} {...tappable(() => nav('/checkin'))}>
-              <div className="row" style={{ gap: 10 }}>
-                <span style={{ width: 34, height: 34, borderRadius: 12, background: 'var(--acc-soft)', color: 'var(--acc)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon name="qr" />
-                </span>
-                <div style={{ minWidth: 0 }}>
-                  <div className="gm-micro" style={{ fontSize: 9.5 }}>{t('AT THE GYM')}</div>
-                  <div style={{ fontSize: 14.5, fontWeight: 800, marginTop: 1 }}>{t('Gym Pass')}</div>
-                </div>
-              </div>
-            </div>
-          )}
-          <div className="card tappable" style={{ margin: 0, cursor: 'pointer', padding: '14px 16px' }} {...tappable(() => nav('/places'))}>
-            <div className="row" style={{ gap: 10 }}>
-              <span style={{ width: 34, height: 34, borderRadius: 12, background: 'var(--gm-sage-soft)', color: 'var(--gm-sage)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="mapPin" />
-              </span>
-              <div style={{ minWidth: 0 }}>
-                <div className="gm-micro" style={{ fontSize: 9.5 }}>{t('YOUR KIT')}</div>
-                <div style={{ fontSize: 14.5, fontWeight: 800, marginTop: 1 }}>{t('Places')}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Rise>
-
-      {/* Body weight sparkline card */}
-      <div className="card">
-        <div className="row between" style={{ marginBottom: 6 }}>
-          <span className="gm-micro">{t('BODY WEIGHT')}</span>
-          <div className="row" style={{ gap: 8 }}>
-            <Button size="sm" icon="target" style={S.targetW ? { color: 'var(--gm-warn)' } : undefined} onClick={goalSheet}>{S.targetW ? fmtNum(S.targetW) : t('Goal')}</Button>
-            <Button size="sm" icon="plus" onClick={() => bwSheet()}>{t('Log')}</Button>
-          </div>
-        </div>
-        {bw ? (
-          <>
-            <div className="row" style={{ gap: 8, alignItems: 'baseline' }}>
-              <div style={{ fontSize: 28, fontWeight: 900 }}>{fmtNum(bw.w)} <span className="muted" style={{ fontSize: 14, fontWeight: 700 }}>{S.unit}</span></div>
-              {!!delta && (
-                <span className="small row" style={{ gap: 2, fontWeight: 700, color: bwDeltaColor(delta, bw.w) }}>
-                  <Icon name={delta > 0 ? 'arrowUp' : 'arrowDown'} style={{ fontSize: 12 }} />
-                  {fmtNum(Math.abs(delta))}
-                </span>
-              )}
-              <span className="dim small" style={{ marginLeft: 'auto' }}>{fmtDate(bw.d, true)}</span>
-            </div>
-            <div className="chart" style={{ marginTop: 8 }}>
-              <LineChart points={bwPoints} h={115} unit={S.unit} goal={S.targetW} />
-            </div>
-          </>
-        ) : (
-          <div className="muted small">{t("No entries yet — log your weight to start the curve.")}</div>
-        )}
-      </div>
-
       {/* Consistency Activity Heatmap */}
       {S.workouts.length > 0 && (
-        <div className="card tappable" style={{ cursor: 'pointer' }} {...tappable(() => calendarSheet())}>
-          <div className="row between" style={{ marginBottom: 8 }}>
-            <span className="gm-micro">{t('ACTIVITY')}</span>
-            <span className="dim small" style={{ fontWeight: 700 }}>{t('{0} total', S.workouts.length)}</span>
+        <Rise index={7}>
+          <div className="card tappable" style={{ cursor: 'pointer', marginTop: 6 }} {...tappable(() => calendarSheet())}>
+            <div className="row between" style={{ marginBottom: 8 }}>
+              <span className="gm-micro">{t('ACTIVITY')}</span>
+              <span className="dim small" style={{ fontWeight: 700 }}>{t('{0} total', S.workouts.length)}</span>
+            </div>
+            <ActivityHeatmap workouts={S.workouts} weekStart={ws} />
           </div>
-          <ActivityHeatmap workouts={S.workouts} weekStart={ws} />
-        </div>
-      )}
-
-      {/* Muscle Recovery Map */}
-      {S.workouts.length > 0 && (
-        <div className="card">
-          <div className="row between" style={{ marginBottom: 6 }}>
-            <span className="gm-micro">{t('MUSCLE RECOVERY')}</span>
-            <span className="dim small">{t('Readiness')}</span>
-          </div>
-          <RecoveryMap workouts={S.workouts} body={S.body} unit={S.unit} bodyweightKg={bodyweightKg} />
-        </div>
-      )}
-
-      {/* PR Wall */}
-      {Object.keys(S.exWeights || {}).length > 0 && (
-        <div className="card">
-          <div className="row between" style={{ marginBottom: 8 }}>
-            <span className="gm-micro" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <Icon name="trophy" style={{ color: 'var(--gm-warn)', fontSize: 14 }} />
-              {t('PR WALL OF FAME')}
-            </span>
-          </div>
-          <PRWall exWeights={S.exWeights} bw={bw?.w} unit={S.unit} />
-        </div>
+        </Rise>
       )}
     </div>
   )

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, forwardRef } from 'react'
+import { useEffect, useRef, useState, useMemo, forwardRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore, DEF, hasData } from '../store/useStore.js'
 import { workoutControls } from '../lib/workout-controls.js'
@@ -6,13 +6,13 @@ import { convertStateUnit } from '../lib/units.js'
 import { useUI } from '../store/useUI.js'
 import { ACCENTS, todayISO, localTZ, weekStartOf, MONDAY, SUNDAY } from '../lib/format.js'
 import { effortOf } from '../lib/history.js'
-import { api, webauthnOK, passkeyLogin, passkeyRegister, IS_ANDROID } from '../lib/api.js'
+import { api, passkeyLogin, passkeyRegister } from '../lib/api.js'
 import { pushSupported, enablePush, disablePush, sendTestPush } from '../lib/push.js'
 import { wakeLockSupported } from '../lib/wakelock.js'
 import { t, LANGS, INSTR_LANGS } from '../lib/i18n.js'
-import { DEMO, REPO } from '../lib/demo.js'
+import { DEMO } from '../lib/demo.js'
 import { MOBILE, isAndroid, shareExport, syncReminder, checkNotificationPermission, requestNotificationPermission, sendTestNotification } from '../lib/mobile.js'
-import { checkForUpdate, downloadAndInstall } from '../lib/update.js'
+import { checkForUpdate } from '../lib/update.js'
 import { ConnectSheet } from './MobileOnboarding.jsx'
 import { starterPlanSheet, confirmSheet, importFromApp, importFromHevy, importHubSheet, equipmentProfileSheet, menuSheet } from '../sheets.jsx'
 import { openTutorial } from '../components/TutorialDialog.jsx'
@@ -26,19 +26,112 @@ import { testHevyApiKey } from '../lib/import-hevy.js'
 import { setAnalyticsConsent } from '../lib/analytics.js'
 import { isAdminEmail } from '../lib/firebase.js'
 import { HEAT_TONES } from '../lib/gymmane-awards.js'
+import { CATALOGUE } from '../lib/exercises.js'
+import { Rise } from '../components/GymManeMotion.jsx'
 
-export default function Settings() {
+const REPO_URL = 'https://github.com/SmitroniX/SmiTriX'
+const BUG_URL = `${REPO_URL}/issues/new?labels=bug`
+const FEATURE_URL = `${REPO_URL}/issues/new?labels=enhancement`
+const COFFEE_URL = 'https://buymeacoffee.com/asmit_jogdand'
+const DISCORD_URL = 'https://discord.gg/ZFQV5dza9P'
+
+const HELP_TOPICS = [
+  {
+    id: 'import',
+    q: 'How do I import workouts from Hevy, Strong or FitNotes?',
+    a: 'Open Data & backup and choose "Import from another app" for CSV/XML backups, or "Import from Hevy" with a Hevy Pro API key.',
+    section: 'data',
+  },
+  {
+    id: 'units',
+    q: 'How do I switch between kg and lb?',
+    a: 'Open General → Weight unit. SmiTriX offers to convert all logged weights automatically or keep your numbers and change only the label.',
+    section: 'general',
+  },
+  {
+    id: 'rest',
+    q: 'How do I change the rest timer sound or duration?',
+    a: 'Set your default rest timer in Training, and customize chimes, voice coach, screen flash and edge glow in Reminders & alarm.',
+    section: 'alerts',
+  },
+  {
+    id: 'privacy',
+    q: 'Where is my workout data stored?',
+    a: 'On the website and demo, everything stays 100% locally in your browser with no account required. On the mobile app, optional cloud sync backs up your sessions.',
+    section: 'about',
+  },
+  {
+    id: 'onboarding',
+    q: 'Can I re-run the initial setup walkthrough?',
+    a: 'Yes — tap "Run setup walkthrough" inside Support to update your name, units, body stats, weekly goal and training places.',
+    section: 'support',
+  },
+]
+
+const SEARCH_INDEX = [
+  { label: 'Theme (Dark, OLED, Light, System)', section: 'general', icon: 'moon' },
+  { label: 'Language', section: 'general', icon: 'globe' },
+  { label: 'Weight unit (kg / lb)', section: 'general', icon: 'scale' },
+  { label: 'Week starts on (Monday / Sunday)', section: 'general', icon: 'calendar' },
+  { label: 'Accent color', section: 'general', icon: 'sparkles' },
+  { label: 'Background pattern (Warm Dots / Grid / Solid)', section: 'general', icon: 'grid' },
+  { label: 'Heatmap palette', section: 'general', icon: 'flame' },
+  { label: 'Body diagram (Male / Female)', section: 'general', icon: 'figureStrength' },
+  { label: 'Workout view (Cards / List)', section: 'training', icon: 'list' },
+  { label: 'Workout density (Spacious / Compact)', section: 'training', icon: 'table' },
+  { label: 'Workout controls', section: 'training', icon: 'wrench' },
+  { label: 'Rest timer & rest-pause duration', section: 'training', icon: 'timer' },
+  { label: 'Exercise animations (Full / Small / Hidden)', section: 'training', icon: 'figureRun' },
+  { label: 'Effort per set (RIR / RPE)', section: 'training', icon: 'target' },
+  { label: 'Start countdown & Deload reduction', section: 'training', icon: 'feather' },
+  { label: 'Equipment profiles & Places', section: 'training', icon: 'dumbbell' },
+  { label: 'Sounds & Rest timer chime', section: 'alerts', icon: 'bell' },
+  { label: 'Voice coach', section: 'alerts', icon: 'mic' },
+  { label: 'Flash screen & Rest edge glow', section: 'alerts', icon: 'sun' },
+  { label: 'Workout day reminders & Notifications', section: 'alerts', icon: 'calendar' },
+  { label: 'Weekly workout goal', section: 'home', icon: 'target' },
+  { label: 'Gym check-in pass card', section: 'home', icon: 'qr' },
+  { label: 'Nutrition & Recovery hubs', section: 'home', icon: 'forkKnife' },
+  { label: 'AI Coach & Manage API Keys', section: 'beta', icon: 'sparkles' },
+  { label: 'Load starter plan', section: 'data', icon: 'sparkles' },
+  { label: 'Import from Hevy, Strong or FitNotes', section: 'data', icon: 'shuffle' },
+  { label: 'Export / Import JSON backup', section: 'data', icon: 'download' },
+  { label: 'Reset everything', section: 'data', icon: 'trash' },
+  { label: 'Setup walkthrough & Support', section: 'support', icon: 'help' },
+  { label: 'About SmiTriX, Version & Credits', section: 'about', icon: 'info' },
+]
+
+function useIsDesktop() {
+  const [wide, setWide] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 1024 : false))
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mql = window.matchMedia('(min-width: 1024px)')
+    const onChange = e => setWide(e.matches)
+    setWide(mql.matches)
+    mql.addEventListener?.('change', onChange)
+    return () => mql.removeEventListener?.('change', onChange)
+  }, [])
+  return wide
+}
+
+export default function Settings({ initialSection = null }) {
   const nav = useNavigate()
   const S = useStore(s => s.S)
   const user = useStore(s => s.user)
   const config = useStore(s => s.config)
   const coachLocal = useStore(s => s.coachLocal)
-  const { update, replaceState, setUser, pullState, pushState, signOut, signOutAll, resetDemo, disconnectServer } = useStore()
+  const { update, replaceState, setUser, pullState, pushState, signOut, resetDemo } = useStore()
   const toast = useUI(s => s.toast)
   const isAdmin = Boolean(user?.admin || isAdminEmail(user?.email))
   const fileRef = useRef(null)
   const importRef = useRef(null)
   const wakeOK = wakeLockSupported()
+  const isDesktop = useIsDesktop()
+
+  const [section, setSection] = useState(initialSection)
+  const [deskSection, setDeskSection] = useState(initialSection || 'general')
+  const [query, setQuery] = useState('')
+  const [openHelpId, setOpenHelpId] = useState(null)
 
   const [hasCoachKey, setHasCoachKey] = useState(false)
   const [hasHevyKey, setHasHevyKey] = useState(false)
@@ -57,9 +150,6 @@ export default function Settings() {
   }
   useEffect(() => { refreshApiKeys() }, [coachLocal])
 
-  // Two honest choices on a unit switch (issue #22): convert the numbers, or keep them and only
-  // change the label — the old behaviour, still right for someone who logged in lb all along
-  // under a kg label. Closing the sheet leaves the unit as it was.
   const switchUnit = v => {
     if (v === S.unit) return
     menuSheet({
@@ -72,14 +162,9 @@ export default function Settings() {
     })
   }
 
-  // --- update check state ---
-  const [updateInfo, setUpdateInfo] = useState(null) // { hasUpdate, latestVersion, apkUrl, hashUrl } | null
-
+  // In-app Android APK updater (strictly gated on MOBILE && isAndroid)
+  const [updateInfo, setUpdateInfo] = useState(null)
   useEffect(() => {
-    // The in-app updater installs an .apk, so it only applies to the native Android build.
-    // On iOS and the web this check is skipped and the update row never appears. isAndroid()
-    // already answers false off the mobile build; the MOBILE check on top keeps the web bundle
-    // from even asking (and from calling gitlab.com on every Settings visit).
     if (!MOBILE) return
     isAndroid().then(ok => { if (ok) checkForUpdate().then(setUpdateInfo).catch(() => {}) })
   }, [])
@@ -87,7 +172,6 @@ export default function Settings() {
   const onUpdateRowClick = () => {
     if (!updateInfo?.hasUpdate) return
     if (updateInfo.apkUrl) {
-      // Start download & install
       const version = updateInfo.latestVersion
       confirmSheet({
         title: t('Update to {0}?', version),
@@ -97,23 +181,22 @@ export default function Settings() {
         onConfirm: () => startAppUpdate(updateInfo),
       })
     } else {
-      // Update available but no APK asset — open the releases page
-      window.open(updateInfo.releaseUrl || 'https://github.com/SmitroniX/SmiTriX/releases', '_blank', 'noopener')
+      window.open(updateInfo.releaseUrl || `${REPO_URL}/releases`, '_blank', 'noopener')
     }
   }
 
   const doExport = async () => {
     const json = JSON.stringify(S, null, 2)
     const name = 'smitrix-backup-' + todayISO() + '.json'
-    // WKWebView can't download blob URLs — the native build hands the file to the share sheet.
     if (MOBILE) {
-      try { await shareExport(json, name); toast(t('Backup exported')) } catch (e) { /* share sheet dismissed */ }
+      try { await shareExport(json, name); toast(t('Backup exported')) } catch {}
       return
     }
     const blob = new Blob([json], { type: 'application/json' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); URL.revokeObjectURL(a.href)
     toast(t('Backup exported'))
   }
+
   const doImport = ev => {
     const f = ev.target.files[0]; if (!f) return
     const rd = new FileReader()
@@ -121,419 +204,1021 @@ export default function Settings() {
       try {
         const data = JSON.parse(rd.result)
         if (!data.workouts || !data.routines) throw new Error('not a SmiTriX backup')
-        confirmSheet({ title: t('Import backup?'), message: t('This replaces all current data with the backup file.'), confirmText: t('Import'), danger: true, onConfirm: () => { replaceState(Object.assign(JSON.parse(JSON.stringify(DEF)), data), true); toast(t('Backup imported')) } })
+        confirmSheet({
+          title: t('Import backup?'),
+          message: t('This replaces all current data with the backup file.'),
+          confirmText: t('Import'),
+          danger: true,
+          onConfirm: () => {
+            replaceState(Object.assign(JSON.parse(JSON.stringify(DEF)), data), true)
+            toast(t('Backup imported'))
+          },
+        })
       } catch (e) { toast(t('Import failed: {0}', e.message)) }
     }
     rd.readAsText(f)
   }
-  const signInHere = async () => {
-    try { const u = await passkeyLogin(); setUser(u); await pullState(); toast(t('Welcome back, {0}', u.name)) }
-    catch (e) { if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') toast(e.message || t('Sign-in failed')) }
+
+  // Category groups matching GymMane's exact 08-settings.png structure
+  const categories = useMemo(() => {
+    const list = [
+      { id: 'general', group: 'app', icon: 'sliders', title: t('General') },
+      { id: 'training', group: 'app', icon: 'dumbbell', title: t('Training') },
+      { id: 'alerts', group: 'app', icon: 'bell', title: t('Reminders & alarm') },
+      { id: 'home', group: 'home', icon: 'home', title: t('Home') },
+      { id: 'beta', group: 'home', icon: 'sparkles', title: t('Beta') },
+      { id: 'data', group: 'data', icon: 'download', title: t('Data & backup') },
+      { id: 'support', group: 'data', icon: 'heart', title: t('Support') },
+      { id: 'about', group: 'data', icon: 'info', title: t('About SmiTriX') },
+    ]
+    if (MOBILE || isAdmin) {
+      list.unshift({ id: 'account', group: 'app', icon: 'personCircle', title: t('Account & Sync') })
+    }
+    return list
+  }, [isAdmin])
+
+  const openCategory = id => {
+    setQuery('')
+    if (isDesktop) setDeskSection(id)
+    else setSection(id)
   }
-  const registerHere = () => useUI.getState().openSheet(close => <RegisterInline close={close} setUser={setUser} pushState={pushState} pullState={pullState} toast={toast} />)
-  // Ends the profile's sessions on every device — this one included, so on success it lands in
-  // the same place as the plain sign-out above (home, local data cleared). On failure nothing
-  // local is touched: still signed in here, and say so rather than leaving a half-signed-out app.
-  const signOutEverywhere = () => confirmSheet({
-    title: t('Sign out everywhere?'),
-    message: t('Signs this profile out on every device, including this one. Your passkeys keep working — sign in with them again anytime.'),
-    confirmText: t('Sign out everywhere'), danger: true,
-    onConfirm: async () => {
-      try { await signOutAll(); nav('/home'); toast(t('Signed out on all devices')) }
-      catch (e) { toast(t('Could not sign out everywhere — you are still signed in.')) }
-    },
-  })
 
-  return <div className="narrow">
-    <div className="hdr">
-      <button className="iconbtn" onClick={() => nav('/home')} aria-label={t('Home')}><Icon name="chevronLeft" /></button>
-      <div style={{ flex: 1, marginLeft: 10 }}><h1>{t('Settings')}</h1></div>
-    </div>
+  const qLower = query.trim().toLowerCase()
+  const searchHits = useMemo(() => {
+    if (!qLower) return []
+    return SEARCH_INDEX.filter(item =>
+      item.label.toLowerCase().includes(qLower) || t(item.label).toLowerCase().includes(qLower)
+    ).slice(0, 8)
+  }, [qLower])
 
-    {/* ---------- account & cloud sync ---------- */}
-    <Section title={t('Account & Athlete Profile')}>
-      <Row icon="personCircle" iconTint="var(--acc)" title={user ? user.name : t('Athlete Profile')} subtitle={user ? (user.email || t('Verified Cloud Athlete')) : t('View training stats, somatotype & achievements')} accessory="chevron" onClick={() => nav('/profile')} />
-      {user ? <>
-        <Row icon="cloud" iconTint="var(--blue)" title={t('Cloud Sync Active')} subtitle={user.email || user.name} />
-        {isAdmin && <Row icon="shield" iconTint="var(--red)" title={t('Cloud Admin Dashboard')} subtitle="smitronix0826@gmail.com" accessory="chevron" onClick={() => nav('/admin')} />}
-        <Row icon="signOut" iconTint="var(--red)" title={t('Sign out')} danger onClick={() => confirmSheet({
-          title: t('Sign out?'),
-          message: t('Your workouts remain saved on this device. You can sign back in anytime.'),
-          confirmText: t('Sign out'), danger: true,
-          onConfirm: async () => {
-            try { await signOut(); } catch {}
-            setUser(null);
-            useStore.getState().setGuest(true);
-            nav('/home');
-            toast(t('Signed out'));
-          }
-        })} />
-      </> : <>
-        <Row icon="lock" iconTint="var(--blue)" title={t('Sign in with Google or Email')} subtitle={t('Sync your workouts across devices and back up to cloud')} accessory="chevron" onClick={() => nav('/login')} />
-        {MOBILE && <Row icon="link" iconTint="var(--indigo)" title={t('Connect to self-hosted server')} subtitle={t('Sync this device to your own SmiTriX instance instead.')} accessory="chevron"
-          onClick={() => useUI.getState().openSheet(close => <ConnectSheet close={close} />)} />}
-      </>}
-    </Section>
-    {!user && !DEMO && !MOBILE && <p className="sect-f" style={{ marginTop: -18, marginBottom: 22 }}>{t('Guest mode — data lives only in this browser.')}</p>}
+  const helpHits = useMemo(() => {
+    if (!qLower) return []
+    return HELP_TOPICS.filter(h =>
+      h.q.toLowerCase().includes(qLower) || h.a.toLowerCase().includes(qLower)
+    )
+  }, [qLower])
 
-    {/* ---------- AI Coach & API Keys ---------- */}
-    <Section
-      title={t('AI Coach & API Keys')}
-      footer={
-        coachLocal?.mode === 'byok'
-          ? t('Using your personal API key. Direct HTTPS requests never leave this device unencrypted.')
-          : coachLocal?.mode === 'server'
-            ? t('Using instance-wide AI Coach configured on your SmiTriX server.')
-            : t('AI Coach designs personalized routines and reviews progress. Keys are stored safely on this device.')
-      }
-    >
-      <Row
-        icon="sparkles"
-        iconTint="var(--acc)"
-        title={t('AI Coach')}
-        accessory="chevron"
-        subtitle={
-          coachLocal?.mode === 'server'
-            ? t('Active · Runs on your SmiTriX server')
-            : coachLocal?.mode === 'byok'
-              ? (hasCoachKey || HTTP_PROVIDERS[coachLocal?.provider]?.keyOptional
-                  ? t('Active · {0}{1}', HTTP_PROVIDERS[coachLocal?.provider]?.label || coachLocal?.provider || 'BYOK', coachLocal?.model ? ` (${coachLocal.model})` : '')
-                  : t('Needs API key · {0}', HTTP_PROVIDERS[coachLocal?.provider]?.label || coachLocal?.provider || 'BYOK'))
-              : (user && config?.coach?.enabled)
-                ? t('Available via server · Tap to configure')
-                : t('Off — configure provider & API key')
-        }
-        onClick={() => nav('/coach/setup')}
-      />
-      <Row
-        icon="key"
-        iconTint="var(--teal)"
-        title={t('Manage API Keys')}
-        accessory="chevron"
-        subtitle={
-          (savedProviderCount > 0 && hasHevyKey)
-            ? t('{0} AI & Hevy keys saved', savedProviderCount)
-            : savedProviderCount > 0
-              ? t('{0} AI Coach {1} saved', savedProviderCount, savedProviderCount === 1 ? 'key' : 'keys')
-              : hasHevyKey
-                ? t('Hevy Pro key saved')
-                : t('Configure keys for AI Coach and Hevy')
-        }
-        onClick={() => useUI.getState().openSheet(close => <ApiKeyManagerSheet close={close} onUpdate={refreshApiKeys} />)}
-      />
-      <Row
-        icon="shield"
-        iconTint="var(--red)"
-        title={t('Cloud Admin Dashboard')}
-        subtitle={isAdmin ? 'smitronix0826@gmail.com' : t('App users, workout records, bug reports & KPIs')}
-        accessory="chevron"
-        onClick={() => nav('/admin')}
-      />
-    </Section>
+  const sectionTitle = id => categories.find(c => c.id === id)?.title || t('Settings')
 
-    {/* ---------- general ---------- */}
-    <Section title={t('General')} footer={t('Switching the unit offers to convert every stored weight.')}>
-      <SelectRow
-        icon="globe" iconTint="var(--blue)" title={t('Language')}
-        value={S.lang || 'en'} onChange={v => update(s => { s.lang = v })}
-        options={Object.entries(LANGS).map(([k, name]) => ({
-          value: k, label: name,
-          subtitle: INSTR_LANGS.includes(k) ? null : t("Exercise instructions aren't available in this language yet — they stay in English."),
-        }))}
-      />
-      <Row icon="scale" iconTint="var(--teal)" title={t('Weight unit')}>
-        <Segmented className="seg-inline"
-          options={[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]}
-          value={S.unit} onChange={v => switchUnit(v)} />
-      </Row>
-      {/* Monday or Sunday — the Plan list, the Home strip, the calendar grid and every
-          "this week" total follow it. Stored as a getDay() index (see lib/format.js). */}
-      <Row icon="calendar" iconTint="var(--orange)" title={t('Week starts on')}>
-        <Segmented className="seg-inline"
-          options={[{ value: MONDAY, label: t('Monday') }, { value: SUNDAY, label: t('Sunday') }]}
-          value={weekStartOf(S)} onChange={v => update(s => { s.weekStart = v })} />
-      </Row>
-      {/* Membership QR codes on Home (views/CheckIn.jsx); off = no Home card, no route. */}
-      <Row icon="qr" iconTint="var(--blue)" title={t('Gym check-in')}
-        subtitle={t('Show a card on Home with your membership QR codes.')}>
-        <Switch checked={S.checkIn !== false} onChange={v => update(s => { s.checkIn = v })} />
-      </Row>
-    </Section>
+  const renderSectionBody = id => {
+    if (id === 'account' && (MOBILE || isAdmin)) {
+      return (
+        <>
+          <Section title={t('Account & Cloud Sync')}>
+            <Row
+              icon="personCircle"
+              iconTint="var(--acc)"
+              title={user ? user.name : t('Athlete Profile')}
+              subtitle={user ? (user.email || t('Verified Cloud Athlete')) : t('Manage your athlete identity')}
+              accessory="chevron"
+              onClick={() => nav('/profile')}
+            />
+            {user ? (
+              <>
+                <Row icon="cloud" iconTint="var(--blue)" title={t('Cloud Sync Active')} subtitle={user.email || user.name} />
+                {isAdmin && (
+                  <Row
+                    icon="shield"
+                    iconTint="var(--red)"
+                    title={t('Cloud Admin Dashboard')}
+                    subtitle="smitronix0826@gmail.com"
+                    accessory="chevron"
+                    onClick={() => nav('/admin')}
+                  />
+                )}
+                <Row
+                  icon="signOut"
+                  iconTint="var(--red)"
+                  title={t('Sign out')}
+                  danger
+                  onClick={() => confirmSheet({
+                    title: t('Sign out?'),
+                    message: t('Your workouts remain saved. You can sign back in anytime.'),
+                    confirmText: t('Sign out'),
+                    danger: true,
+                    onConfirm: async () => {
+                      try { await signOut() } catch {}
+                      setUser(null)
+                      useStore.getState().setGuest(!MOBILE)
+                      nav(MOBILE ? '/login' : '/home')
+                      toast(t('Signed out'))
+                    },
+                  })}
+                />
+              </>
+            ) : MOBILE ? (
+              <>
+                <Row
+                  icon="lock"
+                  iconTint="var(--blue)"
+                  title={t('Sign in with Google or Email')}
+                  subtitle={t('Sync your workouts across devices and back up to cloud')}
+                  accessory="chevron"
+                  onClick={() => nav('/login')}
+                />
+                <Row
+                  icon="link"
+                  iconTint="var(--indigo)"
+                  title={t('Connect to self-hosted server')}
+                  subtitle={t('Sync this device to your own SmiTriX instance instead.')}
+                  accessory="chevron"
+                  onClick={() => useUI.getState().openSheet(close => <ConnectSheet close={close} />)}
+                />
+              </>
+            ) : null}
+          </Section>
+        </>
+      )
+    }
 
-    {/* ---------- during a workout ---------- */}
-    <Section title={t('During a workout')} footer={wakeOK ? t('The screen stays on while a workout is running, so you don’t have to unlock your phone between sets.') : null}>
-      {/* One exercise at a time (cards with Prev/Next) or the whole session stacked as a
-          scrollable list. Legacy/unknown values read as cards. */}
-      <Row icon="list" iconTint="var(--blue)" title={t('Workout view')}>
-        <Segmented className="seg-inline"
-          options={[{ value: 'cards', label: t('Cards') }, { value: 'list', label: t('List') }]}
-          value={S.workoutView === 'list' ? 'list' : 'cards'}
-          onChange={v => update(s => { s.workoutView = v })} />
-      </Row>
-      <Row icon="table" iconTint="var(--cyan, #06b6d4)" title={t('Workout density')}>
-        <Segmented className="seg-inline"
-          options={[{ value: 'spacious', label: t('Spacious') }, { value: 'compact', label: t('Compact') }]}
-          value={S.workoutDensity === 'compact' ? 'compact' : 'spacious'}
-          onChange={v => update(s => { s.workoutDensity = v })} />
-      </Row>
-      {/* The lean workout screen keeps the sets and one "more" button per exercise; each switch
-          brings one of the old always-visible button groups back for people who liked them. */}
-      <Row icon="wrench" iconTint="var(--purple)" title={t('Workout controls')} accessory="chevron"
-        subtitle={t('Everything hidden here stays one tap away: the ⋯ button of an exercise and the number of a set.')}
-        onClick={() => workoutControlsSheet()} />
-      <SelectRow icon="timer" iconTint="var(--orange)" title={t('Rest timer')}
-        value={S.restSec} onChange={v => update(s => { s.restSec = v })}
-        options={[{ value: 0, label: t('Off') }, ...[60, 90, 120, 150, 180].map(v => ({ value: v, label: v + 's' }))]} />
-      {/* Default for a rest-pause burst added live on a plain set — a planned exercise's own
-          "Rest (s)" (in its Intensifier config) overrides this, same as the main rest timer
-          is the fallback whenever an exercise has no progression rule of its own. */}
-      <SelectRow icon="bolt" iconTint="var(--acc)" title={t('Rest-pause rest')}
-        value={S.restPauseSec} onChange={v => update(s => { s.restPauseSec = v })}
-        options={[10, 15, 20, 30].map(v => ({ value: v, label: v + 's' }))} />
-      {(wakeOK || !MOBILE) && (
-        <Row icon="sun" iconTint="var(--yellow)" title={t('Keep screen awake')}
-          subtitle={wakeOK ? null : t('Not supported in this browser.')}>
-          <Switch checked={wakeOK && S.keepAwake !== false} disabled={!wakeOK}
-            onChange={v => update(s => { s.keepAwake = v })} />
-        </Row>
-      )}
-      {/* 'full'/'mini' is also what the tap-toggle on the workout animation writes; 'off' hides
-          workout media entirely (library, detail sheet and picker thumbs are unaffected).
-          Legacy/unknown values read as 'full'. */}
-      <Row icon="figureRun" iconTint="var(--green)" title={t('Exercise animations')}>
-        <Segmented className="seg-inline"
-          options={[{ value: 'full', label: t('Full') }, { value: 'mini', label: t('Small') }, { value: 'off', label: t('Hidden') }]}
-          value={S.gifSize === 'mini' || S.gifSize === 'off' ? S.gifSize : 'full'}
-          onChange={v => update(s => { s.gifSize = v })} />
-      </Row>
-      <Row icon="bell" iconTint="var(--pink)" title={t('Sounds')}>
-        <Switch checked={!!S.sound} onChange={v => update(s => { s.sound = v })} />
-      </Row>
-      <SelectRow icon="bell" iconTint="var(--pink)" title={t('Rest timer chime')}
-        value={S.restChime || 'bell'}
-        onChange={v => {
-          update(s => { s.restChime = v })
-          playRestChime(v, true)
-        }}
-        options={[
-          { value: 'bell', label: t('Bell chime') },
-          { value: 'beeps', label: t('3-2-1 countdown beeps') },
-          { value: 'gong', label: t('Gentle gong') },
-          { value: 'digital', label: t('Digital chime') },
-        ]} />
-      <Row icon="volume" iconTint="var(--pink)" title={t('Preview chime')} subtitle={t('Test the selected rest timer chime')}>
-        <Button size="sm" icon="play" onClick={() => playRestChime(S.restChime || 'bell', true)}>{t('Test chime')}</Button>
-      </Row>
-      <Row icon="mic" iconTint="var(--teal)" title={t('Voice coach')}
-        subtitle={t('Spoken rest countdown and set announcements')}>
-        <Switch checked={!!S.voiceCoach} onChange={v => {
-          if (v && !S.voiceCoach) {
-            confirmSheet({
-              title: t('Enable voice coach?'),
-              message: t("SmiTriX will speak rest countdowns, set announcements, and workout achievements using your device's voice. You can turn this off anytime."),
-              confirmText: t('Turn on'),
-              onConfirm: () => update(s => { s.voiceCoach = true }),
-            })
-          } else {
-            update(s => { s.voiceCoach = v })
-          }
-        }} />
-      </Row>
-      <Row icon="sun" iconTint="var(--yellow)" title={t('Flash screen when timer ends')}>
-        <Switch checked={!!S.timerFlash} onChange={v => update(s => { s.timerFlash = v })} />
-      </Row>
-      <Row icon="sparkles" iconTint="var(--gm-sage, #8FA377)" title={t('Rest edge glow')}
-        subtitle={t('Soft glowing border pulse when rest timer finishes')}>
-        <Switch checked={S.restGlow !== false} onChange={v => update(s => { s.restGlow = v })} />
-      </Row>
-      <SelectRow icon="timer" iconTint="var(--acc)" title={t('Start countdown')}
-        value={S.startCountdownSec || 0} onChange={v => update(s => { s.startCountdownSec = Number(v) || 0 })}
-        options={[
-          { value: 0, label: t('Off') },
-          { value: 3, label: '3s' },
-          { value: 5, label: '5s' },
-        ]} />
-      <SelectRow icon="feather" iconTint="var(--teal)" title={t('Deload reduction')}
-        value={S.deloadPct ?? 20} onChange={v => update(s => { s.deloadPct = Number(v) || 20 })}
-        options={[10, 15, 20, 25, 30].map(p => ({ value: p, label: `−${p}%` }))} />
-      {/* Two names for the same judgement, so the column asks in the scale you already think in.
-          The (i) sits before the control — you read it on the way to the choice, not after it. */}
-      <Row icon="target" iconTint="var(--purple)" title={t('Effort per set')}>
-        <button className="helpbtn" aria-label={t('What are RIR and RPE?')} onClick={effortHelpSheet}><Icon name="info" /></button>
-        <Segmented className="seg-inline"
-          options={[{ value: 'none', label: t('Off') }, { value: 'rir', label: t('RIR') }, { value: 'rpe', label: t('RPE') }]}
-          value={effortOf(S)} onChange={v => update(s => { s.effort = v; delete s.showRir })} />
-      </Row>
-    </Section>
+    if (id === 'general') {
+      return (
+        <>
+          <Section title={t('General')} footer={t('Switching the unit offers to convert every stored weight.')}>
+            <Row icon="moon" iconTint="var(--indigo)" title={t('Theme')}>
+              <Segmented
+                className="seg-inline"
+                options={[
+                  { value: 'dark', icon: 'moon', label: t('Dark') },
+                  { value: 'oled', icon: 'eye', label: t('OLED') },
+                  { value: 'light', icon: 'sun', label: t('Light') },
+                  { value: 'system', icon: 'gear', label: t('System') },
+                ]}
+                value={S.theme || 'dark'}
+                onChange={v => update(s => { s.theme = v })}
+              />
+            </Row>
+            <SelectRow
+              icon="globe"
+              iconTint="var(--blue)"
+              title={t('Language')}
+              value={S.lang || 'en'}
+              onChange={v => update(s => { s.lang = v })}
+              options={Object.entries(LANGS).map(([k, name]) => ({
+                value: k,
+                label: name,
+                subtitle: INSTR_LANGS.includes(k) ? null : t("Exercise instructions aren't available in this language yet — they stay in English."),
+              }))}
+            />
+            <Row icon="scale" iconTint="var(--teal)" title={t('Weight unit')}>
+              <Segmented
+                className="seg-inline"
+                options={[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]}
+                value={S.unit}
+                onChange={v => switchUnit(v)}
+              />
+            </Row>
+            <Row icon="calendar" iconTint="var(--orange)" title={t('Week starts on')}>
+              <Segmented
+                className="seg-inline"
+                options={[{ value: MONDAY, label: t('Monday') }, { value: SUNDAY, label: t('Sunday') }]}
+                value={weekStartOf(S)}
+                onChange={v => update(s => { s.weekStart = v })}
+              />
+            </Row>
+            <Row icon="figureStrength" iconTint="var(--teal)" title={t('Body diagram')}>
+              <Segmented
+                className="seg-inline"
+                options={[{ value: 'male', label: t('Male') }, { value: 'female', label: t('Female') }]}
+                value={S.body === 'female' ? 'female' : 'male'}
+                onChange={v => update(s => { s.body = v })}
+              />
+            </Row>
+            <SelectRow
+              icon="grid"
+              iconTint="var(--acc)"
+              title={t('Background pattern')}
+              value={S.bgPattern ?? 'dots'}
+              onChange={v => update(s => { s.bgPattern = v })}
+              options={[
+                { value: 'dots', label: t('Warm Dots') },
+                { value: 'grid', label: t('Subtle Grid') },
+                { value: 'none', label: t('Solid') },
+              ]}
+            />
+            <div className="lrow" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12, paddingTop: 13, paddingBottom: 14 }}>
+              <span className="lrow-t">{t('Accent color')}</span>
+              <div className="swatches">
+                {Object.entries(ACCENTS).map(([k, c]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    className={'swatch' + ((S.accent || 'peach') === k ? ' on' : '')}
+                    style={{ background: c }}
+                    onClick={() => update(s => { s.accent = k })}
+                    aria-label={k}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="lrow" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10, paddingTop: 12, paddingBottom: 14 }}>
+              <span className="lrow-t">{t('Heatmap palette')}</span>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {Object.values(HEAT_TONES).map(tone => {
+                  const on = (S.heatTone || 'ember') === tone.id
+                  return (
+                    <button
+                      key={tone.id}
+                      type="button"
+                      onClick={() => update(s => { s.heatTone = tone.id })}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '6px 11px',
+                        borderRadius: 999,
+                        background: on ? 'var(--surface-2)' : 'transparent',
+                        border: on ? '1.5px solid var(--acc)' : '1px solid var(--sep-op)',
+                        color: 'var(--label)',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span style={{ display: 'inline-flex', gap: 2 }}>
+                        {tone.ramp.slice(1).map((c, i) => (
+                          <span key={i} style={{ width: 8, height: 8, borderRadius: 2, background: c }} />
+                        ))}
+                      </span>
+                      <span>{t(tone.name)}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </Section>
+        </>
+      )
+    }
 
-    {(user || MOBILE) && <NotificationsCard S={S} update={update} toast={toast} />}
+    if (id === 'training') {
+      return (
+        <>
+          <Section title={t('During a workout')} footer={wakeOK ? t('The screen stays on while a workout is running, so you don’t have to unlock your phone between sets.') : null}>
+            <Row icon="list" iconTint="var(--blue)" title={t('Workout view')}>
+              <Segmented
+                className="seg-inline"
+                options={[{ value: 'cards', label: t('Cards') }, { value: 'list', label: t('List') }]}
+                value={S.workoutView === 'list' ? 'list' : 'cards'}
+                onChange={v => update(s => { s.workoutView = v })}
+              />
+            </Row>
+            <Row icon="table" iconTint="var(--cyan, #06b6d4)" title={t('Workout density')}>
+              <Segmented
+                className="seg-inline"
+                options={[{ value: 'spacious', label: t('Spacious') }, { value: 'compact', label: t('Compact') }]}
+                value={S.workoutDensity === 'compact' ? 'compact' : 'spacious'}
+                onChange={v => update(s => { s.workoutDensity = v })}
+              />
+            </Row>
+            <Row
+              icon="wrench"
+              iconTint="var(--purple)"
+              title={t('Workout controls')}
+              accessory="chevron"
+              subtitle={t('Everything hidden here stays one tap away: the ⋯ button of an exercise and the number of a set.')}
+              onClick={() => workoutControlsSheet()}
+            />
+            <SelectRow
+              icon="timer"
+              iconTint="var(--orange)"
+              title={t('Rest timer')}
+              value={S.restSec}
+              onChange={v => update(s => { s.restSec = v })}
+              options={[{ value: 0, label: t('Off') }, ...[60, 90, 120, 150, 180].map(v => ({ value: v, label: v + 's' }))]}
+            />
+            <SelectRow
+              icon="bolt"
+              iconTint="var(--acc)"
+              title={t('Rest-pause rest')}
+              value={S.restPauseSec}
+              onChange={v => update(s => { s.restPauseSec = v })}
+              options={[10, 15, 20, 30].map(v => ({ value: v, label: v + 's' }))}
+            />
+            <Row icon="figureRun" iconTint="var(--green)" title={t('Exercise animations')}>
+              <Segmented
+                className="seg-inline"
+                options={[{ value: 'full', label: t('Full') }, { value: 'mini', label: t('Small') }, { value: 'off', label: t('Hidden') }]}
+                value={S.gifSize === 'mini' || S.gifSize === 'off' ? S.gifSize : 'full'}
+                onChange={v => update(s => { s.gifSize = v })}
+              />
+            </Row>
+            <SelectRow
+              icon="timer"
+              iconTint="var(--acc)"
+              title={t('Start countdown')}
+              value={S.startCountdownSec || 0}
+              onChange={v => update(s => { s.startCountdownSec = Number(v) || 0 })}
+              options={[{ value: 0, label: t('Off') }, { value: 3, label: '3s' }, { value: 5, label: '5s' }]}
+            />
+            <SelectRow
+              icon="feather"
+              iconTint="var(--teal)"
+              title={t('Deload reduction')}
+              value={S.deloadPct ?? 20}
+              onChange={v => update(s => { s.deloadPct = Number(v) || 20 })}
+              options={[10, 15, 20, 25, 30].map(p => ({ value: p, label: `−${p}%` }))}
+            />
+            <Row icon="target" iconTint="var(--purple)" title={t('Effort per set')}>
+              <button type="button" className="helpbtn" aria-label={t('What are RIR and RPE?')} onClick={effortHelpSheet}><Icon name="info" /></button>
+              <Segmented
+                className="seg-inline"
+                options={[{ value: 'none', label: t('Off') }, { value: 'rir', label: t('RIR') }, { value: 'rpe', label: t('RPE') }]}
+                value={effortOf(S)}
+                onChange={v => update(s => { s.effort = v; delete s.showRir })}
+              />
+            </Row>
+            {(wakeOK || !MOBILE) && (
+              <Row icon="sun" iconTint="var(--yellow)" title={t('Keep screen awake')} subtitle={wakeOK ? null : t('Not supported in this browser.')}>
+                <Switch checked={wakeOK && S.keepAwake !== false} disabled={!wakeOK} onChange={v => update(s => { s.keepAwake = v })} />
+              </Row>
+            )}
+          </Section>
+          <EquipmentCard S={S} update={update} />
+        </>
+      )
+    }
 
-    {/* ---------- equipment ---------- */}
-    <EquipmentCard S={S} update={update} />
+    if (id === 'alerts') {
+      return (
+        <>
+          <Section title={t('Rest alarm & cues')}>
+            <Row icon="bell" iconTint="var(--pink)" title={t('Sounds')}>
+              <Switch checked={!!S.sound} onChange={v => update(s => { s.sound = v })} />
+            </Row>
+            <SelectRow
+              icon="bell"
+              iconTint="var(--pink)"
+              title={t('Rest timer chime')}
+              value={S.restChime || 'bell'}
+              onChange={v => {
+                update(s => { s.restChime = v })
+                playRestChime(v, true)
+              }}
+              options={[
+                { value: 'bell', label: t('Bell chime') },
+                { value: 'beeps', label: t('3-2-1 countdown beeps') },
+                { value: 'gong', label: t('Gentle gong') },
+                { value: 'digital', label: t('Digital chime') },
+              ]}
+            />
+            <Row icon="volume" iconTint="var(--pink)" title={t('Preview chime')} subtitle={t('Test the selected rest timer chime')}>
+              <Button size="sm" icon="play" onClick={() => playRestChime(S.restChime || 'bell', true)}>{t('Test chime')}</Button>
+            </Row>
+            <Row icon="mic" iconTint="var(--teal)" title={t('Voice coach')} subtitle={t('Spoken rest countdown and set announcements')}>
+              <Switch
+                checked={!!S.voiceCoach}
+                onChange={v => {
+                  if (v && !S.voiceCoach) {
+                    confirmSheet({
+                      title: t('Enable voice coach?'),
+                      message: t("SmiTriX will speak rest countdowns, set announcements, and workout achievements using your device's voice. You can turn this off anytime."),
+                      confirmText: t('Turn on'),
+                      onConfirm: () => update(s => { s.voiceCoach = true }),
+                    })
+                  } else {
+                    update(s => { s.voiceCoach = v })
+                  }
+                }}
+              />
+            </Row>
+            <Row icon="sun" iconTint="var(--yellow)" title={t('Flash screen when timer ends')}>
+              <Switch checked={!!S.timerFlash} onChange={v => update(s => { s.timerFlash = v })} />
+            </Row>
+            <Row icon="sparkles" iconTint="var(--gm-sage, #8FA377)" title={t('Rest edge glow')} subtitle={t('Soft glowing border pulse when rest timer finishes')}>
+              <Switch checked={S.restGlow !== false} onChange={v => update(s => { s.restGlow = v })} />
+            </Row>
+          </Section>
+          {(user || MOBILE) && <NotificationsCard S={S} update={update} toast={toast} />}
+        </>
+      )
+    }
 
-    {/* ---------- appearance ---------- */}
-    <Section title={t('Appearance')} footer={DEMO || MOBILE ? undefined : t('synced with your profile')}>
-      <Row icon="moon" iconTint="var(--indigo)" title={t('Theme')}>
-        <Segmented
-          className="seg-inline"
-          options={[
-            { value: 'dark', icon: 'moon', label: t('Dark') },
-            { value: 'oled', icon: 'eye', label: t('OLED') },
-            { value: 'light', icon: 'sun', label: t('Light') },
-            { value: 'system', icon: 'gear', label: t('System') },
-          ]}
-          value={S.theme || 'dark'}
-          onChange={v => update(s => { s.theme = v })}
-        />
-      </Row>
-      {/* Purely how the muscle map is drawn — nothing else in the app reads this. */}
-      <Row icon="figureStrength" iconTint="var(--teal)" title={t('Body diagram')}>
-        <Segmented
-          className="seg-inline"
-          options={[{ value: 'male', label: t('Male') }, { value: 'female', label: t('Female') }]}
-          value={S.body === 'female' ? 'female' : 'male'}
-          onChange={v => update(s => { s.body = v })}
-        />
-      </Row>
-      <div className="lrow" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12, paddingTop: 13, paddingBottom: 14 }}>
-        <span className="lrow-t">{t('Accent color')}</span>
-        <div className="swatches">
-          {Object.entries(ACCENTS).map(([k, c]) => (
-            <button key={k} className={'swatch' + ((S.accent || 'peach') === k ? ' on' : '')}
-              style={{ background: c }} onClick={() => update(s => { s.accent = k })} aria-label={k} />
-          ))}
+    if (id === 'home') {
+      return (
+        <Section title={t('Home screen')}>
+          <SelectRow
+            icon="target"
+            iconTint="var(--gm-sage, #8FA377)"
+            title={t('Weekly workout goal')}
+            value={S.weeklyTarget || 4}
+            onChange={v => update(s => { s.weeklyTarget = Number(v) || 4 })}
+            options={[1, 2, 3, 4, 5, 6, 7].map(n => ({ value: n, label: t('{0} days / week', n) }))}
+          />
+          <Row icon="qr" iconTint="var(--blue)" title={t('Gym check-in')} subtitle={t('Show Gym Pass QR codes in your profile & check-in screen.')}>
+            <Switch checked={S.checkIn !== false} onChange={v => update(s => { s.checkIn = v })} />
+          </Row>
+          <Row icon="forkKnife" iconTint="var(--acc)" title={t('Nutrition hub')} subtitle={t('Show Nutrition folder card on Home')}>
+            <Switch checked={S.nutritionOn !== false} onChange={v => update(s => { s.nutritionOn = v })} />
+          </Row>
+          <Row icon="wind" iconTint="var(--gm-sage, #8FA377)" title={t('Recovery hub')} subtitle={t('Show Recovery folder card on Home')}>
+            <Switch checked={S.recoveryOn !== false} onChange={v => update(s => { s.recoveryOn = v })} />
+          </Row>
+        </Section>
+      )
+    }
+
+    if (id === 'beta') {
+      return (
+        <>
+          <Section
+            title={t('AI Coach & API Keys')}
+            footer={
+              coachLocal?.mode === 'byok'
+                ? t('Using your personal API key. Direct HTTPS requests never leave this device unencrypted.')
+                : coachLocal?.mode === 'server'
+                  ? t('Using instance-wide AI Coach configured on your SmiTriX server.')
+                  : t('AI Coach designs personalized routines and reviews progress. Keys are stored safely on this device.')
+            }
+          >
+            <Row
+              icon="sparkles"
+              iconTint="var(--acc)"
+              title={t('AI Coach')}
+              accessory="chevron"
+              subtitle={
+                coachLocal?.mode === 'server'
+                  ? t('Active · Runs on your SmiTriX server')
+                  : coachLocal?.mode === 'byok'
+                    ? (hasCoachKey || HTTP_PROVIDERS[coachLocal?.provider]?.keyOptional
+                        ? t('Active · {0}{1}', HTTP_PROVIDERS[coachLocal?.provider]?.label || coachLocal?.provider || 'BYOK', coachLocal?.model ? ` (${coachLocal.model})` : '')
+                        : t('Needs API key · {0}', HTTP_PROVIDERS[coachLocal?.provider]?.label || coachLocal?.provider || 'BYOK'))
+                    : (user && config?.coach?.enabled)
+                      ? t('Available via server · Tap to configure')
+                      : t('Off — configure provider & API key')
+              }
+              onClick={() => nav('/coach/setup')}
+            />
+            <Row
+              icon="key"
+              iconTint="var(--teal)"
+              title={t('Manage API Keys')}
+              accessory="chevron"
+              subtitle={
+                (savedProviderCount > 0 && hasHevyKey)
+                  ? t('{0} AI & Hevy keys saved', savedProviderCount)
+                  : savedProviderCount > 0
+                    ? t('{0} AI Coach {1} saved', savedProviderCount, savedProviderCount === 1 ? 'key' : 'keys')
+                    : hasHevyKey
+                      ? t('Hevy Pro key saved')
+                      : t('Configure keys for AI Coach and Hevy')
+              }
+              onClick={() => useUI.getState().openSheet(close => <ApiKeyManagerSheet close={close} onUpdate={refreshApiKeys} />)}
+            />
+            <Row
+              icon="mapPin"
+              iconTint="var(--gm-sage)"
+              title={t('Training Places')}
+              subtitle={t('Manage Gym, Home and Outdoor equipment kits')}
+              accessory="chevron"
+              onClick={() => nav('/places')}
+            />
+            {isAdmin && (
+              <Row
+                icon="shield"
+                iconTint="var(--red)"
+                title={t('Cloud Admin Dashboard')}
+                subtitle="smitronix0826@gmail.com"
+                accessory="chevron"
+                onClick={() => nav('/admin')}
+              />
+            )}
+          </Section>
+        </>
+      )
+    }
+
+    if (id === 'data') {
+      return (
+        <Section title={t('Data & backup')}>
+          {MOBILE && updateInfo?.hasUpdate && updateInfo.apkUrl && (
+            <Row
+              icon="info"
+              iconTint="var(--purple)"
+              title={t('SmiTriX v{0} available', updateInfo.latestVersion)}
+              accessory="chevron"
+              onClick={onUpdateRowClick}
+            />
+          )}
+          <Row icon="sparkles" iconTint="var(--acc)" title={t('Load starter plan')} accessory="chevron" onClick={starterPlanSheet} />
+          <Row icon="shuffle" iconTint="var(--teal)" title={t('Import from another app')} subtitle={t('FitNotes, Strong, Hevy — or body weight from Apple Health')} accessory="chevron" onClick={importHubSheet} />
+          <Row icon="key" iconTint="var(--teal)" title={t('Import from Hevy')} subtitle={t('Pull your history with a Hevy Pro API key')} accessory="chevron" onClick={importFromHevy} />
+          <Row icon="upload" iconTint="var(--blue)" title={t('Import backup')} accessory="chevron" onClick={() => fileRef.current?.click()} />
+          <Row icon="download" iconTint="var(--blue)" title={t('Export backup (JSON)')} accessory="chevron" onClick={doExport} />
+          {MOBILE && (
+            <Row
+              icon="history"
+              iconTint="var(--blue)"
+              title={t('Auto-backup on changes')}
+              subtitle={t('Saves a dated copy to the Documents folder after finishing a workout or editing a routine.')}
+            >
+              <Switch checked={!!S.autoBackup} onChange={v => update(s => { s.autoBackup = v })} />
+            </Row>
+          )}
+          <Row
+            icon="chartLine"
+            iconTint="var(--indigo)"
+            title={t('Anonymous Diagnostics & Telemetry')}
+            subtitle={t('Helps detect crashes and improve performance. Strictly zero personal data.')}
+          >
+            <Switch
+              checked={S.analyticsOptIn !== false}
+              onChange={v => {
+                update(s => { s.analyticsOptIn = v })
+                setAnalyticsConsent(v)
+                toast(v ? t('Telemetry enabled') : t('Telemetry disabled'))
+              }}
+            />
+          </Row>
+          {DEMO && (
+            <Row
+              icon="refresh"
+              iconTint="var(--acc)"
+              title={t('Reset demo data')}
+              subtitle={t('Restore the built-in sample workouts and routines')}
+              accessory="chevron"
+              onClick={async () => {
+                await resetDemo()
+                toast(t('Demo data restored'))
+              }}
+            />
+          )}
+          <Row
+            icon="trash"
+            iconTint="var(--red)"
+            title={t('Reset everything')}
+            danger
+            onClick={() => confirmSheet({
+              title: t('Reset everything?'),
+              message: t('Deletes your plan, workouts and body weight on this device. This cannot be undone.'),
+              confirmText: t('Delete everything'),
+              danger: true,
+              onConfirm: () => {
+                if (DEMO) {
+                  try { localStorage.setItem('gym_demo_seeded_v1', 'cleared') } catch {}
+                }
+                replaceState(JSON.parse(JSON.stringify(DEF)), true)
+                nav('/home')
+                toast(t('All data reset'))
+              },
+            })}
+          />
+        </Section>
+      )
+    }
+
+    if (id === 'support') {
+      return (
+        <>
+          <Section title={t('Help & Setup')}>
+            <Row
+              icon="sparkles"
+              iconTint="var(--acc)"
+              title={t('Run setup walkthrough')}
+              subtitle={t('Update your name, units, body measurements, weekly goal and places')}
+              accessory="chevron"
+              onClick={() => openTutorial(0)}
+            />
+          </Section>
+          <Section title={t('Community & Support')}>
+            <Row
+              icon="warning"
+              iconTint="var(--red)"
+              title={t('Report a bug')}
+              subtitle="github.com/SmitroniX/SmiTriX"
+              accessory="chevron"
+              onClick={() => window.open(BUG_URL, '_blank', 'noopener')}
+            />
+            <Row
+              icon="lightbulb"
+              iconTint="var(--yellow)"
+              title={t('Suggest a feature')}
+              subtitle="github.com/SmitroniX/SmiTriX"
+              accessory="chevron"
+              onClick={() => window.open(FEATURE_URL, '_blank', 'noopener')}
+            />
+            <Row
+              icon="heart"
+              iconTint="var(--acc)"
+              title={t('Buy me a coffee')}
+              subtitle="buymeacoffee.com/asmit_jogdand"
+              accessory="chevron"
+              onClick={() => window.open(COFFEE_URL, '_blank', 'noopener')}
+            />
+            <Row
+              icon="chat"
+              iconTint="var(--indigo)"
+              title={t('Join Discord community')}
+              subtitle="discord.gg/ZFQV5dza9P"
+              accessory="chevron"
+              onClick={() => window.open(DISCORD_URL, '_blank', 'noopener')}
+            />
+          </Section>
+        </>
+      )
+    }
+
+    if (id === 'about') {
+      return <AboutSmiTriXSection />
+    }
+
+    return null
+  }
+
+  const renderHubList = () => (
+    <div>
+      {/* GymMane Top Bar: Back circle + Large Settings title */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <button
+            type="button"
+            className="iconbtn"
+            onClick={() => nav('/home')}
+            aria-label={t('Back')}
+            style={{ width: 40, height: 40 }}
+          >
+            <Icon name="chevronLeft" />
+          </button>
+          <span className="dim small" style={{ fontWeight: 700 }}>v{__APP_VERSION__}</span>
+        </div>
+        <h1 style={{ fontSize: 34, fontWeight: 900, letterSpacing: '-0.03em', margin: '0 0 14px', lineHeight: 1.05 }}>
+          {t('Settings')}
+        </h1>
+
+        {/* GymMane Search Pill */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 11,
+          height: 50,
+          padding: '0 16px',
+          borderRadius: 999,
+          background: 'var(--surface)',
+          border: '1px solid color-mix(in srgb, var(--sep) 45%, transparent)',
+        }}>
+          <Icon name="search" style={{ fontSize: 17, color: query ? 'var(--label)' : 'var(--label-3)' }} />
+          <input
+            type="search"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder={t('Search settings or ask')}
+            aria-label={t('Search settings or ask')}
+            style={{
+              flex: 1,
+              background: 'transparent',
+              border: 0,
+              outline: 'none',
+              color: 'var(--label)',
+              fontSize: 15,
+              fontWeight: 600,
+            }}
+          />
+          {query && (
+            <button
+              type="button"
+              aria-label={t('Clear search')}
+              onClick={() => setQuery('')}
+              style={{ color: 'var(--label-2)', display: 'flex', padding: 4, cursor: 'pointer' }}
+            >
+              <Icon name="xmark" style={{ fontSize: 15 }} />
+            </button>
+          )}
         </div>
       </div>
-      <SelectRow icon="grid" iconTint="var(--acc)" title={t('Background pattern')}
-        value={S.bgPattern ?? 'dots'} onChange={v => update(s => { s.bgPattern = v })}
-        options={[
-          { value: 'dots', label: t('Warm Dots') },
-          { value: 'grid', label: t('Subtle Grid') },
-          { value: 'none', label: t('Solid') },
-        ]} />
-      <div className="lrow" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10, paddingTop: 12, paddingBottom: 14 }}>
-        <span className="lrow-t">{t('Heatmap palette')}</span>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {Object.values(HEAT_TONES).map(tone => {
-            const on = (S.heatTone || 'ember') === tone.id
+
+      {/* Android Update Banner (only on native Android when a newer APK is available) */}
+      {MOBILE && updateInfo?.hasUpdate && updateInfo.apkUrl && (
+        <div style={{ marginBottom: 14 }}>
+          <Section>
+            <Row
+              icon="info"
+              iconTint="var(--acc)"
+              title={t('SmiTriX v{0} available', updateInfo.latestVersion)}
+              subtitle={t('Tap to download & install update')}
+              accessory="chevron"
+              onClick={onUpdateRowClick}
+            />
+          </Section>
+        </div>
+      )}
+
+      {/* Search Results Mode */}
+      {qLower ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {searchHits.map((hit, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => openCategory(hit.section)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '13px 15px',
+                borderRadius: 20,
+                background: 'var(--surface)',
+                border: '1px solid color-mix(in srgb, var(--sep) 35%, transparent)',
+                textAlign: 'left',
+                cursor: 'pointer',
+              }}
+            >
+              <span style={{
+                width: 38,
+                height: 38,
+                borderRadius: '50%',
+                background: 'color-mix(in srgb, var(--label) 9%, transparent)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--label)',
+                fontSize: 17,
+                flex: 'none',
+              }}>
+                <Icon name={hit.icon} />
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--label)' }}>{t(hit.label)}</div>
+                <div className="dim small">{sectionTitle(hit.section)}</div>
+              </div>
+              <Icon name="chevronRight" style={{ color: 'var(--label-3)', fontSize: 14 }} />
+            </button>
+          ))}
+
+          {helpHits.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <div className="gm-micro" style={{ padding: '0 4px 8px' }}>{t('QUESTIONS')}</div>
+              <div style={{ background: 'var(--surface)', borderRadius: 22, overflow: 'hidden', border: '1px solid color-mix(in srgb, var(--sep) 35%, transparent)' }}>
+                {helpHits.map((h, i) => {
+                  const open = openHelpId === h.id
+                  return (
+                    <div key={h.id} style={{ borderTop: i > 0 ? '1px solid var(--sep-op)' : 'none' }}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenHelpId(open ? null : h.id)}
+                        style={{
+                          width: '100%',
+                          padding: '14px 16px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 10,
+                          textAlign: 'left',
+                          color: 'var(--label)',
+                          fontWeight: 700,
+                          fontSize: 14,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span>{t(h.q)}</span>
+                        <Icon name={open ? 'chevronUp' : 'chevronDown'} style={{ color: 'var(--label-3)', fontSize: 14 }} />
+                      </button>
+                      {open && (
+                        <div style={{ padding: '0 16px 14px', fontSize: 13, color: 'var(--label-2)', lineHeight: 1.5 }}>
+                          <div>{t(h.a)}</div>
+                          {h.section && (
+                            <button
+                              type="button"
+                              onClick={() => openCategory(h.section)}
+                              style={{ marginTop: 8, color: 'var(--acc)', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}
+                            >
+                              {t('Open {0}', sectionTitle(h.section))} →
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {searchHits.length === 0 && helpHits.length === 0 && (
+            <div className="dim" style={{ padding: '14px 6px', fontSize: 14.5 }}>
+              {t('No matching settings found for "{0}".', query)}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* GymMane Grouped Category Bubbles */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {[
+            { key: 'app', label: t('YOUR APP') },
+            { key: 'home', label: t('HOME AND EXTRAS') },
+            { key: 'data', label: t('DATA AND HELP') },
+          ].map(grp => {
+            const items = categories.filter(c => c.group === grp.key)
+            if (!items.length) return null
             return (
-              <button
-                key={tone.id}
-                type="button"
-                onClick={() => update(s => { s.heatTone = tone.id })}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '6px 11px',
-                  borderRadius: 999,
-                  background: on ? 'var(--surface-2)' : 'transparent',
-                  border: on ? '1.5px solid var(--acc)' : '1px solid var(--sep-op)',
-                  color: 'var(--label)',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                <span style={{ display: 'inline-flex', gap: 2 }}>
-                  {tone.ramp.slice(1).map((c, i) => (
-                    <span key={i} style={{ width: 8, height: 8, borderRadius: 2, background: c }} />
-                  ))}
-                </span>
-                <span>{t(tone.name)}</span>
-              </button>
+              <div key={grp.key}>
+                <div className="gm-micro" style={{ padding: '0 4px 10px' }}>{grp.label}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {items.map((cat, idx) => {
+                    const active = isDesktop && deskSection === cat.id
+                    return (
+                      <Rise key={cat.id} index={idx}>
+                        <button
+                          type="button"
+                          className="gm-settings-bubble"
+                          data-settings-cat={cat.id}
+                          onClick={() => openCategory(cat.id)}
+                          style={{
+                            width: '100%',
+                            height: 64,
+                            padding: '0 14px',
+                            borderRadius: 22,
+                            background: 'var(--surface)',
+                            border: active
+                              ? '1.5px solid color-mix(in srgb, var(--label) 55%, transparent)'
+                              : '1px solid color-mix(in srgb, var(--sep) 32%, transparent)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 14,
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            transition: 'transform 140ms var(--ease), border-color 180ms',
+                          }}
+                        >
+                          <span style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: '50%',
+                            background: 'color-mix(in srgb, var(--label) 9%, transparent)',
+                            color: 'var(--label)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 19,
+                            flex: 'none',
+                          }}>
+                            <Icon name={cat.icon} />
+                          </span>
+                          <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: 'var(--label)' }}>
+                            {cat.title}
+                          </span>
+                          <Icon name="chevronRight" style={{ fontSize: 15, color: 'var(--label-3)' }} />
+                        </button>
+                      </Rise>
+                    )
+                  })}
+                </div>
+              </div>
             )
           })}
         </div>
-      </div>
-      <SelectRow icon="target" iconTint="var(--gm-sage, #8FA377)" title={t('Weekly workout goal')}
-        value={S.weeklyTarget || 4} onChange={v => update(s => { s.weeklyTarget = Number(v) || 4 })}
-        options={[1, 2, 3, 4, 5, 6, 7].map(n => ({ value: n, label: t('{0} days / week', n) }))} />
-      <Row icon="forkKnife" iconTint="var(--acc)" title={t('Nutrition hub')}
-        subtitle={t('Show Nutrition folder card on Home')}>
-        <Switch checked={S.nutritionOn !== false} onChange={v => update(s => { s.nutritionOn = v })} />
-      </Row>
-      <Row icon="wind" iconTint="var(--gm-sage, #8FA377)" title={t('Recovery hub')}
-        subtitle={t('Show Recovery folder card on Home')}>
-        <Switch checked={S.recoveryOn !== false} onChange={v => update(s => { s.recoveryOn = v })} />
-      </Row>
-    </Section>
-
-    {/* ---------- plans & feature management ---------- */}
-    <Section title={t('Plans & Feature Management')}>
-      <Row icon="shield" iconTint="var(--amber)"
-        title={t('Plans & Feature Tiers')}
-        subtitle={t('Compare Free Community Plan and Golden Era Legacy Vault')}
-        accessory="chevron"
-        onClick={() => nav('/plans')} />
-    </Section>
-
-    {/* ---------- help & guide ---------- */}
-    <Section title={t('Help & Guide')}>
-      <Row icon="lightbulb" iconTint="var(--yellow)"
-        title={t('How SmiTriX works (App Tour)')}
-        subtitle={t('Step-by-step visual guide to routines, workouts, rest timer & stats')}
-        accessory="chevron"
-        onClick={() => openTutorial(0)} />
-    </Section>
-
-    {/* ---------- data: fill it, bring things over, back it up, wipe it ---------- */}
-    <Section title={t('Data')}>
-      <Row icon="chartLine" iconTint="var(--indigo)"
-        title={t('Anonymous Diagnostics & Telemetry')}
-        subtitle={t('Helps detect crashes and improve performance. Strictly zero personal data.')}>
-        <Switch checked={S.analyticsOptIn !== false} onChange={v => {
-          update(s => { s.analyticsOptIn = v })
-          setAnalyticsConsent(v)
-          toast(v ? t('Telemetry enabled') : t('Telemetry disabled'))
-        }} />
-      </Row>
-      {MOBILE && updateInfo?.hasUpdate && updateInfo.apkUrl && <Row icon="info" iconTint="var(--purple)" title={t('SmiTriX v{0} available', updateInfo.latestVersion)}
-        accessory="chevron"
-        onClick={onUpdateRowClick} />}
-      <Row icon="sparkles" iconTint="var(--acc)" title={t('Load starter plan')} accessory="chevron" onClick={starterPlanSheet} />
-      <Row icon="shuffle" iconTint="var(--teal)" title={t('Import from another app')}
-        subtitle={t('FitNotes, Strong, Hevy — or body weight from Apple Health')}
-        accessory="chevron" onClick={importHubSheet} />
-      <Row icon="key" iconTint="var(--teal)" title={t('Import from Hevy')}
-        subtitle={t('Pull your history with a Hevy Pro API key')}
-        accessory="chevron" onClick={importFromHevy} />
-      <Row icon="upload" iconTint="var(--blue)" title={t('Import backup')} accessory="chevron" onClick={() => fileRef.current.click()} />
-      <Row icon="download" iconTint="var(--blue)" title={t('Export backup (JSON)')} accessory="chevron" onClick={doExport} />
-      {MOBILE && <Row icon="history" iconTint="var(--blue)" title={t('Auto-backup on changes')}
-        subtitle={t('Saves a dated copy to the Documents folder after finishing a workout or editing a routine — point a sync app at it, or copy it out by hand.')}>
-        <Switch checked={!!S.autoBackup} onChange={v => update(s => { s.autoBackup = v })} />
-      </Row>}
-      <Row icon="trash" iconTint="var(--red)" title={t('Reset everything')} danger onClick={() => confirmSheet({ title: t('Reset everything?'), message: t('Deletes your plan, workouts and body weight on this device. This cannot be undone.'), confirmText: t('Delete everything'), danger: true, onConfirm: () => { replaceState(JSON.parse(JSON.stringify(DEF)), true); nav('/home'); toast(t('All data reset')) } })} />
-    </Section>
-    <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={doImport} />
-    {/* Reset after reading so picking the same file twice still fires onChange. */}
-    <input ref={importRef} type="file" accept=".csv,.xml,text/csv,text/xml" style={{ display: 'none' }}
-      onChange={ev => { const f = ev.target.files[0]; if (f) importFromApp(f); ev.target.value = '' }} />
-
-    {/* "Add to Home screen" makes no sense inside the native app */}
-    {!MOBILE && <Section title={t('Tip')}>
-      <Row icon="lightbulb" iconTint="var(--yellow)"
-        title={IS_ANDROID ? t('In Chrome: ⋮ menu → Add to Home screen') : t('In Safari: Share → Add to Home Screen')}
-        subtitle={t('to install SmiTriX as a full-screen app.') + ' ' + (user ? t('Your data syncs with your profile — sign in anywhere to see it.') : t('Guest data stays on this device — export a backup now and then!'))} />
-    </Section>}
-
-    {/* The version, at the bottom of Settings — which is where the support template has been
-        telling people to look for it, and where it was not. On the phone build there is no
-        address bar and no about box, so without this there is no way to tell which build you
-        are running, or whether an update actually installed. */}
-    <div className="dim small" style={{ textAlign: 'center', marginTop: 4, lineHeight: 1.6 }}>
-      SmiTriX v{__APP_VERSION__} · © 2026 Asmit Jogdand (SmitroniX)<br />
-      {t('free & open source (AGPL v3)')} · Based on GymMane by InlitX (GPL v3)<br />
-      Nunito font (SIL OFL 1.1) · exercise data: hasaneyldrm/exercises-dataset (MIT)<br />
-      exercise images and animations © <a href="https://gymvisual.com/" target="_blank" rel="noopener">Gym visual</a>
+      )}
     </div>
-  </div>
+  )
+
+  return (
+    <div className={isDesktop ? '' : 'narrow'}>
+      <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={doImport} />
+      <input
+        ref={importRef}
+        type="file"
+        accept=".csv,.xml,text/csv,text/xml"
+        style={{ display: 'none' }}
+        onChange={ev => { const f = ev.target.files[0]; if (f) importFromApp(f); ev.target.value = '' }}
+      />
+
+      {isDesktop ? (
+        <div style={{ display: 'grid', gridTemplateColumns: '350px minmax(0, 1fr)', gap: 28, alignItems: 'start' }}>
+          <div>{renderHubList()}</div>
+          <div style={{ paddingTop: 52 }}>
+            <h2 style={{ fontSize: 24, fontWeight: 800, margin: '0 0 16px', letterSpacing: '-0.025em' }}>
+              {sectionTitle(deskSection)}
+            </h2>
+            {renderSectionBody(deskSection)}
+          </div>
+        </div>
+      ) : section ? (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+            <button
+              type="button"
+              className="iconbtn"
+              onClick={() => setSection(null)}
+              aria-label={t('Back to Settings')}
+              style={{ width: 40, height: 40 }}
+            >
+              <Icon name="chevronLeft" />
+            </button>
+            <div>
+              <div className="gm-micro" style={{ fontSize: 10 }}>{t('SETTINGS')}</div>
+              <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, letterSpacing: '-0.025em' }}>
+                {sectionTitle(section)}
+              </h1>
+            </div>
+          </div>
+          {renderSectionBody(section)}
+        </div>
+      ) : (
+        renderHubList()
+      )}
+    </div>
+  )
 }
 
-// The whole point is that the two scales are one judgement counted from opposite ends, and a
-// paragraph is a bad way to say that — the conversion table shows it in one look. Reading down
-// a column is the answer to "what do I put here", so the numbers get their own aligned columns.
+function AboutSmiTriXSection() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* GymMane About Runner Hero Card */}
+      <div className="gm-hero-card" style={{ minHeight: 168, marginBottom: 0 }}>
+        <div className="gm-hero-orb-1" />
+        <div className="gm-hero-orb-2" />
+        <img src="./smitrix-ui/img/runner.png" alt="SmiTriX" className="gm-hero-runner" style={{ height: 142 }} />
+        <div style={{ position: 'relative', zIndex: 1, paddingTop: 14 }}>
+          <div style={{ fontSize: 34, fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1 }}>SmiTriX</div>
+          <div style={{
+            display: 'inline-block',
+            marginTop: 12,
+            padding: '5px 12px',
+            borderRadius: 999,
+            background: 'var(--surface-2)',
+            fontSize: 12,
+            fontWeight: 700,
+            color: 'var(--label-2)',
+          }}>
+            v{__APP_VERSION__}
+          </div>
+        </div>
+      </div>
+
+      {/* 3 Promises */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 0 }}>
+        {[
+          { icon: 'sparkles', title: t('Free forever'), sub: t('Open source under GNU AGPL v3.0 — no paywalls, no ads.') },
+          { icon: 'shield', title: t('Private & local-first'), sub: t('Works offline on your device. No login needed on website or demo.') },
+          { icon: 'download', title: t('Yours to take'), sub: t('Import from Hevy, Strong or FitNotes and export full JSON backups anytime.') },
+        ].map((r, i) => (
+          <div key={r.title} style={{ display: 'flex', gap: 13, padding: '14px 16px', borderTop: i > 0 ? '1px solid var(--sep-op)' : 'none' }}>
+            <Icon name={r.icon} style={{ fontSize: 19, color: 'var(--acc)', marginTop: 1, flex: 'none' }} />
+            <div>
+              <div style={{ fontSize: 14.5, fontWeight: 700 }}>{r.title}</div>
+              <div className="dim small" style={{ marginTop: 2, lineHeight: 1.4 }}>{r.sub}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* What's Inside */}
+      <div>
+        <div className="gm-micro" style={{ padding: '0 4px 8px' }}>{t("WHAT'S INSIDE")}</div>
+        <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 0 }}>
+          {[
+            { icon: 'dumbbell', title: t('{0}+ exercises', CATALOGUE.length), sub: t('Animated demonstrations, body map targeting and custom exercises.') },
+            { icon: 'sliders', title: t('12 strength & body calculators'), sub: t('1RM, plates, BMI, macros, body fat, warm-up, RPE, Wilks, FFMI, water & more.') },
+            { icon: 'chartLine', title: t('Smart progression & recovery'), sub: t('Automatic progression cues, fatigue recovery map, streaks, medals and monthly recap.') },
+          ].map((r, i) => (
+            <div key={r.title} style={{ display: 'flex', gap: 13, padding: '14px 16px', borderTop: i > 0 ? '1px solid var(--sep-op)' : 'none' }}>
+              <Icon name={r.icon} style={{ fontSize: 19, color: 'var(--label-2)', marginTop: 1, flex: 'none' }} />
+              <div>
+                <div style={{ fontSize: 14.5, fontWeight: 700 }}>{r.title}</div>
+                <div className="dim small" style={{ marginTop: 2, lineHeight: 1.4 }}>{r.sub}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Credits */}
+      <Section title={t('Credits & Licenses')}>
+        <Row
+          icon="heart"
+          iconTint="var(--acc)"
+          title={t('Made by Asmit Jogdand (SmitroniX)')}
+          subtitle="github.com/SmitroniX"
+          accessory="chevron"
+          onClick={() => window.open('https://github.com/SmitroniX', '_blank', 'noopener')}
+        />
+        <Row
+          icon="link"
+          iconTint="var(--blue)"
+          title={t('Source code (AGPL v3.0)')}
+          subtitle="github.com/SmitroniX/SmiTriX"
+          accessory="chevron"
+          onClick={() => window.open(REPO_URL, '_blank', 'noopener')}
+        />
+        <Row
+          icon="sparkles"
+          iconTint="var(--gm-sage)"
+          title={t('Buy me a coffee')}
+          subtitle="buymeacoffee.com/asmit_jogdand"
+          accessory="chevron"
+          onClick={() => window.open(COFFEE_URL, '_blank', 'noopener')}
+        />
+      </Section>
+
+      <div className="dim small" style={{ textAlign: 'center', lineHeight: 1.6, paddingBottom: 12 }}>
+        SmiTriX v{__APP_VERSION__} · © 2026 Asmit Jogdand (SmitroniX)<br />
+        {t('Free & open source (GNU AGPL v3.0)')} · Based on GymMane by InlitX (GPL v3.0)<br />
+        Nunito font (SIL OFL 1.1) · exercise data: hasaneyldrm/exercises-dataset (MIT)<br />
+        exercise images & animations © <a href="https://gymvisual.com/" target="_blank" rel="noopener">Gym visual</a>
+      </div>
+    </div>
+  )
+}
+
 const EFFORT_ROWS = [
   ['0', '10', 'Nothing left — went to failure'],
   ['1', '9', 'One more rep in the tank'],
@@ -541,12 +1226,8 @@ const EFFORT_ROWS = [
   ['3', '7', 'Three more reps'],
   ['4+', '≤6', 'Easy — warm-up territory'],
 ]
-// RIR 2 / RPE 8: the row a working set usually lands on — the anchor the others are read
-// against. Not where the stepper starts; + walks up from the bottom of the scale.
 const EFFORT_TYPICAL = 2
 
-// Settings → During a workout → Workout controls. S.wc overlays DEF.wc, so a profile from
-// before this setting existed reads as the lean default.
 function WorkoutControlsSheet() {
   const S = useStore(s => s.S)
   const update = useStore(s => s.update)
@@ -578,12 +1259,9 @@ function workoutControlsSheet() {
   useUI.getState().openSheet(() => <WorkoutControlsSheet />)
 }
 
-// Download progress sheet — receives a ref callback that exposes a (received, total) setter.
-// Uses forwardRef so the caller can push byte counts in without re-rendering the whole Settings tree.
 const DownloadProgress = forwardRef(function DownloadProgress(_, ref) {
   const [pct, setPct] = useState(0)
   const [text, setText] = useState(t('Starting download…'))
-  // Expose a setter the caller can invoke directly
   if (ref) ref(function update(received, total) {
     if (total > 0) {
       const p = Math.min(100, Math.round((received / total) * 100))
@@ -605,7 +1283,7 @@ const DownloadProgress = forwardRef(function DownloadProgress(_, ref) {
 })
 
 function effortHelpSheet() {
-  useUI.getState().openSheet(close => <>
+  useUI.getState().openSheet(() => <>
     <h3>{t('Effort per set')}</h3>
     <div className="muted small" style={{ lineHeight: 1.5 }}>
       {t('How hard a set was, logged next to weight and reps. Two scales for the same judgement, counted from opposite ends.')}
@@ -631,9 +1309,6 @@ function NotificationsCard({ S, update, toast }) {
   return <PushCard S={S} update={update} toast={toast} />
 }
 
-// Mobile build: the reminder is a native local notification scheduled on planned weekdays —
-// no push server involved. The schedule itself is (re)synced by the store on every persist;
-// this card only owns the OS permission prompt when the switch turns on.
 function MobileReminderCard({ S, update, toast }) {
   const [perm, setPerm] = useState('prompt')
   const setReminder = patch => update(s => { s.reminder = { ...(s.reminder || DEF.reminder), ...patch, tz: localTZ() } })
@@ -677,24 +1352,24 @@ function MobileReminderCard({ S, update, toast }) {
   }
 
   return (
-    <Section title={t('Notifications')}
-      footer={S.reminder?.on ? t('Reminds you at this time on days that have a routine planned.') : null}>
+    <Section title={t('Notifications')} footer={S.reminder?.on ? t('Reminds you at this time on days that have a routine planned.') : null}>
       <Row icon="calendar" iconTint="var(--orange)" title={t('Workout day reminder')}>
         <Switch checked={!!S.reminder?.on} onChange={toggle} />
       </Row>
       {S.reminder?.on && (
         <Row icon="clock" iconTint="var(--purple)" title={t('Reminder time')}>
-          <input type="time" className="timef" value={S.reminder?.time || DEF.reminder.time}
-            onChange={e => setReminder({ time: e.target.value })} />
+          <input type="time" className="timef" value={S.reminder?.time || DEF.reminder.time} onChange={e => setReminder({ time: e.target.value })} />
         </Row>
       )}
-      <Row icon="bell" iconTint="var(--blue)" title={t('Notification bar & Lock screen')}
-        subtitle={perm === 'granted' ? t('Permission granted (Android)') : t('Tap to allow notifications in status bar')}>
-        {perm === 'granted' ? (
-          <Button size="sm" variant="tinted" icon="sparkles" onClick={testNotify}>{t('Test')}</Button>
-        ) : (
-          <Button size="sm" variant="accent" onClick={askPerm}>{t('Allow')}</Button>
-        )}
+      <Row
+        icon="bell"
+        iconTint="var(--blue)"
+        title={t('Notification bar & Lock screen')}
+        subtitle={perm === 'granted' ? t('Permission granted (Android)') : t('Tap to allow notifications in status bar')}
+      >
+        {perm === 'granted'
+          ? <Button size="sm" variant="tinted" icon="sparkles" onClick={testNotify}>{t('Test')}</Button>
+          : <Button size="sm" variant="accent" onClick={askPerm}>{t('Allow')}</Button>}
       </Row>
     </Section>
   )
@@ -730,13 +1405,7 @@ function PushCard({ S, update, toast }) {
   )
 
   return <>
-    <Section
-      title={t('Notifications')}
-      footer={on && S.reminder?.on
-        ? t("Only sent on days you have a routine planned and haven't logged a workout yet.") +
-          (S.reminder?.tz ? ' ' + t('Timezone: {0} (auto-detected, updates if you travel).', S.reminder.tz) : '')
-        : null}
-    >
+    <Section title={t('Notifications')}>
       <Row icon="bell" iconTint="var(--red)" title={t('Push notifications')} subtitle={t('Rest-timer alerts, even if SmiTriX is closed.')}>
         <Switch checked={on} disabled={busy} onChange={toggle} />
       </Row>
@@ -747,8 +1416,7 @@ function PushCard({ S, update, toast }) {
       )}
       {on && S.reminder?.on && (
         <Row icon="clock" iconTint="var(--purple)" title={t('Reminder time')}>
-          <input type="time" className="timef" value={S.reminder?.time || DEF.reminder.time}
-            onChange={e => update(s => { s.reminder = { ...(s.reminder || DEF.reminder), time: e.target.value, tz: localTZ() } })} />
+          <input type="time" className="timef" value={S.reminder?.time || DEF.reminder.time} onChange={e => update(s => { s.reminder = { ...(s.reminder || DEF.reminder), time: e.target.value, tz: localTZ() } })} />
         </Row>
       )}
     </Section>
@@ -756,89 +1424,51 @@ function PushCard({ S, update, toast }) {
   </>
 }
 
-// Equipment profiles ("Home", "Gym", ...) — each an id/name/eq-list; the active one filters
-// the Library, exercise picker, and flags routine entries that need something outside it
-// (see lib/equipment.js). Purely local/synced state — no server changes needed.
 function EquipmentCard({ S, update }) {
   const profiles = S.equipProfiles || []
   const remove = p => confirmSheet({
-    title: t('Delete profile?'), message: t('"{0}" and its equipment list will be removed.', p.name),
-    confirmText: t('Delete'), danger: true,
+    title: t('Delete profile?'),
+    message: t('"{0}" and its equipment list will be removed.', p.name),
+    confirmText: t('Delete'),
+    danger: true,
     onConfirm: () => update(s => {
       s.equipProfiles = (s.equipProfiles || []).filter(x => x.id !== p.id)
       if (s.activeEquipId === p.id) s.activeEquipId = (s.equipProfiles[0] && s.equipProfiles[0].id) || null
     }),
   })
-  return <Section title={t('Equipment')} footer={t('Filters the exercise library and picker, and flags routine exercises that need something you don’t have in the active profile.')}>
-    {profiles.length > 0 && <Row icon="dumbbell" iconTint="var(--acc)" title={t('Filter by equipment')}>
-      <Switch checked={!!S.equipFilterOn} onChange={v => update(s => { s.equipFilterOn = v })} />
-    </Row>}
-    {profiles.length > 0 && <SelectRow icon="list" iconTint="var(--blue)" title={t('Active profile')}
-      value={S.activeEquipId || ''} onChange={v => update(s => { s.activeEquipId = v })}
-      options={profiles.map(p => ({ value: p.id, label: p.name }))} />}
-    {profiles.map(p => (
-      <Row key={p.id} icon="dumbbell" iconTint="var(--teal)" title={p.name}
-        subtitle={t('{0} equipment types', p.equipment.length)} accessory="chevron"
-        onClick={() => equipmentProfileSheet(p)}>
-        <button className="iconbtn" aria-label={t('Delete')} onClick={ev => { ev.stopPropagation(); remove(p) }}><Icon name="trash" /></button>
-      </Row>
-    ))}
-    <Row icon="plus" iconTint="var(--acc)" title={t('Add equipment profile')} accessory="chevron" onClick={() => equipmentProfileSheet(null)} />
-  </Section>
-}
-
-// Lets the mobile app's "connect to my server" mode (lib/remote.js) authenticate without a
-// WebAuthn ceremony of its own — the code is minted here, from an already signed-in session,
-// and redeemed by the app for a bearer token. See /api/pair/create in api/server.js.
-function PairSheet({ close }) {
-  const [code, setCode] = useState(null)
-  const [err, setErr] = useState(null)
-  useEffect(() => { api('/api/pair/create', { method: 'POST', body: '{}' }).then(r => setCode(r.code)).catch(e => setErr(e.message || t('Could not generate a code'))) }, [])
-  return <>
-    <h3>{t('Pair the mobile app')}</h3>
-    <div className="muted small" style={{ marginBottom: 14 }}>
-      {t('On the SmiTriX app, choose “Connect to my server”, then enter this address and the code below. It expires in 5 minutes.')}
-    </div>
-    {err ? <div className="dim small">{err}</div> : (
-      <div className="card" style={{ textAlign: 'center', fontSize: 30, fontWeight: 700, letterSpacing: '.16em', padding: '18px 0' }}>
-        {code || '········'}
-      </div>
-    )}
-    <div style={{ height: 12 }} />
-    <Button onClick={close}>{t('Done')}</Button>
-  </>
-}
-
-// The same registration as the sign-in screen's, reached from Settings instead. It asks for
-// the invite code on the same terms: an invite-only instance rejects a registration without
-// one, so a form that cannot collect it is a form that cannot succeed.
-function RegisterInline({ close, setUser, pushState, pullState, toast }) {
-  const nameRef = useRef(null)
-  const [code, setCode] = useState('')
-  const [inviteOnly, setInviteOnly] = useState(false)
-  useEffect(() => { api('/api/config').then(c => setInviteOnly(!!c.invite_only)).catch(() => {}) }, [])
-  const go = async () => {
-    const n = (nameRef.current.value || '').trim()
-    if (!n) { toast(t('Enter a name')); return }
-    if (inviteOnly && !code.trim()) { toast(t('An invite code is required')); return }
-    try {
-      const u = await passkeyRegister(n, code.trim()); setUser(u); close()
-      if (hasData(useStore.getState().S)) { await pushState(); toast(t('Profile created — data moved into it')) }
-      else { await pullState(); toast(t('Welcome, {0}', u.name)) }
-    } catch (e) { if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') toast(e.message || t('Registration failed')) }
-  }
-  return <>
-    <h3>{t('Create your profile')}</h3>
-    <div className="muted small" style={{ marginBottom: 14 }}>{t('Pick a name, then confirm with your device.')}</div>
-    <TextField ref={nameRef} placeholder={t('Your name')} maxLength={40} />
-    {inviteOnly && <>
-      <div style={{ height: 10 }} />
-      <input className="input" placeholder={t('Invite code')} maxLength={40} value={code}
-        onChange={e => setCode(e.target.value.toUpperCase())} style={{ letterSpacing: '.14em', fontWeight: 600, textAlign: 'center' }} />
-      <div className="dim small" style={{ marginTop: 6 }}>{t('This app is invite-only — enter the code you were given.')}</div>
-    </>}
-    <div style={{ height: 12 }} /><Button variant="primary" onClick={go}>{t('Create passkey')}</Button>
-  </>
+  return (
+    <Section title={t('Equipment')} footer={t('Filters the exercise library and picker, and flags routine exercises that need something you don’t have in the active profile.')}>
+      {profiles.length > 0 && (
+        <Row icon="dumbbell" iconTint="var(--acc)" title={t('Filter by equipment')}>
+          <Switch checked={!!S.equipFilterOn} onChange={v => update(s => { s.equipFilterOn = v })} />
+        </Row>
+      )}
+      {profiles.length > 0 && (
+        <SelectRow
+          icon="list"
+          iconTint="var(--blue)"
+          title={t('Active profile')}
+          value={S.activeEquipId || ''}
+          onChange={v => update(s => { s.activeEquipId = v })}
+          options={profiles.map(p => ({ value: p.id, label: p.name }))}
+        />
+      )}
+      {profiles.map(p => (
+        <Row
+          key={p.id}
+          icon="dumbbell"
+          iconTint="var(--teal)"
+          title={p.name}
+          subtitle={t('{0} equipment types', p.equipment.length)}
+          accessory="chevron"
+          onClick={() => equipmentProfileSheet(p)}
+        >
+          <button type="button" className="iconbtn" aria-label={t('Delete')} onClick={ev => { ev.stopPropagation(); remove(p) }}><Icon name="trash" /></button>
+        </Row>
+      ))}
+      <Row icon="plus" iconTint="var(--acc)" title={t('Add equipment profile')} accessory="chevron" onClick={() => equipmentProfileSheet(null)} />
+    </Section>
+  )
 }
 
 export function ApiKeyManagerSheet({ close, onUpdate }) {
@@ -847,18 +1477,15 @@ export function ApiKeyManagerSheet({ close, onUpdate }) {
   const setCoachLocal = useStore(s => s.setCoachLocal)
   const [tab, setTab] = useState('coach')
 
-  // Selected AI provider in the manager
   const [selectedProvider, setSelectedProvider] = useState(coachLocal?.provider || 'anthropic')
   const [baseUrl, setBaseUrl] = useState(coachLocal?.baseUrl || '')
 
-  // Coach key state
   const [coachKey, setCoachKey] = useState('')
   const [providerKeys, setProviderKeys] = useState({})
   const [showCoachKey, setShowCoachKey] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState(null)
 
-  // Hevy key state
   const [hevyKey, setHevyKey] = useState('')
   const [hasHevyKey, setHasHevyKey] = useState(false)
   const [showHevyKey, setShowHevyKey] = useState(false)
@@ -884,9 +1511,7 @@ export function ApiKeyManagerSheet({ close, onUpdate }) {
 
   const saveCoachKey = async () => {
     if (!providerMeta.keyOptional && !coachKey.trim()) return
-    if (coachKey.trim()) {
-      await setApiKey(coachKey.trim(), selectedProvider)
-    }
+    if (coachKey.trim()) await setApiKey(coachKey.trim(), selectedProvider)
     if (selectedProvider === 'compatible') {
       const v = validateBaseUrl(baseUrl)
       if (!v.ok) { toast(v.error); return }
@@ -911,9 +1536,7 @@ export function ApiKeyManagerSheet({ close, onUpdate }) {
   const activateProvider = async () => {
     const v = validateBaseUrl(selectedProvider === 'compatible' ? (baseUrl || coachLocal?.baseUrl) : '')
     if (!v.ok) return toast(v.error)
-    if (selectedProvider === 'compatible' && !v.value) {
-      return toast(t('Enter an endpoint URL first'))
-    }
+    if (selectedProvider === 'compatible' && !v.value) return toast(t('Enter an endpoint URL first'))
     const targetModel = providerMeta.defaultModel || (coachLocal?.provider === selectedProvider ? (coachLocal?.model || '') : '') || (testResult?.models?.[0] || '')
     await setCoachLocal({
       mode: 'byok',
@@ -933,12 +1556,7 @@ export function ApiKeyManagerSheet({ close, onUpdate }) {
       const local = await import('../lib/coach-local.js')
       const targetBase = selectedProvider === 'compatible' ? (baseUrl || coachLocal?.baseUrl) : null
       const v = validateBaseUrl(targetBase)
-      if (!v.ok) {
-        setTestResult({ ok: false, message: v.error })
-        toast(v.error)
-        setTesting(false)
-        return
-      }
+      if (!v.ok) { setTestResult({ ok: false, message: v.error }); toast(v.error); setTesting(false); return }
       if (selectedProvider === 'compatible' && !v.value) {
         setTestResult({ ok: false, message: t('Enter an endpoint URL for OpenAI-compatible') })
         toast(t('Enter an endpoint URL'))
@@ -946,11 +1564,7 @@ export function ApiKeyManagerSheet({ close, onUpdate }) {
         return
       }
       const k = coachKey.trim() || await getApiKey(selectedProvider)
-      if (!providerMeta.keyOptional && !k) {
-        toast(t('Enter an API key first'))
-        setTesting(false)
-        return
-      }
+      if (!providerMeta.keyOptional && !k) { toast(t('Enter an API key first')); setTesting(false); return }
       const r = await local.localModels({ provider: selectedProvider, baseUrl: v.value }, k)
       const elapsed = Date.now() - startMs
       if (r.ok) {
@@ -991,11 +1605,7 @@ export function ApiKeyManagerSheet({ close, onUpdate }) {
     setHevyTestResult(null)
     try {
       const k = hevyKey.trim() || await getHevyApiKey()
-      if (!k) {
-        toast(t('Enter an API key first'))
-        setTestingHevy(false)
-        return
-      }
+      if (!k) { toast(t('Enter an API key first')); setTestingHevy(false); return }
       const r = await testHevyApiKey(k)
       if (r.ok) {
         setHevyTestResult({ ok: true, message: t('Connected to Hevy API successfully!') })
@@ -1020,7 +1630,6 @@ export function ApiKeyManagerSheet({ close, onUpdate }) {
     <div className="muted small" style={{ marginBottom: 14 }}>
       {t('Keys are stored securely on this device and are only used for direct requests.')}
     </div>
-
     <Segmented
       className="seg-inline"
       style={{ marginBottom: 16 }}
@@ -1031,26 +1640,21 @@ export function ApiKeyManagerSheet({ close, onUpdate }) {
       value={tab}
       onChange={setTab}
     />
-
     {tab === 'coach' ? (
       <div>
         <div className="row" style={{ flexWrap: 'wrap', gap: 7, marginBottom: 14 }}>
           {HTTP_PROVIDER_IDS.map(id => (
             <button
               key={id}
+              type="button"
               className={'chip' + (id === selectedProvider ? ' on' : '')}
-              onClick={() => {
-                setSelectedProvider(id)
-                setCoachKey('')
-                setTestResult(null)
-              }}
+              onClick={() => { setSelectedProvider(id); setCoachKey(''); setTestResult(null) }}
             >
               {HTTP_PROVIDERS[id].label}
               {providerKeys[id] && <span className="adm-chip-key" style={{ marginLeft: 5 }}>✓</span>}
             </button>
           ))}
         </div>
-
         <div className="row between" style={{ marginBottom: 8, alignItems: 'center' }}>
           <span className="small bold">{providerMeta.label || 'AI Provider'}</span>
           <div className="row" style={{ gap: 6, alignItems: 'center' }}>
@@ -1058,7 +1662,6 @@ export function ApiKeyManagerSheet({ close, onUpdate }) {
             {isActiveCoach && <span className="adm-pill info">{t('Active Coach')}</span>}
           </div>
         </div>
-
         {providerMeta.baseUrl && (
           <div style={{ marginBottom: 10 }}>
             <label className="small dim" style={{ display: 'block', marginBottom: 4 }}>{t('Endpoint URL')}</label>
@@ -1072,7 +1675,6 @@ export function ApiKeyManagerSheet({ close, onUpdate }) {
             />
           </div>
         )}
-
         <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
           <TextField
             type={showCoachKey ? 'text' : 'password'}
@@ -1083,14 +1685,8 @@ export function ApiKeyManagerSheet({ close, onUpdate }) {
             onChange={e => setCoachKey(e.target.value)}
             style={{ flex: 1 }}
           />
-          <Button
-            variant="tinted"
-            icon={showCoachKey ? 'eyeSlash' : 'eye'}
-            onClick={() => setShowCoachKey(!showCoachKey)}
-            aria-label={showCoachKey ? t('Hide key') : t('Show key')}
-          />
+          <Button variant="tinted" icon={showCoachKey ? 'eyeSlash' : 'eye'} onClick={() => setShowCoachKey(!showCoachKey)} aria-label={showCoachKey ? t('Hide key') : t('Show key')} />
         </div>
-
         <div className="small dim" style={{ marginBottom: 12 }}>
           {hasCoachKey
             ? <span style={{ color: 'var(--green)', fontWeight: 600 }}>✓ {t('API key saved for {0}', providerMeta.label)}</span>
@@ -1098,34 +1694,22 @@ export function ApiKeyManagerSheet({ close, onUpdate }) {
               ? t('Optional for local models (e.g. Ollama)')
               : t('Required for {0}', providerMeta.label)}
         </div>
-
         {testResult && (
           <div className={'adm-result ' + (testResult.ok ? 'ok' : 'bad')} style={{ marginBottom: 10 }}>
             <b>{testResult.ok ? t('Passed') : t('Failed')}:</b> {testResult.message}
           </div>
         )}
-
         <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
           {(coachKey.trim() || (providerMeta.keyOptional && baseUrl !== (coachLocal?.baseUrl || ''))) && (
             <Button variant="primary" icon="check" onClick={saveCoachKey}>{t('Save key')}</Button>
           )}
-          <Button
-            variant="tinted"
-            icon="sparkles"
-            disabled={testing || (!providerMeta.keyOptional && !hasCoachKey && !coachKey.trim())}
-            onClick={testCoachConnection}
-          >
+          <Button variant="tinted" icon="sparkles" disabled={testing || (!providerMeta.keyOptional && !hasCoachKey && !coachKey.trim())} onClick={testCoachConnection}>
             {testing ? t('Testing…') : t('Test connection')}
           </Button>
           {!isActiveCoach && (hasCoachKey || providerMeta.keyOptional) && (
             <Button variant="tinted" icon="sparkles" onClick={activateProvider}>{t('Use for AI Coach')}</Button>
           )}
-          {hasCoachKey && (
-            <Button danger icon="trash" onClick={removeCoachKey}>{t('Remove key')}</Button>
-          )}
-        </div>
-        <div className="dim small" style={{ marginTop: 12, lineHeight: 1.5 }}>
-          {t('Used for AI plan design and workout debriefs. Direct HTTPS to {0}.', providerMeta.label || 'provider')}
+          {hasCoachKey && <Button danger icon="trash" onClick={removeCoachKey}>{t('Remove key')}</Button>}
         </div>
       </div>
     ) : (
@@ -1144,30 +1728,19 @@ export function ApiKeyManagerSheet({ close, onUpdate }) {
             onChange={e => setHevyKey(e.target.value)}
             style={{ flex: 1 }}
           />
-          <Button
-            variant="tinted"
-            icon={showHevyKey ? 'eyeSlash' : 'eye'}
-            onClick={() => setShowHevyKey(!showHevyKey)}
-            aria-label={showHevyKey ? t('Hide key') : t('Show key')}
-          />
+          <Button variant="tinted" icon={showHevyKey ? 'eyeSlash' : 'eye'} onClick={() => setShowHevyKey(!showHevyKey)} aria-label={showHevyKey ? t('Hide key') : t('Show key')} />
         </div>
-
         {hevyTestResult && (
           <div className={'adm-result ' + (hevyTestResult.ok ? 'ok' : 'bad')} style={{ marginBottom: 10 }}>
             <b>{hevyTestResult.ok ? t('Passed') : t('Failed')}:</b> {hevyTestResult.message}
           </div>
         )}
-
         <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-          {hevyKey.trim() && (
-            <Button variant="primary" icon="check" onClick={saveHevyKey}>{t('Save key')}</Button>
-          )}
+          {hevyKey.trim() && <Button variant="primary" icon="check" onClick={saveHevyKey}>{t('Save key')}</Button>}
           <Button variant="tinted" icon="sparkles" disabled={testingHevy || (!hasHevyKey && !hevyKey.trim())} onClick={testHevyConnection}>
             {testingHevy ? t('Testing…') : t('Test connection')}
           </Button>
-          {hasHevyKey && (
-            <Button danger icon="trash" onClick={removeHevyKey}>{t('Remove key')}</Button>
-          )}
+          {hasHevyKey && <Button danger icon="trash" onClick={removeHevyKey}>{t('Remove key')}</Button>}
         </div>
         <div className="dim small" style={{ marginTop: 12, lineHeight: 1.5 }}>
           {t('Saved key is auto-used in Settings → Import from Hevy so you don’t have to re-enter it.')}{' '}
@@ -1175,7 +1748,6 @@ export function ApiKeyManagerSheet({ close, onUpdate }) {
         </div>
       </div>
     )}
-
     <div style={{ height: 12 }} />
   </>
 }

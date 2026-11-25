@@ -208,6 +208,7 @@ export default function Login() {
     const smitrixUrl = `smitrix://login?${qs}`
     const intentUrl = `intent://login?${qs}#Intent;scheme=smitrix;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`
     setNativeReturnUrl(smitrixUrl)
+    try { sessionStorage.removeItem('smitrix_native_bridge') } catch {}
     try {
       window.location.href = smitrixUrl
     } catch {}
@@ -275,7 +276,11 @@ export default function Login() {
     }
 
     useUI.getState().toast(t('Welcome, {0}', userObj.name))
-    nav('/profile')
+    try {
+      sessionStorage.removeItem('smitrix_native_bridge')
+      if (window.location.search) window.history.replaceState(null, '', '/#/profile')
+    } catch {}
+    nav('/profile', { replace: true })
   }
 
   useEffect(() => {
@@ -373,7 +378,8 @@ export default function Login() {
       setStatusBanner({ type: 'info', text: t('Password reset complete. Sign in with your updated password.') })
       useUI.getState().toast(t('Please sign in with your updated credentials.'))
     } else if (!MOBILE && !isNativeGoogleBridge && !oobCode) {
-      // Website is demo-only — Login & Signup is exclusively for the Android app
+      // Website and demo have NO login — Login & Signup is exclusively for the native mobile app
+      try { sessionStorage.removeItem('smitrix_native_bridge') } catch {}
       setGuest(true)
       nav('/home', { replace: true })
     } else if (!MOBILE && isNativeGoogleBridge && user?.id) {
@@ -551,20 +557,9 @@ export default function Login() {
     margin: '0 auto'
   }
 
-  if (DEMO) {
-    return (
-      <div style={wrap}>
-        {head}
-        <div className="muted" style={{ marginBottom: 30 }}>{t('Live demo — everything stays in this browser.')}</div>
-        <Button variant="primary" icon="sparkles" onClick={() => setGuest(true)}>{t('Start the demo')}</Button>
-        <div className="card small muted" style={{ textAlign: 'left', marginTop: 16 }}>
-          {t('This demo runs entirely in your browser on example data — nothing is sent anywhere.')}
-        </div>
-        <div className="dim small" style={{ marginTop: 22, lineHeight: 1.6 }}>
-          <a href={REPO} target="_blank" rel="noopener">{t('Self-host it in a minute →')}</a>
-        </div>
-      </div>
-    )
+  // Website / Demo never shows a login gate — only native mobile app or active OAuth/email-action bridge
+  if (!MOBILE && !isNativeGoogleBridge && !resetOobCode && !searchParams.get('oobCode') && !statusBanner) {
+    return null
   }
 
   return (

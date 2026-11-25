@@ -8,6 +8,8 @@ import { setLang, useLang } from './lib/i18n.js'
 import { setNav } from './lib/nav.js'
 import { initBackButton } from './lib/back.js'
 import { useWakeLock } from './lib/wakelock.js'
+import { MOBILE } from './lib/mobile.js'
+import { DEMO } from './lib/demo.js'
 import { startFlow } from './sheets.jsx'
 import Icon from './components/Icon.jsx'
 import TabBar from './components/TabBar.jsx'
@@ -52,7 +54,9 @@ import CoachSetup from './views/CoachSetup.jsx'
 const scrollPositions = new Map()
 
 // Synchronously align /login path or OAuth/deep-link query params into location.hash
-// BEFORE HashRouter mounts, so the initial render never falls through to <Route path="*" Navigate to="/home" />
+// BEFORE HashRouter mounts, so the initial render never falls through to <Route path="*" Navigate to="/home" />.
+// Crucially, strip the auth query from window.location.search via replaceState once copied into hash
+// so subsequent navigations to /home or /profile never bounce back into /login!
 try {
   if (typeof window !== 'undefined') {
     const wp = window.location.pathname || ''
@@ -61,7 +65,8 @@ try {
     if (wp.startsWith('/admin') && !wh.startsWith('#/admin')) {
       window.location.hash = '#/admin' + ws
     } else if (
-      wp.startsWith('/login') ||
+      wp === '/login' ||
+      wp.startsWith('/login/') ||
       ws.includes('native_google=') ||
       ws.includes('oobCode=') ||
       ws.includes('google_id_token=') ||
@@ -72,8 +77,11 @@ try {
       if (ws.includes('native_google=1') || wh.includes('native_google=1')) {
         try { sessionStorage.setItem('smitrix_native_bridge', '1') } catch {}
       }
-      if (!wh.startsWith('#/login')) {
-        window.location.hash = '#/login' + ws
+      const nextHash = wh.startsWith('#/login') ? (wh.includes('?') ? wh : wh + ws) : ('#/login' + ws)
+      try {
+        window.history.replaceState(null, '', '/' + nextHash)
+      } catch {
+        window.location.hash = nextHash
       }
     }
   }
@@ -142,13 +150,18 @@ function Shell() {
   // bound to the workout, not to the route — checking Stats mid-session keeps the screen on
   useWakeLock(!!S.active && S.keepAwake !== false)
 
-  // Sync direct path/search (e.g. /login?native_google=1 or ?oobCode=...) into HashRouter
+  // One-shot sync of direct path/search (e.g. /login?native_google=1 or ?oobCode=...) into HashRouter.
+  // Cleans up window.location.search via replaceState so navigating to /profile or /home never loops back.
+  const syncedAuthUrlRef = useRef(false)
   useEffect(() => {
+    if (syncedAuthUrlRef.current) return
+    syncedAuthUrlRef.current = true
     try {
       const winPath = window.location.pathname || ''
       const winSearch = window.location.search || ''
       if (
-        winPath.startsWith('/login') ||
+        winPath === '/login' ||
+        winPath.startsWith('/login/') ||
         winSearch.includes('native_google=') ||
         winSearch.includes('oobCode=') ||
         winSearch.includes('google_id_token=') ||
@@ -156,12 +169,30 @@ function Shell() {
         winSearch.includes('verified=') ||
         winSearch.includes('mode=')
       ) {
+        const targetSearch = winSearch || loc.search || ''
+        try { window.history.replaceState(null, '', '/#/login' + targetSearch) } catch {}
         if (!loc.pathname.startsWith('/login')) {
-          navigate('/login' + (winSearch || loc.search || ''), { replace: true })
+          navigate('/login' + targetSearch, { replace: true })
         }
       }
     } catch {}
   }, [navigate, loc.pathname, loc.search])
+
+  // Clear stale native OAuth bridge flag whenever browsing normal app routes
+  useEffect(() => {
+    if (!loc.pathname.startsWith('/login')) {
+      try { sessionStorage.removeItem('smitrix_native_bridge') } catch {}
+    }
+  }, [loc.pathname])
+
+  // Notify parent website frame when embedded live demo finishes booting
+  useEffect(() => {
+    if (!ready || typeof window === 'undefined' || window.self === window.top) return
+    try {
+      window.parent.postMessage('smitrix-ready', '*')
+      window.parent.postMessage('gm-ready', '*')
+    } catch {}
+  }, [ready])
 
   // Handle mobile deep links and app links (smitrix:// and https://smitrix.web.app)
   useEffect(() => {
@@ -250,7 +281,9 @@ function Shell() {
     }
   }, [navigate])
 
-  const authed = user || isGuest
+  const isAuthBridgeRoute = !MOBILE && loc.pathname.startsWith('/login')
+  // Website and Demo never require login; only the native mobile app gates on authentication.
+  const authed = user || isGuest || (!MOBILE && !isAuthBridgeRoute)
   if (!ready && !authed) return (
     <div id="app">
       <div style={{ paddingTop: '44vh', display: 'flex', justifyContent: 'center', fontSize: 34, color: 'var(--label-3)' }}>
@@ -259,7 +292,7 @@ function Shell() {
     </div>
   )
 
-  const isMobileWeb = import.meta.env.VITE_MOBILE !== '1' && typeof navigator !== 'undefined' && /android|iphone|ipad|ipod/i.test(navigator.userAgent || '')
+  const isMobileWeb = !MOBILE && !DEMO && typeof navigator !== 'undefined' && /android|iphone|ipad|ipod/i.test(navigator.userAgent || '')
   const appDeepLink = user?.id
     ? `smitrix://login?uid=${encodeURIComponent(user.id)}&name=${encodeURIComponent(user.name || '')}&email=${encodeURIComponent(user.email || '')}&photo=${encodeURIComponent(user.photoURL || '')}&verified=${user.emailVerified ? '1' : '0'}`
     : 'smitrix://login'

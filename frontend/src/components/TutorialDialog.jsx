@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
+import Icon from './Icon.jsx'
+import { Segmented } from './ui.jsx'
+import { RollingText } from './GymManeMotion.jsx'
+import { t } from '../lib/i18n.js'
+import { DEMO } from '../lib/demo.js'
+import { CATALOGUE } from '../lib/exercises.js'
+import { todayISO } from '../lib/format.js'
 import { useUI } from '../store/useUI.js'
 import { useStore } from '../store/useStore.js'
-import { t } from '../lib/i18n.js'
-import Icon from './Icon.jsx'
-import { Button } from './ui.jsx'
-import { starterPlanSheet } from '../sheets.jsx'
-import { nav } from '../lib/nav.js'
 
-export const TUTORIAL_STORAGE_KEY = 'smitrix_tutorial_seen'
+export const TUTORIAL_STORAGE_KEY = 'smitrix_tutorial_seen_v1'
 
 export function hasSeenTutorial() {
   try {
@@ -20,524 +23,738 @@ export function hasSeenTutorial() {
 export function markTutorialSeen() {
   try {
     localStorage.setItem(TUTORIAL_STORAGE_KEY, '1')
-  } catch {
-    // ignore
-  }
+  } catch {}
 }
 
 export function resetTutorialSeen() {
   try {
     localStorage.removeItem(TUTORIAL_STORAGE_KEY)
-  } catch {
-    // ignore
+  } catch {}
+}
+
+const PLACE_PRESETS = [
+  {
+    id: 'gym',
+    name: 'Commercial Gym',
+    sub: 'Barbells, cables, machines, dumbbells & benches',
+    icon: 'dumbbell',
+    equipment: ['barbell', 'dumbbell', 'cable', 'machine', 'body weight', 'ez barbell', 'kettlebell', 'smith machine', 'leverage machine', 'sled machine', 'band'],
+  },
+  {
+    id: 'home',
+    name: 'Home Gym',
+    sub: 'Dumbbells, bench, pull-up bar, bands & bodyweight',
+    icon: 'home',
+    equipment: ['dumbbell', 'body weight', 'kettlebell', 'band', 'resistance band', 'barbell'],
+  },
+  {
+    id: 'outdoors',
+    name: 'Outdoors / Park',
+    sub: 'Bodyweight, pull-up bars, dip bars & resistance bands',
+    icon: 'figureRun',
+    equipment: ['body weight', 'band', 'resistance band', 'assisted'],
+  },
+]
+
+function compressAvatar(file, maxDim = 256) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('Could not read image'))
+    reader.onload = ev => {
+      const img = new Image()
+      img.onerror = () => reject(new Error('Invalid image'))
+      img.onload = () => {
+        let w = img.width || 256
+        let h = img.height || 256
+        if (w > maxDim || h > maxDim) {
+          if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim }
+          else { w = Math.round((w * maxDim) / h); h = maxDim }
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+        resolve(canvas.toDataURL('image/jpeg', 0.82))
+      }
+      img.src = ev.target.result
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
+function WeekArcRing({ goal }) {
+  const size = 154
+  const cx = size / 2
+  const cy = size / 2
+  const r = 62
+  const segCount = 7
+  const gapDeg = 10
+  const spanDeg = (360 - segCount * gapDeg) / segCount
+
+  const arcPath = idx => {
+    const startDeg = -90 + idx * (spanDeg + gapDeg) + gapDeg / 2
+    const endDeg = startDeg + spanDeg
+    const rad = d => (d * Math.PI) / 180
+    const x1 = cx + r * Math.cos(rad(startDeg))
+    const y1 = cy + r * Math.sin(rad(startDeg))
+    const x2 = cx + r * Math.cos(rad(endDeg))
+    const y2 = cy + r * Math.sin(rad(endDeg))
+    return `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`
   }
-}
 
-/* =========================================================================
-   AegisDNS-Inspired Vector Illustrations & Tactical Telemetry Graphic HUDs
-   ========================================================================= */
-
-function AegisSecurityShieldSvg() {
   return (
-    <div style={{ position: 'relative', width: '100%', height: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '4px 0 12px' }}>
-      <svg width="220" height="110" viewBox="0 0 220 110" style={{ overflow: 'visible' }}>
-        <defs>
-          <radialGradient id="aegisGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="var(--acc)" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="var(--acc)" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-        {/* Radar Concentric Rings */}
-        <circle cx="110" cy="55" r="48" fill="url(#aegisGlow)" stroke="var(--border-hairline)" strokeWidth="1" strokeDasharray="4 4" />
-        <circle cx="110" cy="55" r="32" fill="none" stroke="var(--acc)" strokeOpacity="0.3" strokeWidth="1" />
-        {/* Rotating sweep line */}
-        <line x1="110" y1="55" x2="155" y2="25" stroke="var(--acc)" strokeWidth="1.5" strokeOpacity="0.6" style={{ transformOrigin: '110px 55px', animation: 'aegisRadarSweep 6s linear infinite' }} />
-        {/* Cyber Shield */}
-        <path d="M110 32 L130 40 L130 62 Q110 80 110 82 Q110 80 90 62 L90 40 Z" fill="rgba(15, 23, 42, 0.85)" stroke="var(--acc)" strokeWidth="2" style={{ filter: 'drop-shadow(0 0 8px rgba(34,197,94,0.4))' }} />
-        {/* Core Lock Node */}
-        <circle cx="110" cy="55" r="6" fill="var(--acc)" />
-        <path d="M107 55 L113 55 M110 52 L110 58" stroke="var(--on-acc)" strokeWidth="1.5" />
-        {/* Telemetry data pins */}
-        <circle cx="60" cy="30" r="3" fill="var(--blue)" />
-        <line x1="60" y1="30" x2="88" y2="45" stroke="var(--blue)" strokeWidth="1" strokeOpacity="0.4" strokeDasharray="2 2" />
-        <text x="32" y="22" fill="var(--blue)" fontSize="8" fontFamily="monospace" fontWeight="700">PRIVACY: LOCAL_VAULT</text>
-        <circle cx="160" cy="80" r="3" fill="var(--purple)" />
-        <line x1="160" y1="80" x2="128" y2="68" stroke="var(--purple)" strokeWidth="1" strokeOpacity="0.4" strokeDasharray="2 2" />
-        <text x="140" y="94" fill="var(--purple)" fontSize="8" fontFamily="monospace" fontWeight="700">AES: ZERO_TRACKING</text>
+    <div style={{ position: 'relative', width: size, height: size, margin: '0 auto' }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        {Array.from({ length: segCount }, (_, i) => (
+          <path
+            key={i}
+            d={arcPath(i)}
+            fill="none"
+            stroke={i < goal ? 'var(--ember)' : 'var(--surface-2)'}
+            strokeWidth="10"
+            strokeLinecap="round"
+            style={{ transition: 'stroke 260ms var(--ease)' }}
+          />
+        ))}
       </svg>
-    </div>
-  )
-}
-
-function AegisPlanMatrixSvg() {
-  return (
-    <div style={{ position: 'relative', width: '100%', height: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '4px 0 10px' }}>
-      <svg width="240" height="90" viewBox="0 0 240 90">
-        {/* Trace Route Line */}
-        <path d="M 30 45 L 85 25 L 145 65 L 205 35" fill="none" stroke="var(--blue)" strokeWidth="2" strokeDasharray="5 5" style={{ animation: 'aegisTraceFlow 3s linear infinite' }} />
-        {/* Matrix Nodes */}
-        <g transform="translate(30, 45)">
-          <circle r="12" fill="rgba(59,130,246,0.15)" stroke="var(--blue)" strokeWidth="1.5" />
-          <circle r="4" fill="var(--blue)" />
-          <text y="24" fill="var(--label-2)" fontSize="8" fontFamily="monospace" textAnchor="middle" fontWeight="700">MON · PUSH</text>
-        </g>
-        <g transform="translate(85, 25)">
-          <circle r="10" fill="var(--surface-3)" stroke="var(--border-hairline)" strokeWidth="1" />
-          <circle r="3" fill="var(--label-3)" />
-          <text y="22" fill="var(--label-3)" fontSize="8" fontFamily="monospace" textAnchor="middle">TUE · REST</text>
-        </g>
-        <g transform="translate(145, 65)">
-          <circle r="12" fill="rgba(59,130,246,0.15)" stroke="var(--blue)" strokeWidth="1.5" />
-          <circle r="4" fill="var(--blue)" />
-          <text y="24" fill="var(--label-2)" fontSize="8" fontFamily="monospace" textAnchor="middle" fontWeight="700">WED · PULL</text>
-        </g>
-        <g transform="translate(205, 35)">
-          <circle r="12" fill="rgba(59,130,246,0.25)" stroke="var(--acc)" strokeWidth="2" />
-          <circle r="5" fill="var(--acc)" />
-          <text y="24" fill="var(--acc)" fontSize="8" fontFamily="monospace" textAnchor="middle" fontWeight="700">FRI · LEGS</text>
-        </g>
-      </svg>
-    </div>
-  )
-}
-
-function AegisWorkoutTelemetrySvg({ unit = 'kg' }) {
-  return (
-    <div style={{ position: 'relative', width: '100%', height: 95, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '4px 0 10px' }}>
-      <svg width="240" height="95" viewBox="0 0 240 95">
-        {/* HUD Frame */}
-        <rect x="10" y="8" width="220" height="78" rx="12" fill="rgba(18,18,24,0.7)" stroke="rgba(249,115,22,0.4)" strokeWidth="1.5" />
-        {/* Set Counter Box */}
-        <rect x="22" y="24" width="36" height="46" rx="8" fill="var(--surface-3)" />
-        <text x="40" y="44" fill="var(--label-3)" fontSize="9" fontFamily="monospace" textAnchor="middle">SET</text>
-        <text x="40" y="60" fill="var(--label-1)" fontSize="16" fontFamily="monospace" fontWeight="800" textAnchor="middle">01</text>
-        {/* Metric Readout 1: Load */}
-        <text x="75" y="36" fill="var(--label-3)" fontSize="8" fontFamily="monospace">LOAD</text>
-        <text x="75" y="56" fill="var(--label-1)" fontSize="15" fontFamily="monospace" fontWeight="700">80 <tspan fontSize="10" fill="var(--label-3)">{unit}</tspan></text>
-        {/* Metric Readout 2: Reps */}
-        <text x="125" y="36" fill="var(--label-3)" fontSize="8" fontFamily="monospace">REPS</text>
-        <text x="125" y="56" fill="var(--label-1)" fontSize="15" fontFamily="monospace" fontWeight="700">10 <tspan fontSize="10" fill="var(--orange)">RIR 2</tspan></text>
-        {/* Rest Timer Ring Simulation */}
-        <circle cx="195" cy="47" r="22" fill="none" stroke="var(--surface-3)" strokeWidth="3" />
-        <circle cx="195" cy="47" r="22" fill="none" stroke="var(--acc)" strokeWidth="3" strokeDasharray="138" strokeDashoffset="45" style={{ transformOrigin: '195px 47px', transform: 'rotate(-90deg)' }} />
-        <text x="195" y="44" fill="var(--acc)" fontSize="11" fontFamily="monospace" fontWeight="800" textAnchor="middle">01:30</text>
-        <text x="195" y="56" fill="var(--label-3)" fontSize="7" fontFamily="monospace" textAnchor="middle">REST</text>
-      </svg>
-    </div>
-  )
-}
-
-function AegisStatsSignalSvg() {
-  return (
-    <div style={{ position: 'relative', width: '100%', height: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '4px 0 10px' }}>
-      <svg width="240" height="90" viewBox="0 0 240 90">
-        <defs>
-          <linearGradient id="sigGrad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="var(--blue)" />
-            <stop offset="50%" stopColor="var(--purple)" />
-            <stop offset="100%" stopColor="var(--acc)" />
-          </linearGradient>
-        </defs>
-        {/* Grid lines */}
-        <line x1="20" y1="70" x2="220" y2="70" stroke="var(--border-hairline)" strokeWidth="1" />
-        <line x1="20" y1="45" x2="220" y2="45" stroke="var(--border-hairline)" strokeWidth="0.5" strokeDasharray="2 2" />
-        <line x1="20" y1="20" x2="220" y2="20" stroke="var(--border-hairline)" strokeWidth="0.5" strokeDasharray="2 2" />
-        {/* Dynamic Wave */}
-        <path d="M 20 65 Q 60 62 80 40 T 130 50 T 170 28 T 220 22" fill="none" stroke="url(#sigGrad)" strokeWidth="2.5" />
-        {/* Peak PR Point */}
-        <circle cx="220" cy="22" r="5" fill="var(--acc)" style={{ animation: 'aegisPulse 1.5s infinite ease-in-out' }} />
-        <text x="215" y="14" fill="var(--acc)" fontSize="8" fontFamily="monospace" fontWeight="800" textAnchor="end">NEW PR 🏆</text>
-        <text x="25" y="82" fill="var(--label-3)" fontSize="8" fontFamily="monospace">WEEK 1</text>
-        <text x="110" y="82" fill="var(--label-3)" fontSize="8" fontFamily="monospace">STREAK: 8 WKS</text>
-        <text x="215" y="82" fill="var(--label-3)" fontSize="8" fontFamily="monospace" textAnchor="end">1RM +12%</text>
-      </svg>
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        pointerEvents: 'none',
+      }}>
+        <RollingText
+          value={String(goal)}
+          style={{ fontSize: 44, fontWeight: 900, color: 'var(--label)', lineHeight: 1.05 }}
+        />
+        <span className="gm-micro" style={{ fontSize: 9.5, marginTop: 4 }}>
+          {goal === 1 ? t('DAY / WEEK') : t('DAYS / WEEK')}
+        </span>
+      </div>
     </div>
   )
 }
 
 /**
- * The AegisDNS-Inspired Multi-Step Tutorial Modal Dialog.
+ * GymMane-style 7-Step Onboarding Flow for SmiTriX:
+ * 0: Welcome (runner.png + 3 promises)
+ * 1: Your Name (animated initial circle + live greeting)
+ * 2: Profile Photo (circular camera avatar picker)
+ * 3: Units (RollingText 100 kg / 225 lb)
+ * 4: Your Body (sex, age, height, weight)
+ * 5: Weekly Goal (7-arc SVG ring + 1..7 selector)
+ * 6: Where You Train (Gym / Home / Outdoors presets + live exercise odometer)
  */
 export function TutorialDialog({ initialStep = 0, close }) {
-  const [step, setStep] = useState(initialStep)
   const S = useStore(s => s.S)
+  const update = useStore(s => s.update)
+  const athlete = S.athleteProfile || {}
 
-  const onFinish = () => {
-    markTutorialSeen()
-    close()
-  }
+  const TOTAL_STEPS = 7 // 0..6
+  const [step, setStep] = useState(Math.max(0, Math.min(initialStep, TOTAL_STEPS - 1)))
+  const [name, setName] = useState(athlete.name || '')
+  const [photo, setPhoto] = useState(athlete.photoURL || '')
+  const [unit, setUnit] = useState(S.unit || 'kg')
+  const [sex, setSex] = useState(S.body === 'female' ? 'female' : 'male')
+  const [age, setAge] = useState(Number(athlete.age) || 26)
+  const [heightCm, setHeightCm] = useState(Number(athlete.height) || 175)
+  const lastBwVal = S.bodyweight?.length ? Number(S.bodyweight[S.bodyweight.length - 1].w) : (unit === 'lb' ? 165 : 75)
+  const [weight, setWeight] = useState(lastBwVal || 75)
+  const [weeklyGoal, setWeeklyGoal] = useState(Number(S.weeklyTarget) || 4)
+  const [selectedPlaces, setSelectedPlaces] = useState(['gym'])
+  const fileRef = useRef(null)
 
-  const onLoadStarter = () => {
-    markTutorialSeen()
-    close()
-    setTimeout(() => starterPlanSheet(), 150)
-  }
+  const trimmedName = name.trim()
+  const firstInitial = trimmedName ? trimmedName[0].toUpperCase() : ''
 
-  const onStartWorkout = () => {
-    markTutorialSeen()
-    close()
-    nav('/workout')
-  }
-
-  const onGoPlan = () => {
-    markTutorialSeen()
-    close()
-    nav('/plan')
-  }
-
-  const onGoLibrary = () => {
-    markTutorialSeen()
-    close()
-    nav('/library')
-  }
-
-  const steps = [
-    // Step 0: Welcome
-    {
-      badge: t('Welcome'),
-      badgeColor: 'var(--acc)',
-      icon: 'sparkles',
-      iconTint: 'var(--acc)',
-      title: t('Welcome to SmiTriX'),
-      subtitle: t('A private, fast, distraction-free gym tracker. Here is a quick 1-minute guide on how everything works!'),
-      renderIllustration: () => <AegisSecurityShieldSvg />,
-      renderContent: () => (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div className="card" style={{ padding: '12px 14px', background: 'var(--surface-2)', margin: 0, border: '1px solid var(--border-hairline)' }}>
-            <div className="row" style={{ gap: 12, alignItems: 'flex-start' }}>
-              <span className="lrow-i" style={{ background: 'color-mix(in srgb, var(--blue) 20%, transparent)', color: 'var(--blue)', marginTop: 2 }}>
-                <Icon name="calendar" />
-              </span>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>{t('1. Plan your week')}</div>
-                <div className="muted small">{t('Choose a starter plan or assign routines (Push, Pull, Legs) to training days.')}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="card" style={{ padding: '12px 14px', background: 'var(--surface-2)', margin: 0, border: '1px solid var(--border-hairline)' }}>
-            <div className="row" style={{ gap: 12, alignItems: 'flex-start' }}>
-              <span className="lrow-i" style={{ background: 'color-mix(in srgb, var(--orange) 20%, transparent)', color: 'var(--orange)', marginTop: 2 }}>
-                <Icon name="dumbbell" />
-              </span>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>{t('2. Log at the gym')}</div>
-                <div className="muted small">{t('Tap Start on today’s workout. Enter weight, reps, and check off sets with an auto rest timer.')}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="card" style={{ padding: '12px 14px', background: 'var(--surface-2)', margin: 0, border: '1px solid var(--border-hairline)' }}>
-            <div className="row" style={{ gap: 12, alignItems: 'flex-start' }}>
-              <span className="lrow-i" style={{ background: 'color-mix(in srgb, var(--purple) 20%, transparent)', color: 'var(--purple)', marginTop: 2 }}>
-                <Icon name="chart" />
-              </span>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>{t('3. Track progress')}</div>
-                <div className="muted small">{t('Watch your weekly streaks, estimated 1RMs, and muscle volume analytics climb.')}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="dim small" style={{ textAlign: 'center', marginTop: 4 }}>
-            🔒 {t('100% offline-first: your workout data stays securely on your phone.')}
-          </div>
-        </div>
-      )
-    },
-
-    // Step 1: Plan
-    {
-      badge: t('Plan Tab'),
-      badgeColor: 'var(--blue)',
-      icon: 'calendar',
-      iconTint: 'var(--blue)',
-      title: t('Step 1: Your Weekly Plan'),
-      subtitle: t('A Plan is made of Routines scheduled onto your week.'),
-      renderIllustration: () => <AegisPlanMatrixSvg />,
-      renderContent: () => (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--label-2)' }}>
-            {t('Think of a Routine as a workout template (e.g. “Push”, “Pull”, or “Upper Body”). You assign each routine to the days you train.')}
-          </div>
-
-          <div className="card" style={{ padding: '10px 14px', background: 'var(--surface-2)', margin: 0, border: '1px solid var(--border-hairline)' }}>
-            <div className="lbl2" style={{ marginBottom: 6 }}>{t('Sample 3-day schedule:')}</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <span className="tag acc"><Icon name="arm" /> {t('Mon: Push')}</span>
-              <span className="tag"><Icon name="moon" /> {t('Tue: Rest')}</span>
-              <span className="tag acc"><Icon name="pullup" /> {t('Wed: Pull')}</span>
-              <span className="tag"><Icon name="moon" /> {t('Thu: Rest')}</span>
-              <span className="tag acc"><Icon name="legs" /> {t('Fri: Legs')}</span>
-            </div>
-          </div>
-
-          <ul style={{ paddingLeft: 18, fontSize: 12, lineHeight: 1.6, color: 'var(--label-2)', margin: 0 }}>
-            <li><b>{t('Starter Plans')}:</b> {t('Tap “Load starter plan” anytime to load a balanced 3-day PPL, 4-day Upper/Lower, or Full Body split.')}</li>
-            <li><b>{t('Rep Ranges & Targets')}:</b> {t('Set target rep ranges (e.g. 8–12 reps) and progression rules so you always know what to lift.')}</li>
-            <li><b>{t('Rest Days')}:</b> {t('Any day without a routine is automatically treated as a recovery day.')}</li>
-          </ul>
-        </div>
-      )
-    },
-
-    // Step 2: Workout
-    {
-      badge: t('Workout Tab'),
-      badgeColor: 'var(--orange)',
-      icon: 'dumbbell',
-      iconTint: 'var(--orange)',
-      title: t('Step 2: Logging a Workout'),
-      subtitle: t('When training, tap the big Start button in the center of the tab bar.'),
-      renderIllustration: () => <AegisWorkoutTelemetrySvg unit={S.unit || 'kg'} />,
-      renderContent: () => (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--label-2)' }}>
-            {t('SmiTriX makes logging effortless so you never waste time fiddling with your phone at the gym.')}
-          </div>
-
-          <div className="card" style={{ padding: '10px 14px', background: 'var(--surface-2)', margin: 0, border: '1px solid var(--border-hairline)' }}>
-            <div className="lbl2" style={{ marginBottom: 6 }}>{t('Exercise: Bench Press (Barbell)')}</div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-              <span className="muted" style={{ fontWeight: 600, fontSize: 14 }}>1</span>
-              <span style={{ background: 'var(--surface-3)', padding: '6px 12px', borderRadius: 8, fontWeight: 600, fontSize: 15 }}>
-                80 <span className="muted" style={{ fontSize: 12 }}>{S.unit || 'kg'}</span>
-              </span>
-              <span style={{ background: 'var(--surface-3)', padding: '6px 12px', borderRadius: 8, fontWeight: 600, fontSize: 15 }}>
-                10 <span className="muted" style={{ fontSize: 12 }}>reps</span>
-              </span>
-              <span style={{ width: 34, height: 34, borderRadius: 8, background: 'var(--acc)', color: 'var(--on-acc)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="check" size={18} />
-              </span>
-            </div>
-          </div>
-
-          <ul style={{ paddingLeft: 18, fontSize: 12, lineHeight: 1.6, color: 'var(--label-2)', margin: 0 }}>
-            <li><b>{t('Complete Sets')}:</b> {t('Enter weight and reps, then tap the checkmark to record the set.')}</li>
-            <li><b>{t('Auto Rest Timer')}:</b> {t('Begins counting down immediately with audio and vibration alerts when rest is over.')}</li>
-            <li><b>{t('RIR / Effort')}:</b> {t('Optionally log Reps In Reserve (e.g. 2 RIR = could do 2 more reps) to pace your intensity.')}</li>
-            <li><b>{t('Finish Session')}:</b> {t('Tap the checkered flag to complete the session and record new personal records (PRs)!')}</li>
-          </ul>
-        </div>
-      )
-    },
-
-    // Step 3: Exercise Library
-    {
-      badge: t('Exercises Tab'),
-      badgeColor: 'var(--teal)',
-      icon: 'list',
-      iconTint: 'var(--teal)',
-      title: t('Step 3: 1,300+ Exercise Library'),
-      subtitle: t('Form instructions, muscle activation maps, and equipment filters at your fingertips.'),
-      renderIllustration: () => (
-        <div style={{ position: 'relative', width: '100%', height: 95, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="240" height="95" viewBox="0 0 240 95">
-            <rect x="12" y="8" width="216" height="78" rx="12" fill="rgba(20,184,166,0.08)" stroke="var(--teal)" strokeWidth="1.5" strokeDasharray="6 3" />
-            <circle cx="46" cy="47" r="20" fill="rgba(20,184,166,0.18)" style={{ animation: 'aegisPulse 2.2s infinite ease-in-out' }} />
-            <circle cx="46" cy="47" r="7" fill="var(--teal)" />
-            <line x1="26" y1="47" x2="66" y2="47" stroke="var(--teal)" strokeWidth="1" />
-            <line x1="46" y1="27" x2="46" y2="67" stroke="var(--teal)" strokeWidth="1" />
-            <text x="78" y="34" fill="var(--acc)" fontSize="8" fontFamily="monospace" fontWeight="700">AI RECOVERY PICK · 100% FRESH</text>
-            <text x="78" y="50" fill="var(--label-1)" fontSize="13" fontWeight="800">1,324 EXERCISES</text>
-            <text x="78" y="64" fill="var(--teal)" fontSize="8.5" fontFamily="monospace">SMART RECOMMENDATIONS &amp; PR TAGS</text>
-          </svg>
-        </div>
-      ),
-      renderContent: () => (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--label-2)' }}>
-            {t('Explore 1,324+ animated exercises with smart biomechanical recommendations tailored to your muscle recovery and PRs.')}
-          </div>
-
-          <div className="card" style={{ padding: '10px 14px', background: 'var(--surface-2)', margin: 0, border: '1px solid var(--border-hairline)' }}>
-            <div className="row between" style={{ marginBottom: 4 }}>
-              <span style={{ fontWeight: 600, fontSize: 14 }}>Incline Dumbbell Press</span>
-              <span className="tag acc" style={{ fontSize: 10 }}>PR Opportunity</span>
-            </div>
-            <div className="dim small" style={{ marginBottom: 6, fontSize: 11 }}>Primary: Upper Chest · Secondary: Triceps, Front Delts</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <span className="tag" style={{ fontSize: 10 }}>Dumbbell</span>
-              <span className="tag" style={{ fontSize: 10 }}>100% Recovered</span>
-            </div>
-          </div>
-
-          <ul style={{ paddingLeft: 18, fontSize: 12, lineHeight: 1.6, color: 'var(--label-2)', margin: 0 }}>
-            <li><b>{t('Smart Exercise Picks')}:</b> {t('Recommends fresh muscles and progressive overload PR targets automatically.')}</li>
-            <li><b>{t('Muscle Heatmaps & Filters')}:</b> {t('Filter by Barbell, Dumbbell, Cables, Machines, or Bodyweight in one tap.')}</li>
-            <li><b>{t('1-Tap Live Injection')}:</b> {t('Add recommended exercises straight into an active workout or routine.')}</li>
-          </ul>
-        </div>
-      )
-    },
-
-    // Step 4: Stats, Analytics & Workout Photo Feed
-    {
-      badge: t('Stats & Profile'),
-      badgeColor: 'var(--purple)',
-      icon: 'chart',
-      iconTint: 'var(--purple)',
-      title: t('Step 4: Streaks, Photo Feed & Analytics'),
-      subtitle: t('Post Hevy-style workout photos alongside your sets, volume, and 1RM curves.'),
-      renderIllustration: () => <AegisStatsSignalSvg />,
-      renderContent: () => (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--label-2)' }}>
-            {t('Track your long-term consistency, post workout photos with telemetry overlays in your Profile feed, and watch your 1RMs climb.')}
-          </div>
-
-          <div className="card" style={{ padding: '10px 14px', background: 'var(--surface-2)', margin: 0, border: '1px solid var(--border-hairline)' }}>
-            <div className="row between" style={{ marginBottom: 4 }}>
-              <div className="row" style={{ gap: 8, fontSize: 15, fontWeight: 700 }}>
-                <Icon name="camera" style={{ color: 'var(--acc)' }} />
-                <span>{t('Workout Photo Posts & Streaks')}</span>
-              </div>
-              <span className="tag" style={{ color: 'var(--orange)', fontSize: 11 }}>🔥 Live Feed</span>
-            </div>
-            <div className="muted small">{t('Attach gym photos to your logged workouts in Profile to build your visual training timeline.')}</div>
-          </div>
-
-          <ul style={{ paddingLeft: 18, fontSize: 12, lineHeight: 1.6, color: 'var(--label-2)', margin: 0 }}>
-            <li><b>{t('Workout Photo Feed')}:</b> {t('Share photos paired with your workout duration, volume lifted, and best sets.')}</li>
-            <li><b>{t('Estimated 1RM & Fatigue')}:</b> {t('Calculates your One-Rep Max trends and muscle recovery hours automatically.')}</li>
-            <li><b>{t('Cloud Sync & Pro Vault')}:</b> {t('Backed up in real time to your authenticated athlete account.')}</li>
-          </ul>
-        </div>
-      )
-    },
-
-    // Step 5: Ready to start
-    {
-      badge: t('Ready to Lift'),
-      badgeColor: 'var(--green)',
-      icon: 'rocket',
-      iconTint: 'var(--green)',
-      title: t('You’re Ready to Go!'),
-      subtitle: t('How would you like to start your training journey?'),
-      renderIllustration: () => (
-        <div style={{ position: 'relative', width: '100%', height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="220" height="80" viewBox="0 0 220 80">
-            <circle cx="110" cy="40" r="32" fill="rgba(34,197,94,0.1)" stroke="var(--acc)" strokeWidth="1.5" strokeDasharray="4 2" />
-            <circle cx="110" cy="40" r="16" fill="rgba(34,197,94,0.25)" />
-            <path d="M102 40 L108 46 L118 34" fill="none" stroke="var(--acc)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-            <text x="110" y="68" fill="var(--acc)" fontSize="9" fontFamily="monospace" fontWeight="700" textAnchor="middle">MISSION READY</text>
-          </svg>
-        </div>
-      ),
-      renderContent: () => (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <button className="btn primary" style={{ width: '100%', padding: '13px', fontSize: 15 }} onClick={onLoadStarter}>
-            <Icon name="sparkles" style={{ marginRight: 8 }} />
-            {t('Load a Ready-Made Plan')}
-          </button>
-
-          <Button style={{ width: '100%', padding: '11px' }} onClick={onGoPlan}>
-            <Icon name="calendar" style={{ marginRight: 8 }} />
-            {t('Build My Own Plan')}
-          </Button>
-
-          <Button style={{ width: '100%', padding: '11px' }} onClick={onStartWorkout}>
-            <Icon name="dumbbell" style={{ marginRight: 8 }} />
-            {t('Start a Freestyle Workout')}
-          </Button>
-
-          <Button variant="ghost" className="dim" style={{ width: '100%' }} onClick={onGoLibrary}>
-            <Icon name="list" style={{ marginRight: 8 }} />
-            {t('Explore Exercise Library')}
-          </Button>
-
-          <div className="dim small" style={{ textAlign: 'center', marginTop: 4 }}>
-            {t('You can always reopen this guide anytime from the help icon or Settings.')}
-          </div>
-        </div>
-      )
+  const matchedExercisesCount = useMemo(() => {
+    if (!selectedPlaces.length) return CATALOGUE.length
+    const eqSet = new Set(['body weight'])
+    for (const pid of selectedPlaces) {
+      const p = PLACE_PRESETS.find(x => x.id === pid)
+      if (p) p.equipment.forEach(e => eqSet.add(e))
     }
-  ]
+    if (selectedPlaces.includes('gym')) return CATALOGUE.length
+    return CATALOGUE.filter(ex => !ex.eq || eqSet.has(String(ex.eq).toLowerCase())).length
+  }, [selectedPlaces])
 
-  const current = steps[step] || steps[0]
-  const isFirst = step === 0
-  const isLast = step === steps.length - 1
+  const handlePhotoPick = async ev => {
+    const file = ev.target.files?.[0]
+    if (!file) return
+    try {
+      const url = await compressAvatar(file)
+      setPhoto(url)
+    } catch {} finally {
+      ev.target.value = ''
+    }
+  }
+
+  const togglePlace = id => {
+    setSelectedPlaces(prev =>
+      prev.includes(id)
+        ? (prev.length > 1 ? prev.filter(x => x !== id) : prev)
+        : [...prev, id]
+    )
+  }
+
+  const finish = () => {
+    update(s => {
+      s.onboarded = true
+      s.unit = unit
+      s.body = sex
+      s.weeklyTarget = weeklyGoal
+      s.athleteProfile = {
+        ...(s.athleteProfile || {}),
+        ...(trimmedName ? { name: trimmedName } : {}),
+        ...(photo ? { photoURL: photo } : {}),
+        sex,
+        age,
+        height: heightCm,
+      }
+      if (weight > 0 && !(s.bodyweight || []).length) {
+        s.bodyweight = [{ d: todayISO(), w: weight, t: Date.now() }]
+      }
+      if (selectedPlaces.length && !(s.equipProfiles || []).length) {
+        const created = selectedPlaces.map(pid => {
+          const preset = PLACE_PRESETS.find(x => x.id === pid)
+          return preset ? { id: 'place_' + preset.id, name: preset.name, equipment: [...preset.equipment] } : null
+        }).filter(Boolean)
+        if (created.length) {
+          s.equipProfiles = created
+          s.activeEquipId = created[0].id
+        }
+      }
+    })
+    markTutorialSeen()
+    close?.()
+  }
+
+  const skip = () => {
+    update(s => { s.onboarded = true })
+    markTutorialSeen()
+    close?.()
+  }
+
+  const isLast = step === TOTAL_STEPS - 1
+  const nextLabel = isLast
+    ? t('Start training')
+    : step === 2 && !photo
+      ? t('Maybe later')
+      : t('Next')
 
   return (
-    <div className="aegis-hud-card" style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column' }}>
-      {/* Top Telemetry Header Bar */}
-      <div className="row between" style={{ marginBottom: 10 }}>
-        <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-          <span className="aegis-badge" style={{ color: current.badgeColor, background: `color-mix(in srgb, ${current.badgeColor} 18%, transparent)`, border: `1px solid color-mix(in srgb, ${current.badgeColor} 40%, transparent)` }}>
-            <span className="aegis-dot" style={{ background: current.badgeColor, boxShadow: `0 0 8px ${current.badgeColor}` }} />
-            {current.badge}
-          </span>
-          <span className="dim small" style={{ fontWeight: 600, fontFamily: 'monospace', fontSize: 11 }}>
-            {t('{0} of {1}', step + 1, steps.length)}
-          </span>
-        </div>
-        <button className="iconbtn" onClick={onFinish} aria-label={t('Close tutorial')} style={{ width: 28, height: 28 }}>
-          <Icon name="xmark" size={14} />
-        </button>
-      </div>
+    <div
+      className="gm-onb-shell"
+      role="dialog"
+      aria-label={t('SmiTriX setup')}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 'min(76vh, 620px)',
+        maxHeight: '86vh',
+        position: 'relative',
+      }}
+    >
+      <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoPick} />
 
-      {/* Title & Subtitle */}
-      <div style={{ marginBottom: 4 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 2px', letterSpacing: '-.02em', color: 'var(--label-1)' }}>
-          {current.title}
-        </h2>
-        <div className="muted small" style={{ fontSize: 12 }}>{current.subtitle}</div>
-      </div>
-
-      {/* Aegis Animated Illustration */}
-      {current.renderIllustration && current.renderIllustration()}
-
-      {/* Content Area */}
-      <div style={{ flex: 1, margin: '6px 0 14px' }}>
-        {current.renderContent()}
-      </div>
-
-      {/* Bottom Step Indicator Dots & Navigation Controls */}
-      <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-hairline)', paddingTop: 12 }}>
-        {/* Step dots */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 12 }}>
-          {steps.map((_, idx) => (
+      {/* Top 7-segment progress bar + Skip */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 2px 14px' }}>
+        <div style={{ display: 'flex', flex: 1, gap: 5 }}>
+          {Array.from({ length: TOTAL_STEPS }, (_, i) => (
             <button
-              key={idx}
-              onClick={() => setStep(idx)}
+              key={i}
+              type="button"
+              aria-label={t('Step {0}', i + 1)}
+              onClick={() => setStep(i)}
               style={{
-                width: step === idx ? 24 : 8,
-                height: 6,
-                borderRadius: 3,
-                border: 'none',
+                flex: 1,
+                height: 3.5,
+                borderRadius: 99,
                 padding: 0,
+                background: i <= step ? 'var(--label)' : 'var(--surface-2)',
+                transition: 'background 260ms var(--ease)',
                 cursor: 'pointer',
-                background: step === idx ? 'var(--acc)' : 'var(--surface-3)',
-                boxShadow: step === idx ? '0 0 8px var(--acc)' : 'none',
-                transition: 'all .25s cubic-bezier(0.4, 0, 0.2, 1)'
               }}
-              aria-label={t('Go to step {0}', idx + 1)}
             />
           ))}
         </div>
+        <button
+          type="button"
+          onClick={skip}
+          style={{
+            fontSize: 12.5,
+            fontWeight: 700,
+            color: 'var(--label-3)',
+            padding: '6px 8px',
+            cursor: 'pointer',
+          }}
+        >
+          {t('Skip')}
+        </button>
+      </div>
 
-        {/* Action Buttons */}
-        <div className="row between" style={{ gap: 10 }}>
-          {!isFirst ? (
-            <Button onClick={() => setStep(s => Math.max(0, s - 1))} style={{ flex: 1 }}>
-              {t('Back')}
-            </Button>
-          ) : (
-            <Button variant="ghost" className="dim" onClick={onFinish} style={{ flex: 1 }}>
-              {t('Skip tour')}
-            </Button>
-          )}
+      {/* Step Body */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 2px 16px' }}>
+        {step === 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '6px 0 2px' }}>
+              <img
+                src="./smitrix-ui/img/runner.png"
+                alt="SmiTriX"
+                style={{ height: 152, objectFit: 'contain', opacity: 0.92 }}
+              />
+            </div>
+            <div>
+              <div className="gm-micro" style={{ marginBottom: 6 }}>{t('YOUR TRAINING LOG')}</div>
+              <h2 style={{ fontSize: 38, fontWeight: 900, letterSpacing: '-0.03em', margin: '0 0 8px', lineHeight: 1 }}>
+                SmiTriX
+              </h2>
+              <p className="muted" style={{ fontSize: 14.5, lineHeight: 1.5, margin: 0 }}>
+                {t('Your workouts, your numbers, always on your device.')}
+              </p>
+            </div>
+            <div style={{ background: 'var(--surface-2)', borderRadius: 20, overflow: 'hidden', border: '1px solid var(--sep-op)' }}>
+              {[
+                { icon: 'sparkles', title: t('Free forever'), why: t('No subscriptions, no paywalls, no ads.') },
+                { icon: 'shield', title: t('Private & local-first'), why: t('Everything stays on your device. No account needed on web.') },
+                { icon: 'download', title: t('Yours to take'), why: t('Import from Hevy, Strong or FitNotes, and export full backups anytime.') },
+              ].map((p, idx) => (
+                <div
+                  key={p.title}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 13,
+                    padding: '13px 15px',
+                    borderTop: idx > 0 ? '1px solid var(--sep-op)' : 'none',
+                  }}
+                >
+                  <span style={{ color: 'var(--acc)', fontSize: 18, marginTop: 1, flex: 'none' }}>
+                    <Icon name={p.icon} />
+                  </span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--label)' }}>{p.title}</div>
+                    <div className="dim small" style={{ marginTop: 2, lineHeight: 1.4 }}>{p.why}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
-          {!isLast ? (
-            <button className="btn primary" onClick={() => setStep(s => Math.min(steps.length - 1, s + 1))} style={{ flex: 1.4 }}>
-              {t('Next')} →
-            </button>
-          ) : (
-            <button className="btn primary" onClick={onFinish} style={{ flex: 1.4 }}>
-              {t('Got it!')} ✓
-            </button>
-          )}
-        </div>
+        {step === 1 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '14px 0 4px' }}>
+              <div
+                style={{
+                  width: 84,
+                  height: 84,
+                  borderRadius: '50%',
+                  background: trimmedName ? 'var(--ember)' : 'var(--surface-2)',
+                  color: trimmedName ? 'var(--on-ember)' : 'var(--label-3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 34,
+                  fontWeight: 900,
+                  transition: 'background 240ms var(--ease), color 240ms var(--ease)',
+                }}
+              >
+                {firstInitial || <Icon name="person" style={{ fontSize: 34 }} />}
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 800, opacity: trimmedName ? 1 : 0.4, transition: 'opacity 200ms' }}>
+                {t('Hello, {0}', trimmedName || '…')}
+              </div>
+            </div>
+            <div>
+              <div className="gm-micro" style={{ marginBottom: 6 }}>{t('STEP {0} OF {1}', 1, 6)}</div>
+              <h2 style={{ fontSize: 27, fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.025em' }}>
+                {t('What should we call you?')}
+              </h2>
+              <p className="muted small" style={{ margin: 0, lineHeight: 1.45 }}>
+                {t('Used on your profile, workout recaps and share stickers.')}
+              </p>
+            </div>
+            <div style={{
+              background: 'var(--surface-2)',
+              borderRadius: 18,
+              padding: '6px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              border: '1px solid var(--sep-op)',
+            }}>
+              <Icon name="personCircle" style={{ fontSize: 20, color: 'var(--label-2)' }} />
+              <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder={t('Your name')}
+                maxLength={40}
+                style={{
+                  flex: 1,
+                  background: 'transparent',
+                  border: 0,
+                  outline: 'none',
+                  color: 'var(--label)',
+                  fontSize: 16.5,
+                  fontWeight: 700,
+                  padding: '12px 0',
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '18px 0 4px' }}>
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                aria-label={photo ? t('Change photo') : t('Add photo')}
+                style={{ position: 'relative', width: 112, height: 112, padding: 0, cursor: 'pointer' }}
+              >
+                <div style={{
+                  width: 112,
+                  height: 112,
+                  borderRadius: '50%',
+                  background: photo ? `url(${photo}) center/cover no-repeat` : 'var(--surface-2)',
+                  border: '2px solid var(--sep)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--label-3)',
+                  fontSize: 40,
+                }}>
+                  {!photo && <Icon name="person" />}
+                </div>
+                <span style={{
+                  position: 'absolute',
+                  right: 2,
+                  bottom: 2,
+                  width: 34,
+                  height: 34,
+                  borderRadius: '50%',
+                  background: 'var(--acc)',
+                  color: 'var(--on-acc)',
+                  border: '3px solid var(--surface)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 15,
+                }}>
+                  <Icon name="camera" />
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                style={{ marginTop: 10, fontSize: 13.5, fontWeight: 800, color: 'var(--acc)', cursor: 'pointer' }}
+              >
+                {photo ? t('Change photo') : t('Add a photo')}
+              </button>
+            </div>
+            <div>
+              <div className="gm-micro" style={{ marginBottom: 6 }}>{t('STEP {0} OF {1}', 2, 6)}</div>
+              <h2 style={{ fontSize: 27, fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.025em' }}>
+                {t('Add a profile photo')}
+              </h2>
+              <p className="muted small" style={{ margin: 0, lineHeight: 1.45 }}>
+                {t('Stored locally on your device. You can add or change it anytime from your profile.')}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 10, padding: '22px 0 8px' }}>
+              <RollingText
+                value={unit === 'kg' ? '100' : '225'}
+                style={{ fontSize: 64, fontWeight: 900, color: 'var(--label)', letterSpacing: '-0.04em' }}
+              />
+              <span style={{ fontSize: 24, fontWeight: 800, color: 'var(--acc)' }}>{unit}</span>
+            </div>
+            <div>
+              <div className="gm-micro" style={{ marginBottom: 6 }}>{t('STEP {0} OF {1}', 3, 6)}</div>
+              <h2 style={{ fontSize: 27, fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.025em' }}>
+                {t('How do you measure weight?')}
+              </h2>
+              <p className="muted small" style={{ margin: 0, lineHeight: 1.45 }}>
+                {t('Sets, bars, plates and body weight will use this unit. You can convert later in Settings.')}
+              </p>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {[
+                { id: 'kg', label: 'kg', sub: t('Kilograms') },
+                { id: 'lb', label: 'lb', sub: t('Pounds') },
+              ].map(opt => {
+                const on = unit === opt.id
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => {
+                      if (opt.id !== unit) {
+                        setWeight(w => opt.id === 'lb' ? Math.round(w * 2.2046) : Math.round(w / 2.2046))
+                        setUnit(opt.id)
+                      }
+                    }}
+                    style={{
+                      padding: '20px 16px',
+                      borderRadius: 22,
+                      background: on ? 'var(--ember)' : 'var(--surface-2)',
+                      color: on ? 'var(--on-ember)' : 'var(--label)',
+                      border: on ? '1.5px solid var(--ember)' : '1px solid var(--sep-op)',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      transition: 'all 180ms var(--ease)',
+                    }}
+                  >
+                    <div style={{ fontSize: 28, fontWeight: 900, lineHeight: 1 }}>{opt.label}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, opacity: 0.72, marginTop: 6 }}>{opt.sub}</div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {step === 4 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <div className="gm-micro" style={{ marginBottom: 6 }}>{t('STEP {0} OF {1}', 4, 6)}</div>
+              <h2 style={{ fontSize: 27, fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.025em' }}>
+                {t('A little about your body')}
+              </h2>
+              <p className="muted small" style={{ margin: 0, lineHeight: 1.45 }}>
+                {t('Used for your muscle diagram, BMI, calories and strength standards.')}
+              </p>
+            </div>
+            <div style={{ background: 'var(--surface-2)', borderRadius: 20, overflow: 'hidden', border: '1px solid var(--sep-op)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 15px', borderBottom: '1px solid var(--sep-op)' }}>
+                <span className="row" style={{ gap: 10, fontSize: 14.5, fontWeight: 600 }}>
+                  <Icon name="figureStrength" style={{ color: 'var(--label-2)' }} />
+                  {t('Body diagram')}
+                </span>
+                <Segmented
+                  className="seg-inline"
+                  options={[{ value: 'male', label: t('Male') }, { value: 'female', label: t('Female') }]}
+                  value={sex}
+                  onChange={setSex}
+                />
+              </div>
+              {[
+                { icon: 'calendar', label: t('Age'), val: age, unitTxt: t('yrs'), min: 13, max: 99, stepVal: 1, set: setAge },
+                { icon: 'ruler', label: t('Height'), val: heightCm, unitTxt: 'cm', min: 120, max: 230, stepVal: 1, set: setHeightCm },
+                { icon: 'scale', label: t('Body weight'), val: weight, unitTxt: unit, min: 30, max: 300, stepVal: 1, set: setWeight },
+              ].map((item, idx) => (
+                <div
+                  key={item.label}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 15px',
+                    borderTop: idx > 0 ? '1px solid var(--sep-op)' : 'none',
+                  }}
+                >
+                  <span className="row" style={{ gap: 10, fontSize: 14.5, fontWeight: 600 }}>
+                    <Icon name={item.icon} style={{ color: 'var(--label-2)' }} />
+                    {item.label}
+                  </span>
+                  <div className="row" style={{ gap: 8 }}>
+                    <button
+                      type="button"
+                      aria-label={t('Decrease {0}', item.label)}
+                      onClick={() => item.set(v => Math.max(item.min, v - item.stepVal))}
+                      style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                    >
+                      <Icon name="minus" style={{ fontSize: 13 }} />
+                    </button>
+                    <span style={{ minWidth: 66, textAlign: 'center', fontWeight: 800, fontSize: 15 }}>
+                      {item.val} <span className="dim small">{item.unitTxt}</span>
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={t('Increase {0}', item.label)}
+                      onClick={() => item.set(v => Math.min(item.max, v + item.stepVal))}
+                      style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                    >
+                      <Icon name="plus" style={{ fontSize: 13 }} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {step === 5 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div style={{ padding: '6px 0 2px' }}>
+              <WeekArcRing goal={weeklyGoal} />
+            </div>
+            <div>
+              <div className="gm-micro" style={{ marginBottom: 6 }}>{t('STEP {0} OF {1}', 5, 6)}</div>
+              <h2 style={{ fontSize: 27, fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.025em' }}>
+                {t('Weekly training goal')}
+              </h2>
+              <p className="muted small" style={{ margin: 0, lineHeight: 1.45 }}>
+                {t('Sets your ring on Home and keeps your weekly streak honest.')}
+              </p>
+            </div>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              padding: 12,
+              borderRadius: 999,
+              background: 'var(--surface-2)',
+              border: '1px solid var(--sep-op)',
+            }}>
+              {[1, 2, 3, 4, 5, 6, 7].map(n => {
+                const lit = n <= weeklyGoal
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    aria-pressed={n === weeklyGoal}
+                    onClick={() => setWeeklyGoal(n)}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: '50%',
+                      background: lit ? 'var(--ember)' : 'var(--surface)',
+                      color: lit ? 'var(--on-ember)' : 'var(--label-3)',
+                      fontSize: 14,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      transition: 'all 180ms var(--ease)',
+                    }}
+                  >
+                    {n}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {step === 6 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ textAlign: 'center', padding: '10px 0 2px' }}>
+              <RollingText
+                value={String(matchedExercisesCount)}
+                style={{ fontSize: 48, fontWeight: 900, color: 'var(--label)', letterSpacing: '-0.03em' }}
+              />
+              <div className="gm-micro" style={{ marginTop: 4 }}>{t('EXERCISES READY FOR YOUR GEAR')}</div>
+            </div>
+            <div>
+              <div className="gm-micro" style={{ marginBottom: 6 }}>{t('STEP {0} OF {1}', 6, 6)}</div>
+              <h2 style={{ fontSize: 27, fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.025em' }}>
+                {t('Where do you train?')}
+              </h2>
+              <p className="muted small" style={{ margin: 0, lineHeight: 1.45 }}>
+                {t('Pick one or more places so SmiTriX knows what equipment you have.')}
+              </p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {PLACE_PRESETS.map(p => {
+                const on = selectedPlaces.includes(p.id)
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => togglePlace(p.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 13,
+                      padding: '14px 15px',
+                      borderRadius: 20,
+                      background: on ? 'color-mix(in srgb, var(--acc) 14%, var(--surface-2))' : 'var(--surface-2)',
+                      border: on ? '1.5px solid var(--acc)' : '1px solid var(--sep-op)',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: '50%',
+                      background: on ? 'var(--acc)' : 'var(--surface)',
+                      color: on ? 'var(--on-acc)' : 'var(--label-2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 18,
+                      flex: 'none',
+                    }}>
+                      <Icon name={p.icon} />
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--label)' }}>{t(p.name)}</div>
+                      <div className="dim small" style={{ marginTop: 2 }}>{t(p.sub)}</div>
+                    </div>
+                    <span style={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: '50%',
+                      background: on ? 'var(--acc)' : 'transparent',
+                      border: on ? 'none' : '1.5px solid var(--sep)',
+                      color: 'var(--on-acc)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 13,
+                    }}>
+                      {on && <Icon name="check" />}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom Action Bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 10, borderTop: '1px solid var(--sep-op)' }}>
+        {step > 0 && (
+          <button
+            type="button"
+            aria-label={t('Back')}
+            onClick={() => setStep(s => Math.max(0, s - 1))}
+            style={{
+              width: 50,
+              height: 50,
+              borderRadius: '50%',
+              background: 'var(--surface-2)',
+              color: 'var(--label)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            <Icon name="chevronLeft" />
+          </button>
+        )}
+        <button
+          type="button"
+          className="btn primary"
+          style={{ flex: 1, minHeight: 50, fontSize: 15.5 }}
+          onClick={() => isLast ? finish() : setStep(s => s + 1)}
+        >
+          {nextLabel}
+        </button>
       </div>
     </div>
   )
@@ -547,52 +764,57 @@ export function openTutorial(initialStep = 0) {
   useUI.getState().openSheet(close => <TutorialDialog initialStep={initialStep} close={close} />, { kind: 'center' })
 }
 
+// Compatibility stub if imported elsewhere (no longer mounted on Home)
 export function TutorialWelcomeCard({ onDismiss }) {
   return (
-    <div className="card aegis-hud-card" style={{ padding: '16px', border: '1px solid color-mix(in srgb, var(--acc) 40%, transparent)' }}>
-      <div className="row between" style={{ marginBottom: 6 }}>
-        <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-          <span className="lrow-i" style={{ background: 'var(--acc)', color: 'var(--on-acc)', width: 32, height: 32, fontSize: 16 }}>
-            <Icon name="sparkles" />
-          </span>
-          <span style={{ fontWeight: 700, fontSize: 16 }}>{t('New to SmiTriX?')}</span>
+    <div className="card" style={{ padding: '14px 16px' }}>
+      <div className="row between" style={{ gap: 10 }}>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 15 }}>{t('Set up SmiTriX')}</div>
+          <div className="dim small">{t('Pick your units, weekly goal and gym equipment')}</div>
         </div>
-        {onDismiss && (
-          <button className="iconbtn" style={{ width: 28, height: 28, fontSize: 13 }} onClick={onDismiss} aria-label={t('Dismiss')}>
-            <Icon name="xmark" />
-          </button>
-        )}
-      </div>
-      <div className="muted small" style={{ marginBottom: 12, lineHeight: 1.5 }}>
-        {t('Take a quick 1-minute visual tour to see how to plan routines, log workouts with the rest timer, and track your gains.')}
-      </div>
-      <div className="row" style={{ gap: 8 }}>
-        <Button variant="primary" size="sm" icon="play" onClick={() => openTutorial(0)}>
-          {t('Start Tour')}
-        </Button>
-        <Button size="sm" icon="sparkles" onClick={starterPlanSheet}>
-          {t('Starter Plans')}
-        </Button>
+        <div className="row" style={{ gap: 6 }}>
+          <button type="button" className="btn primary sm" onClick={() => openTutorial(0)}>{t('Start')}</button>
+          {onDismiss && (
+            <button type="button" className="iconbtn" aria-label={t('Dismiss')} onClick={onDismiss}>
+              <Icon name="xmark" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
+/**
+ * Automatically shows the GymMane-style 7-step Onboarding once for brand-new users
+ * (never blocks the embedded live website demo or /login /admin routes).
+ */
 export function TutorialPromptChecker() {
+  const loc = useLocation()
   const ready = useStore(s => s.ready)
-  const workoutsCount = useStore(s => s.S.workouts.length)
+  const S = useStore(s => s.S)
+  const needsMobileOnboarding = useStore(s => s.needsMobileOnboarding)
+  const sheets = useUI(s => s.sheets)
 
   useEffect(() => {
-    if (!ready) return
-    if (workoutsCount === 0 && !hasSeenTutorial()) {
-      const tm = setTimeout(() => {
-        if (!hasSeenTutorial()) {
-          openTutorial(0)
-        }
-      }, 1800)
-      return () => clearTimeout(tm)
+    if (!ready || needsMobileOnboarding || DEMO) return
+    if (typeof window !== 'undefined' && window.self !== window.top) return
+    if (loc.pathname.startsWith('/admin') || loc.pathname.startsWith('/login')) return
+    if (hasSeenTutorial() || S.onboarded) return
+    if ((S.workouts || []).length > 0) {
+      markTutorialSeen()
+      return
     }
-  }, [ready, workoutsCount])
+    if (sheets.length > 0) return
+
+    const timer = setTimeout(() => {
+      if (!hasSeenTutorial() && !useStore.getState().S.onboarded && useUI.getState().sheets.length === 0) {
+        openTutorial(0)
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [ready, needsMobileOnboarding, S.onboarded, S.workouts, loc.pathname, sheets.length])
 
   return null
 }

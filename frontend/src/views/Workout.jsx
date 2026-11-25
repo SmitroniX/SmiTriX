@@ -23,7 +23,6 @@ import { progressionGuidance } from '../lib/progression-copy.js'
 import { glyphOf, DEFAULT_GLYPH } from '../lib/glyphs.js'
 import { isWarmupRow, isDropSet, isRestPauseSet, dropsOf, clustersOf, addDrop, addCluster, removeDropAt, removeClusterAt, setDropAt, setClusterAt, nextDropWeight, nextBurstReps } from '../lib/workout-model.js'
 import { canMoveActiveWorkoutUnit, moveActiveWorkoutUnit } from '../lib/active-workout-order.js'
-import { openTutorial } from '../components/TutorialDialog.jsx'
 import { HeartRateBadge } from '../components/HeartRateMonitor.jsx'
 import { SyncStatusBadge } from '../components/SyncStatusBadge.jsx'
 import { FormCheckBadge, openFormCheckPlayer, openFormCheckRecorder } from '../components/FormCheckVaultModal.jsx'
@@ -95,7 +94,6 @@ function StartChooser() {
         <h1>{t('Workout')}</h1>
         <div className="sub">{t(DAYN[new Date().getDay()])} — {todayR ? t('today is {0}', todayR.name) : t('rest day, but no one’s stopping you')}</div>
       </div>
-      <button className="iconbtn" onClick={() => openTutorial(2)} aria-label={t('How workouts work')} title={t('How workouts work')}><Icon name="help" /></button>
     </div>
 
     {/* Hero Card: Start Empty Workout (Freestyle) */}
@@ -208,8 +206,6 @@ function StartChooser() {
         <div style={{ fontWeight: 600, marginTop: 6 }}>{t('No routines yet')}</div>
         <div className="dim small" style={{ marginTop: 2, marginBottom: 12 }}>{t('Create reusable workout templates or build a weekly split.')}</div>
         <Button variant="primary" onClick={() => nav('/plan')}>{t('Build a plan first')}</Button>
-        <div style={{ height: 8 }} />
-        <Button variant="ghost" className="dim" icon="lightbulb" onClick={() => openTutorial(2)}>{t('How workouts work (Guide)')}</Button>
       </div>
     )}
   </div>

@@ -3,27 +3,27 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { streakWeeks, lastBW } from '../lib/history.js'
 import { fmtNum, fmtDate, todayISO, weekStartOf } from '../lib/format.js'
-import { t, exerciseNameFor, dateLocale } from '../lib/i18n.js'
+import { t, exerciseNameFor } from '../lib/i18n.js'
 import Icon from '../components/Icon.jsx'
-import { Button } from '../components/ui.jsx'
-import { Thumb } from '../components/Media.jsx'
 import ActivityHeatmap from '../components/ActivityHeatmap.jsx'
-import { bwSheet, confirmSheet, workoutDetailSheet, exerciseDetailSheet } from '../sheets.jsx'
+import { bwSheet, confirmSheet, exerciseDetailSheet } from '../sheets.jsx'
 import { exOr } from '../lib/exercises.js'
-import { evaluateAchievements } from '../lib/achievements.js'
-import AchievementsModal from '../components/AchievementsModal.jsx'
 import EditProfileModal from '../components/EditProfileModal.jsx'
-import SplitChooserModal from '../components/SplitChooserModal.jsx'
 import BugReportModal from '../components/BugReportModal.jsx'
-import { syncWorkoutPostToCloud, trackEvent } from '../lib/analytics.js'
 import { useUI } from '../store/useUI.js'
+import { MOBILE } from '../lib/mobile.js'
 import { logoutUser, resendVerificationEmail, refreshCurrentUser, isAdminEmail } from '../lib/firebase.js'
 import { evaluateGymManeAwards } from '../lib/gymmane-awards.js'
-import { openStickerEditor } from '../components/StickerEditorModal.jsx'
 import RecapModal from '../components/RecapModal.jsx'
-import { Rise } from '../components/GymManeMotion.jsx'
+import { Rise, RollIn } from '../components/GymManeMotion.jsx'
 
-function compressWorkoutImage(file, maxDim = 760, quality = 0.8) {
+const BADGE_COLORS = {
+  gold: '#E8B84B',
+  blue: '#4A9EEB',
+  green: '#54B979',
+}
+
+function compressProfileImage(file, maxDim = 960, quality = 0.82) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onerror = () => reject(new Error('Could not read image'))
@@ -49,35 +49,40 @@ function compressWorkoutImage(file, maxDim = 760, quality = 0.8) {
   })
 }
 
-function formatWorkoutFullDate(iso, startMs) {
-  try {
-    const d = startMs ? new Date(startMs) : new Date((iso || todayISO()) + 'T12:00:00')
-    return d.toLocaleDateString(dateLocale(), {
-      weekday: 'long',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    })
-  } catch {
-    return iso || todayISO()
-  }
-}
-
-function formatWorkoutDuration(startMs, endMs) {
-  if (!startMs || !endMs || endMs <= startMs) return '45min'
-  const totalMin = Math.max(1, Math.round((endMs - startMs) / 60000))
-  const h = Math.floor(totalMin / 60)
-  const m = totalMin % 60
-  return h > 0 ? `${h}h ${m}min` : `${m}min`
-}
-
-function inferWorkoutTitle(w) {
-  if (w?.name && w.name.trim()) return w.name.trim()
-  if (w?.routineName && w.routineName.trim()) return w.routineName.trim()
-  const hr = w?.start ? new Date(w.start).getHours() : 18
-  if (hr < 12) return 'Morning workout 💪'
-  if (hr < 17) return 'Afternoon workout 💪'
-  return 'Evening workout 🏋️'
+function RecessedBox({ title, count, onMore, children }) {
+  return (
+    <div
+      style={{
+        padding: 6,
+        borderRadius: 28,
+        background: 'var(--surface)',
+        border: '1px solid color-mix(in srgb, var(--label) 6%, transparent)',
+        marginBottom: 18,
+      }}
+    >
+      <div
+        style={{
+          padding: '14px 14px 12px',
+          borderRadius: 22,
+          background: 'linear-gradient(180deg, color-mix(in srgb, var(--bg) 82%, #000) 0%, color-mix(in srgb, var(--bg) 55%, var(--surface)) 100%)',
+        }}
+      >
+        {children}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '10px 10px 4px' }}>
+        <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--label)' }}>{title}</span>
+        {count != null && (
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--label-3)', marginLeft: 7 }}>{count}</span>
+        )}
+        <span style={{ flex: 1 }} />
+        {onMore && (
+          <button type="button" className="gm-see-all" onClick={onMore}>
+            {t('See all')}
+          </button>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export default function Profile() {
@@ -89,32 +94,142 @@ export default function Profile() {
   const update = useStore(s => s.update)
   const athlete = S.athleteProfile || {}
 
-  const [showAchievements, setShowAchievements] = useState(false)
   const [showEditProfile, setShowEditProfile] = useState(false)
-  const [showSplitChooser, setShowSplitChooser] = useState(false)
   const [showBugReport, setShowBugReport] = useState(false)
   const [showRecap, setShowRecap] = useState(false)
-  const [splitChooserCategory, setSplitChooserCategory] = useState('legend')
   const [verifyBusy, setVerifyBusy] = useState(false)
-  const isAdmin = Boolean(user?.admin || isAdminEmail(user?.email))
 
-  // Chart state: 'duration' | 'volume' | 'reps'
-  const [chartMetric, setChartMetric] = useState('duration')
-  const [chartWeeksCount, setChartWeeksCount] = useState(12) // 12 = Last 3 months, 24 = Last 6 months, 52 = Last year
-  const [expandedWorkouts, setExpandedWorkouts] = useState({})
-  const [photoTargetWorkoutId, setPhotoTargetWorkoutId] = useState(null)
-  const fileInputRef = useRef(null)
   const avatarFileRef = useRef(null)
   const bannerFileRef = useRef(null)
   const momentFileRef = useRef(null)
+
+  const isAdmin = Boolean(user?.admin || isAdminEmail(user?.email))
   const avatarUrl = athlete.photoURL || user?.photoURL || ''
   const bannerUrl = S.profileBanner || './smitrix-ui/img/banner_default.jpg'
+  const badgeColor = BADGE_COLORS[S.profileBadge] || BADGE_COLORS.blue
+
+  const workouts = S.workouts || []
+  const moments = S.moments || []
+  const gymCards = S.gymCards || []
+  const bw = lastBW(S)
+  const streak = streakWeeks(S)
+  const ws = weekStartOf(S)
+
+  const totalSets = useMemo(
+    () => workouts.reduce((sum, w) => sum + (w.entries || []).reduce((s2, e) => s2 + (e.sets || []).filter(s => s.done).length, 0), 0),
+    [workouts]
+  )
+  const totalVolume = useMemo(
+    () => workouts.reduce((sum, w) => sum + (w.entries || []).reduce((s2, e) => s2 + (e.sets || []).filter(s => s.done).reduce((v, s) => v + ((s.w || 0) * (s.r || 0)), 0), 0), 0),
+    [workouts]
+  )
+  const totalMinutes = useMemo(
+    () => workouts.reduce((sum, w) => (w.start && w.end && w.end > w.start ? sum + Math.max(0, Math.round((w.end - w.start) / 60000)) : sum), 0),
+    [workouts]
+  )
+
+  const memberSince = useMemo(() => {
+    const dates = workouts.map(w => w.d).filter(Boolean).sort()
+    return dates.length ? dates[0] : todayISO()
+  }, [workouts])
+
+  const uniqueDays = useMemo(() => new Set(workouts.map(w => w.d).filter(Boolean)).size, [workouts])
+
+  const bestWeek = useMemo(() => {
+    if (!workouts.length) return 0
+    const dates = workouts.map(w => w.d).filter(Boolean).sort()
+    let max = 0
+    for (let i = 0; i < dates.length; i++) {
+      const parts = dates[i].split('-').map(Number)
+      if (parts.length !== 3) continue
+      const startMs = Date.UTC(parts[0], parts[1] - 1, parts[2])
+      const endISO = new Date(startMs + 7 * 86400000).toISOString().slice(0, 10)
+      const count = dates.filter(d => d >= dates[i] && d < endISO).length
+      if (count > max) max = count
+    }
+    return max
+  }, [workouts])
+
+  const trimmedName = (user?.name || athlete.name || '').trim()
+  const handleName = useMemo(() => {
+    if (athlete.handle?.trim()) return athlete.handle.trim()
+    if (user?.email) return user.email.split('@')[0]
+    if (trimmedName) return trimmedName.toLowerCase().replace(/\s+/g, '')
+    return 'athlete'
+  }, [athlete.handle, user?.email, trimmedName])
+
+  const initials = trimmedName
+    ? trimmedName.split(/\s+/).map(w => w[0]).filter(Boolean).join('').toUpperCase().slice(0, 2) || '🏋️'
+    : '🏋️'
+
+  const volumeDisplay = useMemo(() => {
+    if (totalVolume >= 10000) return `${fmtNum(Math.round(totalVolume / 1000))}k ${S.unit}`
+    if (totalVolume >= 1000) return `${(totalVolume / 1000).toFixed(1)}k ${S.unit}`
+    return `${fmtNum(totalVolume)} ${S.unit}`
+  }, [totalVolume, S.unit])
+
+  const timeDisplay = useMemo(() => {
+    if (totalMinutes >= 60) {
+      const h = Math.floor(totalMinutes / 60)
+      const m = totalMinutes % 60
+      return m ? `${h}h ${m}m` : `${h}h`
+    }
+    return `${totalMinutes}m`
+  }, [totalMinutes])
+
+  const gmAwards = useMemo(() => evaluateGymManeAwards(S), [S])
+
+  const recentPRs = useMemo(() => {
+    const list = []
+    for (const [exId, record] of Object.entries(S.exWeights || {})) {
+      if (record && record.w > 0) {
+        const ex = exOr(exId)
+        list.push({ id: exId, name: ex ? exerciseNameFor(ex) : exId, weight: record.w, date: record.d })
+      }
+    }
+    return list.sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).slice(0, 4)
+  }, [S.exWeights])
+
+  // 12-month Jan-Dec breakdown for current year (matching GymMane _year)
+  const yearSummary = useMemo(() => {
+    const now = new Date()
+    const yr = now.getFullYear()
+    const curMonth = now.getMonth()
+    const months = Array.from({ length: 12 }, (_, idx) => {
+      const prefix = `${yr}-${String(idx + 1).padStart(2, '0')}`
+      const d = new Date(yr, idx, 1)
+      let count = 0
+      let vol = 0
+      for (const w of workouts) {
+        if (!String(w.d || '').startsWith(prefix)) continue
+        count++
+        for (const e of w.entries || []) {
+          for (const st of e.sets || []) if (st.done) vol += (st.w || 0) * (st.r || 0)
+        }
+      }
+      return {
+        idx,
+        key: prefix,
+        letter: d.toLocaleDateString('en-US', { month: 'short' }).slice(0, 1),
+        fullName: d.toLocaleDateString('en-US', { month: 'long' }),
+        count,
+        vol,
+        isCurrent: idx === curMonth,
+      }
+    })
+    const sessionsYear = months.reduce((a, m) => a + m.count, 0)
+    const volYear = months.reduce((a, m) => a + m.vol, 0)
+    const activeMonths = months.filter(m => m.count > 0).length
+    const bestMonth = months.slice().sort((a, b) => b.count - a.count)[0]
+    const peak = Math.max(1, ...months.map(m => m.count))
+    return { months, sessionsYear, volYear, activeMonths, bestMonth: bestMonth?.count > 0 ? bestMonth : null, peak }
+  }, [workouts])
 
   const handleBannerUpload = async e => {
     const file = e.target.files?.[0]
     if (!file) return
     try {
-      const dataUrl = await compressWorkoutImage(file, 960, 0.82)
+      const dataUrl = await compressProfileImage(file, 960, 0.82)
       update(s => { s.profileBanner = dataUrl })
       useUI.getState().toast(t('Cover banner updated'))
     } catch (err) {
@@ -124,11 +239,26 @@ export default function Profile() {
     }
   }
 
+  const handleAvatarUpload = async e => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const dataUrl = await compressProfileImage(file, 256, 0.85)
+      update(s => { s.athleteProfile = { ...(s.athleteProfile || {}), photoURL: dataUrl } })
+      if (user) setUser({ ...user, photoURL: dataUrl })
+      useUI.getState().toast(t('Profile photo updated!'))
+    } catch (err) {
+      useUI.getState().toast(err.message || t('Failed to upload profile photo'))
+    } finally {
+      e.target.value = ''
+    }
+  }
+
   const handleMomentUpload = async e => {
     const file = e.target.files?.[0]
     if (!file) return
     try {
-      const dataUrl = await compressWorkoutImage(file, 720, 0.8)
+      const dataUrl = await compressProfileImage(file, 720, 0.82)
       update(s => {
         s.moments = [{ id: 'm_' + Date.now().toString(36), d: todayISO(), photo: dataUrl }, ...(s.moments || [])].slice(0, 24)
       })
@@ -140,41 +270,10 @@ export default function Profile() {
     }
   }
 
-  const handleAvatarUpload = async e => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    try {
-      const dataUrl = await compressWorkoutImage(file, 256, 0.85)
-      update(s => {
-        s.athleteProfile = { ...(s.athleteProfile || {}), photoURL: dataUrl }
-      })
-      if (user) {
-        setUser({ ...user, photoURL: dataUrl })
-      }
-      useUI.getState().toast(t('Profile photo updated!'))
-    } catch (err) {
-      useUI.getState().toast(err.message || t('Failed to upload profile photo'))
-    } finally {
-      e.target.value = ''
-    }
-  }
-
-  const handleClearWorkouts = () => {
-    confirmSheet({
-      title: t('Clear Workout History?'),
-      message: t('This will remove all workouts from your profile feed and reset exercise records.'),
-      confirmText: t('Clear All'),
-      danger: true,
-      onConfirm: () => {
-        update(s => {
-          s.workouts = []
-          s.exWeights = {}
-          s.workoutPosts = []
-          s.workoutLikes = {}
-        })
-        useUI.getState().toast(t('Workout history cleared'))
-      }
-    })
+  const cycleBadge = () => {
+    const order = ['blue', 'gold', 'green']
+    const next = order[(order.indexOf(S.profileBadge || 'blue') + 1) % order.length]
+    update(s => { s.profileBadge = next })
   }
 
   const handleResendVerify = async () => {
@@ -204,1333 +303,558 @@ export default function Profile() {
       onConfirm: async () => {
         try { await logoutUser() } catch {}
         setUser(null)
-        setGuest(false)
+        setGuest(!MOBILE)
         useUI.getState().toast(t('Signed out'))
-        nav('/login')
-      }
+        nav(MOBILE ? '/login' : '/home')
+      },
     })
   }
 
-  const workouts = S.workouts || []
-  const totalSets = useMemo(() =>
-    workouts.reduce((sum, w) => sum + (w.entries || []).reduce((s2, e) => s2 + (e.sets || []).filter(s => s.done).length, 0), 0),
-    [workouts]
-  )
-  const totalVolume = useMemo(() =>
-    workouts.reduce((sum, w) => sum + (w.entries || []).reduce((s2, e) =>
-      s2 + (e.sets || []).filter(s => s.done).reduce((v, s) => v + ((s.w || 0) * (s.r || 0)), 0), 0), 0),
-    [workouts]
-  )
-  const totalMinutes = useMemo(() =>
-    workouts.reduce((sum, w) => {
-      if (!w.start || !w.end) return sum
-      return sum + Math.max(0, Math.round((w.end - w.start) / 60000))
-    }, 0),
-    [workouts]
-  )
-
-  const bw = lastBW(S)
-  const streak = streakWeeks(S)
-  const ws = weekStartOf(S)
-
-  const memberSince = useMemo(() => {
-    const dates = workouts.map(w => w.d).filter(Boolean).sort()
-    return dates.length ? dates[0] : todayISO()
-  }, [workouts])
-
-  const uniqueDays = useMemo(() => new Set(workouts.map(w => w.d).filter(Boolean)).size, [workouts])
-
-  const bestWeek = useMemo(() => {
-    if (!workouts.length) return 0
-    const dates = workouts.map(w => w.d).filter(Boolean).sort()
-    let max = 0
-    for (let i = 0; i < dates.length; i++) {
-      const parts = dates[i].split('-').map(Number)
-      if (parts.length !== 3) continue
-      const startMs = Date.UTC(parts[0], parts[1] - 1, parts[2])
-      const endISO = new Date(startMs + 7 * 86400000).toISOString().slice(0, 10)
-      const count = dates.filter(d => d >= dates[i] && d < endISO).length
-      if (count > max) max = count
-    }
-    return max
-  }, [workouts])
-
-  const trimmedName = user?.name ? user.name.trim() : ''
-  const handleName = useMemo(() => {
-    if (athlete.handle?.trim()) return athlete.handle.trim()
-    if (user?.email) return user.email.split('@')[0]
-    if (trimmedName) return trimmedName.toLowerCase().replace(/\s+/g, '')
-    return 'athlete'
-  }, [athlete.handle, user?.email, trimmedName])
-
-  const initials = trimmedName
-    ? trimmedName.split(/\s+/).map(w => w[0]).filter(Boolean).join('').toUpperCase().slice(0, 2) || '🏋️'
-    : '🏋️'
-
-  const volumeDisplay = useMemo(() => {
-    if (totalVolume >= 10000) return `${fmtNum(Math.round(totalVolume / 1000))}k ${S.unit}`
-    if (totalVolume >= 1000) return `${(totalVolume / 1000).toFixed(1)}k ${S.unit}`
-    return `${fmtNum(totalVolume)} ${S.unit}`
-  }, [totalVolume, S.unit])
-
-  const recentPRs = useMemo(() => {
-    const list = []
-    for (const [exId, record] of Object.entries(S.exWeights || {})) {
-      if (record && record.w > 0) {
-        const ex = exOr(exId)
-        list.push({ id: exId, name: ex ? exerciseNameFor(ex) : exId, weight: record.w, date: record.d })
-      }
-    }
-    return list.sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).slice(0, 4)
-  }, [S.exWeights])
-
-  // Profile completion percentage (for the "Your profile is 80% finished" banner)
-  const completionPct = useMemo(() => {
-    let score = 40
-    if (trimmedName) score += 20
-    if (bw?.w > 0) score += 20
-    if (athlete.bio || athlete.height) score += 20
-    return Math.min(100, score)
-  }, [trimmedName, bw, athlete.bio, athlete.height])
-
-  // Build weekly buckets for the Bar Chart (Duration / Volume / Reps)
-  const weeklyChartData = useMemo(() => {
-    const now = new Date()
-    const dayOfWeek = now.getDay()
-    const currentWeekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek)
-    currentWeekStart.setHours(0, 0, 0, 0)
-
-    const buckets = []
-    for (let i = chartWeeksCount - 1; i >= 0; i--) {
-      const start = new Date(currentWeekStart.getTime() - i * 7 * 86400000)
-      const end = new Date(start.getTime() + 7 * 86400000)
-      const startISO = start.toISOString().slice(0, 10)
-      const endISO = end.toISOString().slice(0, 10)
-      const label = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-
-      let hours = 0
-      let volume = 0
-      let reps = 0
-      for (const w of workouts) {
-        if (!w.d || w.d < startISO || w.d >= endISO) continue
-        const durMin = (w.start && w.end && w.end > w.start) ? (w.end - w.start) / 60000 : 45
-        hours += durMin / 60
-        for (const e of w.entries || []) {
-          for (const s of e.sets || []) {
-            if (!s.done) continue
-            volume += (Number(s.w) || 0) * (Number(s.r) || 0)
-            reps += Number(s.r) || 0
-          }
-        }
-      }
-      buckets.push({
-        label,
-        hours: Math.round(hours * 10) / 10,
-        volume: Math.round(volume),
-        reps
-      })
-    }
-    return buckets
-  }, [workouts, chartWeeksCount])
-
-  const thisWeekBucket = weeklyChartData[weeklyChartData.length - 1] || { hours: 0, volume: 0, reps: 0 }
-  const thisWeekHeadline = chartMetric === 'duration'
-    ? `${fmtNum(thisWeekBucket.hours)} ${t('hours')}`
-    : chartMetric === 'volume'
-    ? `${fmtNum(thisWeekBucket.volume)} ${S.unit}`
-    : `${fmtNum(thisWeekBucket.reps)} ${t('reps')}`
-
-  const maxChartVal = useMemo(() => {
-    const vals = weeklyChartData.map(b =>
-      chartMetric === 'duration' ? b.hours : chartMetric === 'volume' ? b.volume : b.reps
-    )
-    const m = Math.max(...vals, 0)
-    if (chartMetric === 'duration') return Math.max(3, Math.ceil(m))
-    if (chartMetric === 'volume') return Math.max(5000, Math.ceil(m / 1000) * 1000)
-    return Math.max(100, Math.ceil(m / 50) * 50)
-  }, [weeklyChartData, chartMetric])
-
-  // Sorted workouts newest first for the Hevy-style Workouts Feed
-  const sortedWorkouts = useMemo(() =>
-    workouts.slice().sort((a, b) => {
-      const tB = b.start || (b.d ? new Date(b.d).getTime() : 0)
-      const tA = a.start || (a.d ? new Date(a.d).getTime() : 0)
-      return tB - tA
-    }),
-    [workouts]
-  )
-
-  const workoutPhotosMap = useMemo(() => {
-    const map = {}
-    for (const p of S.workoutPosts || []) {
-      if (p.workoutId && p.photoDataUrl) map[p.workoutId] = p
-    }
-    return map
-  }, [S.workoutPosts])
-
-  const handleAttachPhotoClick = workoutId => {
-    setPhotoTargetWorkoutId(workoutId)
-    fileInputRef.current?.click()
-  }
-
-  const handlePhotoSelected = async e => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    try {
-      const dataUrl = await compressWorkoutImage(file)
-      const targetId = photoTargetWorkoutId || sortedWorkouts[0]?.id || ('w_' + Date.now())
-      const newPost = {
-        id: 'post_' + Date.now().toString(36),
-        workoutId: targetId,
-        athleteName: user?.name || handleName,
-        photoDataUrl: dataUrl,
-        kudos: 1,
-        createdAt: Date.now()
-      }
-      update(s => {
-        s.workoutPosts = [newPost, ...(s.workoutPosts || []).filter(p => p.workoutId !== targetId)]
-      })
-      syncWorkoutPostToCloud(user, newPost).catch(() => {})
-      trackEvent('workout_photo_attached', { workoutId: targetId })
-      useUI.getState().toast(t('Workout photo added to your feed'))
-    } catch (err) {
-      useUI.getState().toast(err.message || t('Failed to attach photo'))
-    } finally {
-      e.target.value = ''
-    }
-  }
-
-  const handleLikeWorkout = wId => {
-    update(s => {
-      s.workoutLikes = s.workoutLikes || {}
-      s.workoutLikes[wId] = (s.workoutLikes[wId] || 0) + 1
-    })
-  }
-
-  const achieveStats = useMemo(() => evaluateAchievements(S), [S])
-  const gmAwards = useMemo(() => evaluateGymManeAwards(S), [S])
-  const moments = S.moments || []
-
-  // 12-month yearly sessions chart
-  const yearlyMonths = useMemo(() => {
-    const now = new Date()
-    const arr = []
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const prefix = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      const count = workouts.filter(w => String(w.d || '').startsWith(prefix)).length
-      arr.push({
-        key: prefix,
-        label: d.toLocaleDateString('en-US', { month: 'short' }).slice(0, 1),
-        count,
-      })
-    }
-    return arr
-  }, [workouts])
-  const maxYearCount = Math.max(4, ...yearlyMonths.map(m => m.count))
+  const PHOTO_TURNS = [-3.4, 2.6, -1.7, 3.1]
 
   return (
     <div className="narrow" style={{ paddingBottom: 32 }}>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        style={{ display: 'none' }}
-        onChange={handlePhotoSelected}
-      />
-      <input
-        ref={avatarFileRef}
-        type="file"
-        accept="image/*"
-        style={{ display: 'none' }}
-        onChange={handleAvatarUpload}
-      />
-      <input
-        ref={bannerFileRef}
-        type="file"
-        accept="image/*"
-        style={{ display: 'none' }}
-        onChange={handleBannerUpload}
-      />
-      <input
-        ref={momentFileRef}
-        type="file"
-        accept="image/*"
-        style={{ display: 'none' }}
-        onChange={handleMomentUpload}
-      />
+      <input ref={avatarFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarUpload} />
+      <input ref={bannerFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleBannerUpload} />
+      <input ref={momentFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleMomentUpload} />
 
-      {/* GymMane Cover Banner */}
-      <div
-        style={{
-          position: 'relative',
-          height: 132,
-          borderRadius: 24,
-          overflow: 'hidden',
-          marginBottom: 14,
-          background: `url(${bannerUrl}) center/cover no-repeat`,
-          border: '1px solid var(--sep-op)',
-        }}
-      >
+      {/* GymMane Full Cover Banner + Top-Right Gear + Overlapping Avatar + Edit Pill */}
+      <div style={{ position: 'relative', marginBottom: 14 }}>
         <div
+          onClick={() => bannerFileRef.current?.click()}
+          role="button"
+          tabIndex={0}
+          aria-label={t('Change cover banner')}
           style={{
+            position: 'relative',
+            height: 164,
+            borderRadius: 26,
+            overflow: 'hidden',
+            background: `url(${bannerUrl}) center/cover no-repeat var(--surface)`,
+            cursor: 'pointer',
+          }}
+        >
+          <div style={{
             position: 'absolute',
             inset: 0,
-            background: 'linear-gradient(180deg, rgba(10,10,10,0.45) 0%, rgba(10,10,10,0.18) 45%, rgba(10,10,10,0.78) 100%)',
-          }}
-        />
-        <div className="row between" style={{ position: 'relative', zIndex: 2, padding: '12px 14px' }}>
-          <button
-            type="button"
-            onClick={() => setShowRecap(true)}
-            style={{
-              background: 'rgba(20,20,20,0.62)',
-              backdropFilter: 'blur(12px)',
-              border: '1px solid rgba(255,255,255,0.18)',
-              color: '#fff',
-              padding: '6px 12px',
-              borderRadius: 999,
-              fontSize: 12,
-              fontWeight: 800,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              cursor: 'pointer',
-            }}
-          >
-            <Icon name="sparkles" style={{ fontSize: 13, color: 'var(--acc)' }} />
-            <span>{t('Month Recap')}</span>
-          </button>
+            background: 'linear-gradient(180deg, rgba(0,0,0,0.34) 0%, rgba(0,0,0,0) 35%, color-mix(in srgb, var(--bg) 55%, transparent) 78%, var(--bg) 100%)',
+          }} />
 
-          <button
-            type="button"
-            onClick={() => bannerFileRef.current?.click()}
-            style={{
-              background: 'rgba(20,20,20,0.62)',
-              backdropFilter: 'blur(12px)',
-              border: '1px solid rgba(255,255,255,0.16)',
-              color: '#fff',
-              padding: '6px 10px',
-              borderRadius: 999,
-              fontSize: 11.5,
-              fontWeight: 700,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              cursor: 'pointer',
-            }}
-          >
-            <Icon name="camera" style={{ fontSize: 12 }} />
-            <span>{t('Cover')}</span>
-          </button>
-        </div>
-
-        <div style={{ position: 'absolute', left: 14, bottom: 10, zIndex: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11.5, fontWeight: 800, color: '#fff', background: 'rgba(0,0,0,0.52)', padding: '3px 10px', borderRadius: 999 }}>
-            Lv.{gmAwards.level} · {gmAwards.earnedCount}/{gmAwards.total} {t('Medals')}
-          </span>
-        </div>
-      </div>
-
-      {/* Top Header Bar: Handle on Left, Edit / Share / Settings on Right */}
-      <div className="row between" style={{ padding: '6px 0 16px', alignItems: 'center' }}>
-        <div style={{ fontSize: 21, fontWeight: 700, letterSpacing: '-.02em', color: 'var(--label)' }}>
-          {handleName}
-        </div>
-        <div className="row" style={{ gap: 12, alignItems: 'center' }}>
-          {isAdmin && (
+          {/* Top bar over banner: Month Recap pill (left) & Floating Gear button (right) */}
+          <div style={{ position: 'relative', zIndex: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px' }}>
             <button
               type="button"
-              onClick={() => nav('/admin')}
-              aria-label={t('Admin Dashboard')}
-              title={t('Admin Dashboard')}
-              style={{ color: '#ef4444', padding: 4, fontSize: 20, display: 'flex' }}
+              onClick={e => { e.stopPropagation(); setShowRecap(true) }}
+              style={{
+                height: 32,
+                padding: '0 12px',
+                borderRadius: 999,
+                background: 'rgba(10,10,10,0.48)',
+                backdropFilter: 'blur(12px)',
+                border: '1px solid rgba(255,255,255,0.16)',
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 800,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                cursor: 'pointer',
+              }}
             >
-              <Icon name="shield" />
+              <Icon name="sparkles" style={{ fontSize: 12, color: 'var(--acc)' }} />
+              <span>{t('Month Recap')}</span>
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setShowBugReport(true)}
-            aria-label={t('Report an Issue')}
-            title={t('Report an Issue')}
-            style={{ color: 'var(--label-2)', padding: 4, fontSize: 19, display: 'flex' }}
-          >
-            <Icon name="warning" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowEditProfile(true)}
-            aria-label={t('Edit Profile')}
-            style={{ color: 'var(--label)', padding: 4, fontSize: 20, display: 'flex' }}
-          >
-            <Icon name="pencil" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (navigator.share) {
-                navigator.share({ title: `${trimmedName || handleName} on SmiTriX`, text: `${workouts.length} workouts logged on SmiTriX` }).catch(() => {})
-              } else {
-                useUI.getState().toast(t('Profile link copied'))
-              }
-            }}
-            aria-label={t('Share Profile')}
-            style={{ color: 'var(--label)', padding: 4, fontSize: 20, display: 'flex' }}
-          >
-            <Icon name="upload" />
-          </button>
-          <button
-            type="button"
-            onClick={() => nav('/settings')}
-            aria-label={t('Settings')}
-            style={{ color: 'var(--label)', padding: 4, fontSize: 20, display: 'flex' }}
-          >
-            <Icon name="gear" />
-          </button>
-        </div>
-      </div>
 
-      {/* Horizontal Profile Header Row (Avatar on Left, Name & Counts on Right) */}
-      <div className="row" style={{ gap: 18, alignItems: 'center', marginBottom: 16 }}>
-        <div
-          style={{ position: 'relative', width: 76, height: 76, flexShrink: 0, cursor: 'pointer' }}
-          onClick={() => avatarFileRef.current?.click()}
-          title={t('Tap to upload profile photo')}
-        >
-          <div
-            className="profile-avatar"
-            style={{
-              width: 76,
-              height: 76,
-              borderRadius: '50%',
-              background: avatarUrl
-                ? `url(${avatarUrl}) center/cover no-repeat`
-                : 'var(--surface-2)',
-              border: '2px solid var(--sep)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 26,
-              fontWeight: 700,
-              color: avatarUrl ? 'transparent' : 'var(--label)',
-              margin: 0,
-              boxShadow: 'none'
-            }}
-          >
-            {initials}
+            <div style={{ display: 'flex', gap: 8 }}>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); nav('/admin') }}
+                  aria-label={t('Admin Dashboard')}
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: '50%',
+                    background: 'rgba(0,0,0,0.44)',
+                    color: '#ef4444',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 18,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Icon name="shield" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); nav('/settings') }}
+                aria-label={t('Settings')}
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: '50%',
+                  background: 'rgba(0,0,0,0.44)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 18,
+                  cursor: 'pointer',
+                }}
+              >
+                <Icon name="gear" />
+              </button>
+            </div>
           </div>
-          <span
-            style={{
+        </div>
+
+        {/* Overlapping Avatar (left) & Edit Profile Pill (right) */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '0 6px', marginTop: -44, position: 'relative', zIndex: 3 }}>
+          <div
+            onClick={() => avatarFileRef.current?.click()}
+            role="button"
+            tabIndex={0}
+            title={t('Tap to upload profile photo')}
+            style={{ position: 'relative', width: 86, height: 86, cursor: 'pointer' }}
+          >
+            <div
+              className="profile-avatar"
+              style={{
+                width: 86,
+                height: 86,
+                borderRadius: '50%',
+                background: avatarUrl ? `url(${avatarUrl}) center/cover no-repeat` : 'var(--surface-2)',
+                border: '3px solid var(--bg)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 28,
+                fontWeight: 900,
+                color: avatarUrl ? 'transparent' : 'var(--label)',
+              }}
+            >
+              {initials}
+            </div>
+            <span style={{
               position: 'absolute',
-              right: -2,
-              bottom: -2,
+              right: 0,
+              bottom: 0,
               width: 26,
               height: 26,
               borderRadius: '50%',
               background: 'var(--acc)',
-              color: '#ffffff',
-              border: '2px solid var(--bg)',
+              color: 'var(--on-acc)',
+              border: '2.5px solid var(--bg)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 13
-            }}
-          >
-            <Icon name="camera" />
-          </span>
-        </div>
-
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h1 className="profile-name" style={{ fontSize: 18, fontWeight: 700, margin: '0 0 2px', color: 'var(--label)' }}>
-            {trimmedName || 'Athlete'}
-          </h1>
-          <div className="profile-since dim small" style={{ fontSize: 11, marginBottom: 8 }}>
-            {t('Training since {0}', memberSince)}
+              fontSize: 12,
+            }}>
+              <Icon name="camera" />
+            </span>
           </div>
 
-          <div className="profile-stats-row" style={{ display: 'flex', gap: 22, margin: 0 }}>
-            <div>
-              <div style={{ fontSize: 12, color: 'var(--label-2)' }}>{t('Workouts')}</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--label)', marginTop: 1 }}>{workouts.length}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 12, color: 'var(--label-2)' }}>{t('Days trained')}</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--label)', marginTop: 1 }}>{uniqueDays}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 12, color: 'var(--label-2)' }}>{t('Streak')}</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--label)', marginTop: 1 }}>{streak}w</div>
-            </div>
+          <button
+            type="button"
+            onClick={() => setShowEditProfile(true)}
+            style={{
+              height: 30,
+              padding: '0 12px',
+              borderRadius: 999,
+              background: 'color-mix(in srgb, var(--label) 8%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--label) 12%, transparent)',
+              color: 'var(--label-2)',
+              fontSize: 12,
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              marginBottom: 4,
+            }}
+          >
+            <Icon name="pencil" style={{ fontSize: 12 }} />
+            <span>{t('Edit profile')}</span>
+          </button>
+        </div>
+
+        {/* Name + Verified Badge + @handle */}
+        <div style={{ padding: '12px 6px 2px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <h1 className="profile-name" style={{ fontSize: 24, fontWeight: 900, margin: 0, letterSpacing: '-0.025em', color: 'var(--label)' }}>
+              {trimmedName || 'Athlete'}
+            </h1>
+            <button
+              type="button"
+              onClick={cycleBadge}
+              aria-label={t('Change verified badge color')}
+              title={t('Tap to switch badge color')}
+              style={{ color: badgeColor, fontSize: 18, display: 'inline-flex', padding: 2, cursor: 'pointer' }}
+            >
+              <Icon name="checkCircle" />
+            </button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--label-2)' }}>@{handleName}</span>
+            <span className="dim small">·</span>
+            <span className="profile-since dim small">{t('Training since {0}', memberSince)}</span>
           </div>
         </div>
       </div>
 
-      {/* Profile Completion / Status Banner */}
-      {completionPct < 100 && (
-        <button
-          type="button"
-          onClick={() => setShowEditProfile(true)}
-          style={{
-            width: '100%',
-            background: '#172331',
-            border: '1px solid rgba(29, 155, 240, 0.25)',
-            borderRadius: 12,
-            padding: '13px 16px',
-            marginBottom: 18,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            color: '#e7e9ea',
-            fontSize: 14,
-            fontWeight: 500,
-            cursor: 'pointer'
-          }}
-        >
-          <span>{t('Your profile is {0}% finished', completionPct)}</span>
-          <Icon name="chevronRight" style={{ fontSize: 16, color: 'var(--acc)' }} />
-        </button>
-      )}
-
-      {/* Email Verification Prompt if unverified */}
-      {user?.email && !user.emailVerified && (
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--sep-op)',
-            borderRadius: 12,
-            padding: '10px 14px',
-            marginBottom: 16,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 8
-          }}
-        >
-          <span className="small dim" style={{ fontSize: 12 }}>
-            {user.email} · <span style={{ color: 'var(--orange)' }}>{t('Unverified')}</span>
-          </span>
-          <button
-            type="button"
-            onClick={handleResendVerify}
-            disabled={verifyBusy}
-            style={{ color: 'var(--acc)', fontSize: 12, fontWeight: 600 }}
-          >
+      {/* Email Verification Notice (Native App Only) */}
+      {MOBILE && user?.email && !user.emailVerified && (
+        <div className="card" style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <span className="small dim">{user.email} · <b style={{ color: 'var(--orange)' }}>{t('Unverified')}</b></span>
+          <button type="button" onClick={handleResendVerify} disabled={verifyBusy} style={{ color: 'var(--acc)', fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>
             {verifyBusy ? t('Checking...') : t('Verify Email')}
           </button>
         </div>
       )}
 
-      {/* GymMane Medals Shelf & Photo Moments */}
-      <Rise index={0} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+      {/* Horizontal Scrollable GymMane Stat Pills */}
+      <Rise index={0}>
         <div
-          className="card"
-          onClick={() => nav('/awards')}
-          style={{ margin: 0, cursor: 'pointer', padding: '14px 14px 12px' }}
+          className="profile-stats-row"
+          style={{
+            display: 'flex',
+            gap: 8,
+            overflowX: 'auto',
+            padding: '2px 2px 16px',
+            scrollbarWidth: 'none',
+          }}
         >
-          <div className="row between" style={{ marginBottom: 8 }}>
-            <span className="gm-micro" style={{ fontSize: 10, color: 'var(--acc)' }}>{t('MEDALS')}</span>
-            <span style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--label-2)' }}>
-              {gmAwards.earnedCount}/{gmAwards.total}
-            </span>
+          <div style={{ flex: 'none', height: 36, padding: '0 13px', borderRadius: 999, background: 'var(--surface)', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13.5 }}>
+            <Icon name="dumbbell" style={{ fontSize: 14 }} />
+            <b>{workouts.length}</b>
+            <span className="muted">{t('Workouts')}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+          <div style={{ flex: 'none', height: 36, padding: '0 13px', borderRadius: 999, background: 'var(--surface)', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13.5 }}>
+            <Icon name="clock" style={{ fontSize: 14 }} />
+            <b>{timeDisplay}</b>
+          </div>
+          <div style={{ flex: 'none', height: 36, padding: '0 13px', borderRadius: 999, background: 'var(--surface)', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13.5 }}>
+            <Icon name="chartLine" style={{ fontSize: 14 }} />
+            <b>{volumeDisplay}</b>
+          </div>
+          <button
+            type="button"
+            onClick={() => nav('/awards')}
+            style={{ flex: 'none', height: 36, padding: '0 13px', borderRadius: 999, background: 'var(--surface)', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13.5, color: 'var(--label)', cursor: 'pointer' }}
+          >
+            <Icon name="trophy" style={{ fontSize: 14, color: 'var(--acc)' }} />
+            <b>Lv.{gmAwards.level}</b>
+          </button>
+          <button
+            type="button"
+            onClick={() => bwSheet()}
+            style={{ flex: 'none', height: 36, padding: '0 13px', borderRadius: 999, background: 'var(--surface)', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13.5, color: 'var(--label)', cursor: 'pointer' }}
+          >
+            <Icon name="scale" style={{ fontSize: 14 }} />
+            <b>{bw ? `${fmtNum(bw.w)} ${S.unit}` : t('Log weight')}</b>
+          </button>
+          <div style={{ flex: 'none', height: 36, padding: '0 13px', borderRadius: 999, background: 'var(--surface)', display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13.5 }}>
+            <Icon name="flame" style={{ fontSize: 14, color: 'var(--acc)' }} />
+            <b>{uniqueDays}</b>
+            <span className="muted">{t('Days trained')}</span>
+            {streak > 0 && <span className="dim small">· {streak}w</span>}
+          </div>
+        </div>
+      </Rise>
+
+      {/* GymMane Recessed-Tray Medals Box */}
+      <Rise index={1}>
+        <RecessedBox title={t('Medals')} count={gmAwards.earnedCount} onMore={() => nav('/awards')}>
+          <div
+            onClick={() => nav('/awards')}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', minHeight: 74, cursor: 'pointer' }}
+          >
             {gmAwards.awards.slice(0, 4).map(a => (
               <img
                 key={a.id}
                 src={a.earned ? `./smitrix-ui/badges/${a.id}.webp` : `./smitrix-ui/badges/${a.id}_off.webp`}
                 alt={a.name}
-                style={{ width: 32, height: 32, objectFit: 'contain', opacity: a.earned ? 1 : 0.45 }}
+                style={{ width: 58, height: 58, objectFit: 'contain', opacity: a.earned ? 1 : 0.42 }}
               />
             ))}
           </div>
-          <div className="dim small" style={{ fontWeight: 700 }}>{t('Tap to spin in 3D')} →</div>
-        </div>
-
-        <div className="card" style={{ margin: 0, padding: '14px 14px 12px' }}>
-          <div className="row between" style={{ marginBottom: 8 }}>
-            <span className="gm-micro" style={{ fontSize: 10, color: 'var(--gm-sage)' }}>{t('MOMENTS')}</span>
-            <button
-              type="button"
-              onClick={() => momentFileRef.current?.click()}
-              style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--acc)', cursor: 'pointer' }}
-            >
-              + {t('Add')}
-            </button>
-          </div>
-          {moments.length > 0 ? (
-            <div style={{ display: 'flex', alignItems: 'center', height: 42, position: 'relative' }} onClick={() => nav('/timeline')}>
-              {moments.slice(0, 4).map((m, i) => (
-                <img
-                  key={m.id}
-                  src={m.photo}
-                  alt=""
-                  style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: 10,
-                    objectFit: 'cover',
-                    border: '2px solid var(--surface)',
-                    marginLeft: i === 0 ? 0 : -10,
-                    transform: `rotate(${(i % 2 === 0 ? -4 : 4)}deg)`,
-                  }}
-                />
-              ))}
-              <span className="dim small" style={{ marginLeft: 8, fontWeight: 700 }}>{moments.length}</span>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => momentFileRef.current?.click()}
-              style={{ textAlign: 'left', color: 'var(--label-2)', fontSize: 12, fontWeight: 700, cursor: 'pointer', paddingTop: 4 }}
-            >
-              {t('Save gym snapshots & PR moments')}
-            </button>
-          )}
-        </div>
+        </RecessedBox>
       </Rise>
 
-      {/* GymMane 12-Month Activity Bars */}
-      <Rise index={1} className="card" style={{ marginBottom: 16, padding: '14px 16px' }}>
-        <div className="row between" style={{ marginBottom: 10 }}>
-          <span className="gm-micro" style={{ fontSize: 10 }}>{t('12-MONTH CONSISTENCY')}</span>
-          <button type="button" onClick={() => setShowRecap(true)} style={{ color: 'var(--acc)', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
-            {t('Open Story Recap')} →
-          </button>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 5, alignItems: 'end', height: 52 }}>
-          {yearlyMonths.map(m => {
-            const pct = m.count > 0 ? Math.max(16, Math.round((m.count / maxYearCount) * 100)) : 8
-            return (
-              <div key={m.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, height: '100%', justifyContent: 'flex-end' }}>
-                <div style={{ width: '100%', height: `${pct}%`, borderRadius: 4, background: m.count > 0 ? 'var(--acc)' : 'var(--surface-2)' }} title={`${m.key}: ${m.count}`} />
-                <span style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--label-3)' }}>{m.label}</span>
-              </div>
-            )
-          })}
-        </div>
-      </Rise>
-
-      {/* Weekly Activity Bar Chart Section (Duration / Volume / Reps) */}
-      <div style={{ marginBottom: 22 }}>
-        <div className="row between" style={{ marginBottom: 12, alignItems: 'baseline' }}>
-          <div style={{ fontSize: 15, color: 'var(--label-2)' }}>
-            <b style={{ color: 'var(--label)', fontWeight: 700 }}>{thisWeekHeadline}</b> {t('this week')}
+      {/* GymMane Tilted Overlapping PHOTOS Fan */}
+      <Rise index={2}>
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '0 4px', marginBottom: 14 }}>
+            <span className="gm-micro">{t('PHOTOS')}</span>
+            {moments.length > 0 && (
+              <span className="gm-micro" style={{ marginLeft: 8, color: 'var(--label-2)' }}>{moments.length}</span>
+            )}
+            <span style={{ flex: 1 }} />
+            {moments.length > 0 && (
+              <button type="button" className="gm-see-all" onClick={() => nav('/timeline')}>
+                {t('See all')}
+              </button>
+            )}
           </div>
-          <button
-            type="button"
-            onClick={() => setChartWeeksCount(c => (c === 12 ? 24 : c === 24 ? 52 : 12))}
-            style={{ color: 'var(--acc)', fontSize: 14, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}
-          >
-            <span>
-              {chartWeeksCount === 12 ? t('Last 3 months') : chartWeeksCount === 24 ? t('Last 6 months') : t('Last year')}
-            </span>
-            <Icon name="chevronDown" style={{ fontSize: 13 }} />
-          </button>
-        </div>
 
-        {/* SVG Bar Chart with Horizontal Grid Lines */}
-        <div style={{ width: '100%', height: 156, position: 'relative', marginBottom: 12 }}>
-          <svg viewBox="0 0 360 150" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
-            {[1, 0.66, 0.33, 0].map((ratio, idx) => {
-              const y = 14 + (1 - ratio) * 110
-              const val = Math.round(maxChartVal * ratio * 10) / 10
-              const unitLbl = chartMetric === 'duration'
-                ? (val === 0 ? '' : `${val} hrs`)
-                : chartMetric === 'volume'
-                ? (val === 0 ? '' : val >= 1000 ? `${Math.round(val / 1000)}k` : `${val}`)
-                : (val === 0 ? '' : `${val}`)
-              return (
-                <g key={idx}>
-                  <line x1="36" y1={y} x2="354" y2={y} stroke="rgba(255,255,255,0.07)" strokeWidth="1" />
-                  {unitLbl && (
-                    <text x="0" y={y + 3} fill="var(--label-3)" fontSize="9.5">
-                      {unitLbl}
-                    </text>
-                  )}
-                </g>
-              )
-            })}
-
-            {weeklyChartData.map((b, i) => {
-              const count = weeklyChartData.length
-              const plotW = 314
-              const slotW = plotW / count
-              const barW = Math.max(6, Math.min(18, slotW * 0.62))
-              const x = 40 + i * slotW + (slotW - barW) / 2
-              const rawVal = chartMetric === 'duration' ? b.hours : chartMetric === 'volume' ? b.volume : b.reps
-              const h = maxChartVal > 0 ? Math.min(110, (rawVal / maxChartVal) * 110) : 0
-              const y = 124 - h
-              const showLabel = i % Math.max(1, Math.floor(count / 6)) === 0 || i === count - 1
-              return (
-                <g key={i}>
-                  {h > 0 && (
-                    <rect
-                      x={x}
-                      y={y}
-                      width={barW}
-                      height={Math.max(3, h)}
-                      rx="2"
-                      fill="var(--acc)"
-                    />
-                  )}
-                  {showLabel && (
-                    <text
-                      x={x + barW / 2}
-                      y="142"
-                      fill="var(--label-3)"
-                      fontSize="9"
-                      textAnchor="middle"
-                    >
-                      {b.label}
-                    </text>
-                  )}
-                </g>
-              )
-            })}
-          </svg>
-        </div>
-
-        {/* Pill Selectors: Duration | Volume | Reps */}
-        <div className="row" style={{ gap: 8 }}>
-          {[
-            { id: 'duration', label: t('Duration') },
-            { id: 'volume', label: t('Volume') },
-            { id: 'reps', label: t('Reps') }
-          ].map(pill => {
-            const active = chartMetric === pill.id
-            return (
-              <button
-                key={pill.id}
-                type="button"
-                onClick={() => setChartMetric(pill.id)}
-                style={{
-                  padding: '7px 16px',
-                  borderRadius: 99,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  background: active ? 'var(--acc)' : 'var(--surface)',
-                  color: active ? '#ffffff' : 'var(--label-2)',
-                  border: active ? 'none' : '1px solid var(--sep-op)',
-                  cursor: 'pointer'
-                }}
-              >
-                {pill.label}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Dashboard 2x2 Grid */}
-      <div style={{ marginBottom: 22 }}>
-        <div style={{ fontSize: 14, color: 'var(--label-2)', marginBottom: 10, fontWeight: 500 }}>
-          {t('Dashboard')}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <button
-            type="button"
-            onClick={() => nav('/stats')}
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--sep-op)',
-              borderRadius: 12,
-              padding: '14px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              fontSize: 15,
-              fontWeight: 600,
-              color: 'var(--label)',
-              textAlign: 'left'
-            }}
-          >
-            <Icon name="chartLine" style={{ fontSize: 19, color: 'var(--label-2)' }} />
-            <span>{t('Statistics')}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => nav('/library')}
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--sep-op)',
-              borderRadius: 12,
-              padding: '14px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              fontSize: 15,
-              fontWeight: 600,
-              color: 'var(--label)',
-              textAlign: 'left'
-            }}
-          >
-            <Icon name="dumbbell" style={{ fontSize: 19, color: 'var(--label-2)' }} />
-            <span>{t('Exercises')}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => nav('/measures')}
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--sep-op)',
-              borderRadius: 12,
-              padding: '14px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              fontSize: 15,
-              fontWeight: 600,
-              color: 'var(--label)',
-              textAlign: 'left'
-            }}
-          >
-            <Icon name="ruler" style={{ fontSize: 19, color: 'var(--label-2)' }} />
-            <span>{t('Measures')}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => nav('/history')}
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--sep-op)',
-              borderRadius: 12,
-              padding: '14px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              fontSize: 15,
-              fontWeight: 600,
-              color: 'var(--label)',
-              textAlign: 'left'
-            }}
-          >
-            <Icon name="calendar" style={{ fontSize: 19, color: 'var(--label-2)' }} />
-            <span>{t('Calendar')}</span>
-          </button>
-        </div>
-
-        {/* Sub-row: Splits, Achievements & Plans */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 8 }}>
-          <button
-            type="button"
-            onClick={() => { setSplitChooserCategory('body-type'); setShowSplitChooser(true) }}
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--sep-op)',
-              borderRadius: 10,
-              padding: '10px 10px',
-              fontSize: 12.5,
-              fontWeight: 600,
-              color: 'var(--label-2)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6
-            }}
-          >
-            <Icon name="list" style={{ fontSize: 14 }} />
-            <span>{t('Splits')}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowAchievements(true)}
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--sep-op)',
-              borderRadius: 10,
-              padding: '10px 10px',
-              fontSize: 12.5,
-              fontWeight: 600,
-              color: 'var(--label-2)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6
-            }}
-          >
-            <Icon name="medal" style={{ fontSize: 14 }} />
-            <span>{achieveStats.unlockedCount} {t('Badges')}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => nav('/plans')}
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--sep-op)',
-              borderRadius: 10,
-              padding: '10px 10px',
-              fontSize: 12.5,
-              fontWeight: 600,
-              color: 'var(--acc)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6
-            }}
-          >
-            <Icon name="crown" style={{ fontSize: 14 }} />
-            <span>{S.tier === 'pro' ? 'Pro' : S.tier === 'free' ? t('Upgrade') : 'Legacy'}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Workouts Feed Section (Matching Screenshot 1) */}
-      <div style={{ marginBottom: 22 }}>
-        <div className="row between" style={{ marginBottom: 12, alignItems: 'center' }}>
-          <div style={{ fontSize: 14, color: 'var(--label-2)', fontWeight: 500 }}>
-            {t('Workouts')}
-          </div>
-          {sortedWorkouts.length > 0 && (
-            <div className="row" style={{ gap: 14, alignItems: 'center' }}>
-              <button
-                type="button"
-                onClick={() => handleAttachPhotoClick(sortedWorkouts[0]?.id)}
-                style={{ color: 'var(--acc)', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 5 }}
-              >
-                <Icon name="camera" style={{ fontSize: 15 }} />
-                <span>{t('Add Photo')}</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleClearWorkouts}
-                style={{ color: 'var(--red)', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}
-              >
-                <Icon name="trash" style={{ fontSize: 14 }} />
-                <span>{t('Clear')}</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {sortedWorkouts.length === 0 ? (
           <div
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--sep-op)',
-              borderRadius: 12,
-              padding: '28px 16px',
-              textAlign: 'center'
-            }}
+            onClick={() => (moments.length > 0 ? nav('/timeline') : momentFileRef.current?.click())}
+            role="button"
+            tabIndex={0}
+            style={{ position: 'relative', height: 156, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
           >
-            <Icon name="dumbbell" style={{ fontSize: 28, color: 'var(--label-3)', margin: '0 auto 8px' }} />
-            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{t('No workouts logged yet')}</div>
-            <div className="muted small" style={{ marginBottom: 14 }}>
-              {t('Complete your first workout to see your session feed, sets, and records here.')}
-            </div>
-            <Button variant="primary" style={{ width: 'auto', padding: '10px 20px', fontSize: 14 }} onClick={() => nav('/workout')}>
-              {t('Start a Workout')}
-            </Button>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {sortedWorkouts.map((w, idx) => {
-              const wId = w.id || ('w_' + idx)
-              const entries = (w.entries || []).filter(e => (e.sets || []).some(s => s.done))
-              const wVol = entries.reduce(
-                (sum, e) => sum + (e.sets || []).filter(s => s.done).reduce((v, s) => v + (Number(s.w) || 0) * (Number(s.r) || 0), 0),
-                0
-              )
-              const prCount = entries.reduce(
-                (sum, e) => sum + (e.sets || []).filter(s => s.done && (s.pr || (s.w > 0 && S.exWeights?.[e.id]?.w && s.w >= S.exWeights[e.id].w))).length,
-                0
-              )
-              const isExpanded = !!expandedWorkouts[wId]
-              const visibleEntries = isExpanded ? entries : entries.slice(0, 3)
-              const extraCount = Math.max(0, entries.length - 3)
-              const attachedPost = workoutPhotosMap[wId]
-              const likesCount = S.workoutLikes?.[wId] || 0
-
-              return (
-                <div
-                  key={wId}
-                  style={{
-                    background: 'var(--bg)',
-                    borderTop: idx === 0 ? '1px solid var(--sep-op)' : 'none',
-                    borderBottom: '6px solid var(--surface)',
-                    padding: '14px 0 12px'
-                  }}
-                >
-                  {/* Feed Card User Header */}
-                  <div className="row between" style={{ marginBottom: 10 }}>
-                    <div className="row" style={{ gap: 10, alignItems: 'center' }}>
-                      <div
-                        style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: '50%',
-                          background: avatarUrl
-                            ? `url(${avatarUrl}) center/cover no-repeat`
-                            : 'var(--surface-2)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 13,
-                          fontWeight: 700,
-                          color: avatarUrl ? 'transparent' : 'var(--label)',
-                          border: '1px solid var(--sep-op)'
-                        }}
-                      >
-                        {initials}
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--label)' }}>{handleName}</div>
-                        <div style={{ fontSize: 12, color: 'var(--label-3)' }}>{formatWorkoutFullDate(w.d, w.start)}</div>
-                      </div>
-                    </div>
-                    <div className="row" style={{ gap: 6 }}>
-                      <button
-                        type="button"
-                        onClick={() => handleAttachPhotoClick(wId)}
-                        title={t('Attach workout photo')}
-                        style={{ color: 'var(--label-3)', padding: 6 }}
-                      >
-                        <Icon name="camera" style={{ fontSize: 17 }} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => workoutDetailSheet(w)}
-                        aria-label={t('Workout details')}
-                        style={{ color: 'var(--label-2)', padding: 6 }}
-                      >
-                        <Icon name="more" style={{ fontSize: 18 }} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Workout Title */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {[0, 1, 2, 3].map(idx => {
+                const m = moments[idx]
+                return (
                   <div
-                    onClick={() => workoutDetailSheet(w)}
-                    style={{ fontSize: 17, fontWeight: 700, color: 'var(--label)', marginBottom: 10, cursor: 'pointer' }}
+                    key={idx}
+                    style={{
+                      width: 96,
+                      height: 130,
+                      marginLeft: idx === 0 ? 0 : -22,
+                      marginTop: idx % 2 === 1 ? 10 : -2,
+                      transform: `rotate(${PHOTO_TURNS[idx]}deg)`,
+                      padding: 2.5,
+                      borderRadius: 18,
+                      background: 'var(--surface-2)',
+                      boxShadow: '0 8px 18px rgba(0,0,0,0.38)',
+                      opacity: m ? 1 : 0.48,
+                    }}
                   >
-                    {inferWorkoutTitle(w)}
-                  </div>
-
-                  {/* Time | Volume | Records Row */}
-                  <div className="row" style={{ gap: 28, marginBottom: 14, paddingBottom: 12, borderBottom: '1px solid var(--sep-op)' }}>
-                    <div>
-                      <div style={{ fontSize: 11.5, color: 'var(--label-3)', marginBottom: 2 }}>{t('Time')}</div>
-                      <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--label)' }}>
-                        {formatWorkoutDuration(w.start, w.end)}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 11.5, color: 'var(--label-3)', marginBottom: 2 }}>{t('Volume')}</div>
-                      <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--label)' }}>
-                        {fmtNum(Math.round(wVol || w.vol || 0))} {S.unit}
-                      </div>
-                    </div>
-                    {prCount > 0 && (
-                      <div>
-                        <div style={{ fontSize: 11.5, color: 'var(--label-3)', marginBottom: 2 }}>{t('Records')}</div>
-                        <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--label)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <span style={{ color: '#ffd60a' }}>🥇</span> {prCount}
-                        </div>
-                      </div>
+                    {m ? (
+                      <img src={m.photo} alt="" style={{ width: '100%', height: '100%', borderRadius: 15.5, objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', borderRadius: 15.5, background: 'var(--surface)' }} />
                     )}
                   </div>
+                )
+              })}
+            </div>
 
-                  {/* Optional Attached Workout Photo */}
-                  {attachedPost?.photoDataUrl && (
-                    <div style={{ borderRadius: 12, overflow: 'hidden', marginBottom: 14, border: '1px solid var(--sep-op)' }}>
-                      <img
-                        src={attachedPost.photoDataUrl}
-                        alt="Workout"
-                        style={{ width: '100%', maxHeight: 340, objectFit: 'cover', display: 'block' }}
-                      />
-                    </div>
-                  )}
+            {moments.length === 0 && (
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); momentFileRef.current?.click() }}
+                style={{
+                  position: 'absolute',
+                  height: 38,
+                  padding: '0 16px',
+                  borderRadius: 999,
+                  background: 'var(--ember)',
+                  color: 'var(--on-ember)',
+                  fontSize: 13.5,
+                  fontWeight: 800,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.42)',
+                  cursor: 'pointer',
+                }}
+              >
+                <Icon name="camera" style={{ fontSize: 15 }} />
+                <span>{t('Add photo')}</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </Rise>
 
-                  {/* Exercises List with Circular Thumbnails */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {visibleEntries.map((entry, eIdx) => {
-                      const ex = exOr(entry.id)
-                      const doneCount = (entry.sets || []).filter(s => s.done).length
-                      const exName = ex ? exerciseNameFor(ex) : entry.id
-                      const eqSuffix = ex?.eq && ex.eq !== 'body weight' && !exName.toLowerCase().includes(ex.eq.toLowerCase())
-                        ? ` (${ex.eq.charAt(0).toUpperCase() + ex.eq.slice(1)})`
-                        : ''
-                      return (
-                        <div
-                          key={entry.id + '_' + eIdx}
-                          onClick={() => ex && exerciseDetailSheet(ex)}
-                          className="row"
-                          style={{ gap: 12, alignItems: 'center', cursor: 'pointer' }}
-                        >
-                          <div
-                            style={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: '50%',
-                              overflow: 'hidden',
-                              background: '#ffffff',
-                              flexShrink: 0,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}
-                          >
-                            {ex ? <Thumb ex={ex} /> : <Icon name="dumbbell" style={{ color: '#000' }} />}
-                          </div>
-                          <div style={{ fontSize: 15, color: 'var(--label)', fontWeight: 500, textTransform: 'capitalize' }}>
-                            {doneCount} {doneCount === 1 ? t('set') : t('sets')} {exName}{eqSuffix}
-                          </div>
-                        </div>
-                      )
-                    })}
+      {/* GymMane Gym Pass Box */}
+      {S.checkIn !== false && (
+        <Rise index={3}>
+          <RecessedBox title={t('Gym Pass')} count={gymCards.length > 0 ? gymCards.length : null} onMore={() => nav('/checkin')}>
+            <div
+              onClick={() => nav('/checkin')}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '6px 4px', cursor: 'pointer' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 14,
+                  background: 'var(--acc-soft)',
+                  color: 'var(--acc)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 20,
+                }}>
+                  <Icon name="qr" />
+                </span>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 800 }}>
+                    {gymCards[0]?.label || t('Add your gym membership pass')}
                   </div>
-
-                  {/* See X more exercises */}
-                  {extraCount > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setExpandedWorkouts(prev => ({ ...prev, [wId]: !isExpanded }))}
-                      style={{
-                        width: '100%',
-                        textAlign: 'center',
-                        padding: '10px 0 4px',
-                        fontSize: 13,
-                        color: 'var(--label-3)',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {isExpanded ? t('Show fewer exercises') : t('See {0} more exercises', extraCount)}
-                    </button>
-                  )}
-
-                  {/* Bottom Social Action Row: Like | Comment | Share */}
-                  <div className="row" style={{ gap: 22, marginTop: 14, paddingTop: 10, borderTop: '1px solid var(--sep-op)', color: 'var(--label-2)' }}>
-                    <button
-                      type="button"
-                      onClick={() => handleLikeWorkout(wId)}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: likesCount > 0 ? 'var(--acc)' : 'var(--label-2)', fontSize: 14 }}
-                    >
-                      <Icon name="heart" style={{ fontSize: 19 }} />
-                      {likesCount > 0 && <span style={{ fontWeight: 600 }}>{likesCount}</span>}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => workoutDetailSheet(w)}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--label-2)' }}
-                    >
-                      <Icon name="clipboard" style={{ fontSize: 18 }} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openStickerEditor(w)}
-                      title={t('Workout Sticker')}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--label-2)' }}
-                    >
-                      <Icon name="sticker" style={{ fontSize: 18 }} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAttachPhotoClick(wId)}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--label-2)' }}
-                    >
-                      <Icon name="upload" style={{ fontSize: 18 }} />
-                    </button>
+                  <div className="dim small">
+                    {gymCards.length > 0
+                      ? t('Tap to open full-brightness QR / barcode')
+                      : t('Keep your turnstile QR or barcode ready offline')}
                   </div>
                 </div>
+              </div>
+              <Icon name="chevronRight" style={{ color: 'var(--label-3)' }} />
+            </div>
+          </RecessedBox>
+        </Rise>
+      )}
+
+      {/* GymMane History / 12-Month Consistency Box */}
+      <Rise index={4}>
+        <RecessedBox title={t('History')} count={workouts.length || null} onMore={() => nav('/history')}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 18 }}>
+            <div>
+              <div style={{ fontSize: 24, fontWeight: 900 }}><RollIn value={yearSummary.sessionsYear} /></div>
+              <div className="gm-micro" style={{ fontSize: 9.5, marginTop: 3 }}>{t('WORKOUTS')}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 24, fontWeight: 900 }}>
+                {yearSummary.volYear >= 1000 ? `${(yearSummary.volYear / 1000).toFixed(1)}k` : fmtNum(yearSummary.volYear)}
+                <span className="dim small" style={{ marginLeft: 3 }}>{S.unit}</span>
+              </div>
+              <div className="gm-micro" style={{ fontSize: 9.5, marginTop: 3 }}>{t('LIFTED')}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 24, fontWeight: 900 }}>
+                {yearSummary.activeMonths}<span className="dim small">/12</span>
+              </div>
+              <div className="gm-micro" style={{ fontSize: 9.5, marginTop: 3 }}>{t('MONTHS')}</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 5, alignItems: 'end', height: 62 }}>
+            {yearSummary.months.map(m => {
+              const h = 6 + Math.round((m.count / yearSummary.peak) * 52)
+              return (
+                <div
+                  key={m.key}
+                  onClick={() => m.count > 0 && nav('/history')}
+                  title={`${m.fullName}: ${m.count}`}
+                  style={{
+                    height: h,
+                    borderRadius: 5,
+                    background: m.isCurrent ? 'var(--ember)' : m.count > 0 ? 'var(--label-3)' : 'var(--surface-2)',
+                    cursor: m.count > 0 ? 'pointer' : 'default',
+                    transition: 'height 420ms var(--ease)',
+                  }}
+                />
               )
             })}
           </div>
-        )}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 5, marginTop: 7 }}>
+            {yearSummary.months.map(m => (
+              <span key={m.key} style={{ textAlign: 'center', fontSize: 9.5, fontWeight: 700, color: m.isCurrent ? 'var(--label)' : 'var(--label-3)' }}>
+                {m.letter}
+              </span>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 14, fontSize: 12, color: 'var(--label-3)' }}>
+            {yearSummary.bestMonth && (
+              <span>{t('Best month')} · <b style={{ color: 'var(--label-2)' }}>{yearSummary.bestMonth.fullName}</b></span>
+            )}
+            <span>{t('Best week')} · <b style={{ color: 'var(--label-2)' }}>{bestWeek}</b></span>
+          </div>
+        </RecessedBox>
+      </Rise>
+
+      {/* Lifetime Totals & Body Weight Card */}
+      <div className="card" style={{ padding: '16px 16px 14px' }}>
+        <div className="gm-micro" style={{ marginBottom: 12 }}>{t('LIFETIME NUMBERS')}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div className="tile" style={{ background: 'var(--surface-2)', borderRadius: 16, padding: '12px 14px' }}>
+            <div className="dim small">{t('Total sets')}</div>
+            <div style={{ fontSize: 20, fontWeight: 900, marginTop: 2 }}>{fmtNum(totalSets)}</div>
+          </div>
+          <div className="tile" style={{ background: 'var(--surface-2)', borderRadius: 16, padding: '12px 14px' }}>
+            <div className="dim small">{t('Volume lifted')}</div>
+            <div style={{ fontSize: 20, fontWeight: 900, marginTop: 2 }}>{volumeDisplay}</div>
+          </div>
+          <div className="tile" style={{ background: 'var(--surface-2)', borderRadius: 16, padding: '12px 14px' }}>
+            <div className="dim small">{t('Time training')}</div>
+            <div style={{ fontSize: 20, fontWeight: 900, marginTop: 2 }}>{timeDisplay}</div>
+          </div>
+          <div
+            className="tile"
+            onClick={() => bwSheet()}
+            style={{ background: 'var(--surface-2)', borderRadius: 16, padding: '12px 14px', cursor: 'pointer' }}
+          >
+            <div className="dim small">{t('Body weight')}</div>
+            <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2 }}>
+              {bw ? `${fmtNum(bw.w)} ${S.unit}` : t('No entries yet')}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Recent PRs Showcase */}
+      {/* Activity Heatmap Card */}
+      <div className="card" style={{ padding: '16px' }}>
+        <div className="row between" style={{ marginBottom: 10 }}>
+          <span className="gm-micro">{t('Activity')}</span>
+          <span className="dim small" style={{ fontWeight: 700 }}>{t('Best week')}: {bestWeek}</span>
+        </div>
+        <ActivityHeatmap workouts={workouts} weekStart={ws} />
+      </div>
+
+      {/* Recent Personal Records */}
       {recentPRs.length > 0 && (
-        <div className="card" style={{ marginBottom: 14 }}>
-          <div className="row between" style={{ marginBottom: 8 }}>
-            <h2 style={{ margin: 0 }}>{t('Recent Personal Records (PRs)')}</h2>
-            <Icon name="trophy" style={{ color: 'var(--yellow)', fontSize: 16 }} />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div className="card" style={{ padding: '16px' }}>
+          <div className="gm-micro" style={{ marginBottom: 10 }}>{t('Recent Personal Records (PRs)')}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {recentPRs.map(pr => (
-              <div key={pr.id} className="row between" style={{ padding: '6px 0', borderBottom: '1px solid var(--sep-op)' }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 14, textTransform: 'capitalize' }}>{pr.name}</div>
-                  {pr.date ? <div className="dim small" style={{ fontSize: 11 }}>{fmtDate(pr.date)}</div> : null}
+              <div
+                key={pr.id}
+                onClick={() => { const ex = exOr(pr.id); if (ex) exerciseDetailSheet(ex) }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  borderRadius: 14,
+                  background: 'var(--surface-2)',
+                  cursor: 'pointer',
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, textTransform: 'capitalize' }}>{pr.name}</div>
+                  {pr.date && <div className="dim small">{fmtDate(pr.date, true)}</div>}
                 </div>
-                <span style={{ fontWeight: 700, color: 'var(--acc)', fontSize: 14 }}>
+                <b style={{ fontSize: 14.5, color: 'var(--acc)', flex: 'none' }}>
                   {fmtNum(pr.weight)} {S.unit}
-                </span>
+                </b>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Lifetime Stats Card */}
-      <div className="card" style={{ marginBottom: 14 }}>
-        <h2>{t('Lifetime stats')}</h2>
-        <div className="tiles" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 0 }}>
-          <div className="tile">
-            <div className="l"><Icon name="check" />{t('Total sets')}</div>
-            <div className="v" style={{ fontSize: 22 }}>{fmtNum(totalSets)}</div>
-          </div>
-          <div className="tile">
-            <div className="l"><Icon name="dumbbell" />{t('Volume lifted')}</div>
-            <div className="v" style={{ fontSize: 22 }}>{volumeDisplay}</div>
-          </div>
-          <div className="tile">
-            <div className="l"><Icon name="clock" />{t('Time training')}</div>
-            <div className="v" style={{ fontSize: 22 }}>
-              {totalMinutes >= 60 ? Math.round(totalMinutes / 60) + 'h' : totalMinutes + 'm'}
-            </div>
-          </div>
-          <div className="tile">
-            <div className="l"><Icon name="flame" />{t('Best week')}</div>
-            <div className="v" style={{ fontSize: 22 }}>{bestWeek}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Body Weight Card */}
-      <div className="card" style={{ marginBottom: 14 }}>
-        <div className="row between" style={{ marginBottom: 8 }}>
-          <h2 style={{ margin: 0 }}>{t('Body weight')}</h2>
-          <Button size="sm" icon="plus" style={{ width: 'auto' }} onClick={() => bwSheet()}>{t('Log')}</Button>
-        </div>
-        <div className="profile-bw-current">
-          {bw
-            ? <><span className="big">{fmtNum(bw.w)}</span> <span className="dim">{S.unit}</span></>
-            : <span className="dim small">{t('No entries yet')}</span>
-          }
-        </div>
-      </div>
-
-      {/* Activity Heatmap */}
-      {workouts.length > 0 && (
-        <div className="card" style={{ marginBottom: 14 }}>
-          <h2>{t('Activity')}</h2>
-          <ActivityHeatmap workouts={workouts} weekStart={ws} />
+      {/* Native-app-only Account Sign Out / Bug Report footer */}
+      {(MOBILE && user) && (
+        <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+          <button
+            type="button"
+            className="btn ghost"
+            style={{ flex: 1 }}
+            onClick={() => setShowBugReport(true)}
+          >
+            {t('Report an Issue')}
+          </button>
+          <button
+            type="button"
+            className="btn ghost"
+            style={{ flex: 1, color: 'var(--red)' }}
+            onClick={handleSignOut}
+          >
+            {t('Sign Out')}
+          </button>
         </div>
       )}
 
-      {/* Support & Administration Section */}
-      <div className="card" style={{ marginBottom: 14, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <button
-          type="button"
-          onClick={() => nav('/admin')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(249, 115, 22, 0.08))',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            borderRadius: 10,
-            padding: '11px 14px',
-            color: '#f87171',
-            fontWeight: 600,
-            fontSize: 13.5,
-            cursor: 'pointer',
-            textAlign: 'left'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Icon name="shield" style={{ fontSize: 18 }} />
-            <div>
-              <div>{t('Cloud Admin Dashboard')}</div>
-              <div style={{ fontSize: 11, color: '#fca5a5', fontWeight: 400 }}>{isAdmin ? (user?.email || 'smitronix0826@gmail.com') : 'smitronix0826@gmail.com'}</div>
-            </div>
-          </div>
-          <span style={{ fontSize: 15, fontWeight: 700 }}>→</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setShowBugReport(true)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            background: 'var(--surface-2)',
-            border: '1px solid var(--sep-op)',
-            borderRadius: 10,
-            padding: '11px 14px',
-            color: 'var(--label)',
-            fontWeight: 500,
-            fontSize: 13.5,
-            cursor: 'pointer',
-            textAlign: 'left'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Icon name="warning" style={{ fontSize: 17, color: '#f59e0b' }} />
-            <span>{t('Report a Bug or Feedback')}</span>
-          </div>
-          <span style={{ fontSize: 11.5, color: 'var(--label-2)', background: 'var(--surface)', padding: '2px 8px', borderRadius: 6 }}>
-            {t('Cloud')}
-          </span>
-        </button>
-      </div>
-
-      {/* Account Bar (Android App Only — Website is Demo Only without Login/Signup) */}
-      {(import.meta.env.VITE_MOBILE === '1' || user) && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          {user ? (
-            <div className="row between" style={{ alignItems: 'center' }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--label)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {user.email || user.name}
-                </div>
-                <div className="small dim">{t('Cloud Sync Active')}</div>
-              </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                style={{ width: 'auto', fontSize: 13, color: 'var(--red)' }}
-                onClick={handleSignOut}
-              >
-                {t('Sign Out')}
-              </Button>
-            </div>
-          ) : (
-            <Button variant="primary" icon="person" onClick={() => nav('/login')}>
-              {t('Sign In')}
-            </Button>
-          )}
-        </div>
-      )}
-
-      {/* Modals */}
-      {showAchievements && (
-        <div className="sheet-backdrop" onClick={() => setShowAchievements(false)} style={{ zIndex: 100 }}>
-          <div className="sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: 520, margin: 'auto' }}>
-            <AchievementsModal S={S} close={() => setShowAchievements(false)} />
-          </div>
-        </div>
-      )}
-
-      {showEditProfile && (
-        <div className="sheet-backdrop" onClick={() => setShowEditProfile(false)} style={{ zIndex: 100 }}>
-          <div className="sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: 480, margin: 'auto' }}>
-            <EditProfileModal close={() => setShowEditProfile(false)} />
-          </div>
-        </div>
-      )}
-
-      {showSplitChooser && (
-        <div className="sheet-backdrop" onClick={() => setShowSplitChooser(false)} style={{ zIndex: 100 }}>
-          <div className="sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: 540, margin: 'auto', maxHeight: '88vh', overflowY: 'auto' }}>
-            <SplitChooserModal initialCategory={splitChooserCategory} close={() => setShowSplitChooser(false)} />
-          </div>
-        </div>
-      )}
-
-      {showBugReport && (
-        <div className="sheet-backdrop" onClick={() => setShowBugReport(false)} style={{ zIndex: 100 }}>
-          <div className="sheet" onClick={e => e.stopPropagation()} style={{ maxWidth: 480, margin: 'auto', maxHeight: '90vh', overflowY: 'auto' }}>
-            <BugReportModal user={user} close={() => setShowBugReport(false)} />
-          </div>
-        </div>
-      )}
-
-      <RecapModal open={showRecap} onClose={() => setShowRecap(false)} />
+      {showEditProfile && <EditProfileModal onClose={() => setShowEditProfile(false)} />}
+      {showBugReport && <BugReportModal onClose={() => setShowBugReport(false)} />}
+      {showRecap && <RecapModal onClose={() => setShowRecap(false)} />}
     </div>
   )
 }
