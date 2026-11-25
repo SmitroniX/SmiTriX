@@ -4,20 +4,20 @@
    framework, no build step, one stylesheet for all three pages. */
 
 :root {
-  --bg: #000;
-  --surface: #0e0f11;
-  --surface-2: #17181b;
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface-2: #1f1f1f;
   --hair: rgba(255, 255, 255, .11);
   --hair-soft: rgba(255, 255, 255, .06);
 
   --fg: #f5f5f7;
-  --fg-2: #a1a1a6;
-  --fg-3: #7d7d85;  /* >=4.5:1 on every panel — WCAG AA for small text */
+  --fg-2: #a8a49e;
+  --fg-3: #837f7a;  /* >=4.5:1 on every panel — WCAG AA for small text */
 
-  --acc: #32d74b;
-  --acc-ink: #04150a;
-  --acc-soft: rgba(50, 215, 75, .14);
-  --acc-glow: rgba(50, 215, 75, .32);
+  --acc: #d9a184;
+  --acc-ink: #1a120d;
+  --acc-soft: rgba(217, 161, 132, .16);
+  --acc-glow: rgba(217, 161, 132, .34);
 
   --r-s: 12px;
   --r-m: 20px;
@@ -32,6 +32,7 @@
 }
 
 /* Accents matching in-app palette */
+:root[data-accent="peach"]  { --acc: #d9a184; --acc-ink: #1a120d; --acc-soft: rgba(217, 161, 132, .16); --acc-glow: rgba(217, 161, 132, .34); }
 :root[data-accent="lime"]   { --acc: #32d74b; --acc-ink: #04150a; --acc-soft: rgba(50, 215, 75, .14);  --acc-glow: rgba(50, 215, 75, .32); }
 :root[data-accent="sky"]    { --acc: #0a84ff; --acc-ink: #ffffff; --acc-soft: rgba(10, 132, 255, .15); --acc-glow: rgba(10, 132, 255, .34); }
 :root[data-accent="orange"] { --acc: #ff9f0a; --acc-ink: #04150a; --acc-soft: rgba(255, 159, 10, .15); --acc-glow: rgba(255, 159, 10, .32); }
@@ -53,6 +54,8 @@ html {
 
 body {
   background: var(--bg);
+  background-image: radial-gradient(rgba(255, 255, 255, .065) 1px, transparent 1px);
+  background-size: 22px 22px;
   color: var(--fg);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto,
                Helvetica, Arial, sans-serif;

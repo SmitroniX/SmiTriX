@@ -27,7 +27,7 @@ afterEach(() => {
   container.remove()
 })
 
-describe('TabBar component', () => {
+describe('TabBar component (GymMane 5-slot floating glass pill)', () => {
   it('does not render when user is not authenticated and not guest', async () => {
     useStore.setState({ user: null, isGuest: () => false })
     await act(async () => {
@@ -40,8 +40,8 @@ describe('TabBar component', () => {
     expect(container.querySelector('#tabbar')).toBeNull()
   })
 
-  it('highlights Home tab on /home, /settings, /checkin, /admin, and /plan', async () => {
-    const routes = ['/home', '/settings', '/checkin', '/admin', '/plan']
+  it('highlights Home tab on /home, /plan, /tools, /journal, /nutrition, /recovery', async () => {
+    const routes = ['/home', '/plan', '/tools', '/journal', '/nutrition', '/recovery']
     for (const route of routes) {
       await act(async () => {
         root.render(
@@ -51,13 +51,29 @@ describe('TabBar component', () => {
         )
       })
       const buttons = container.querySelectorAll('#tabbar button')
-      expect(buttons.length).toBe(4)
-      const homeBtn = buttons[0] // 1st tab is Home
+      expect(buttons.length).toBe(5)
+      const homeBtn = buttons[0]
       expect(homeBtn.classList.contains('on'), `Home tab should be on for ${route}`).toBe(true)
     }
   })
 
-  it('highlights Start button on /workout', async () => {
+  it('highlights Progress tab on /stats, /history, /measures, and /timeline', async () => {
+    const routes = ['/stats', '/history', '/measures', '/timeline']
+    for (const route of routes) {
+      await act(async () => {
+        root.render(
+          <MemoryRouter initialEntries={[route]}>
+            <TabBar onStart={() => {}} />
+          </MemoryRouter>
+        )
+      })
+      const buttons = container.querySelectorAll('#tabbar button')
+      const progressBtn = buttons[1]
+      expect(progressBtn.classList.contains('on'), `Progress tab should be on for ${route}`).toBe(true)
+    }
+  })
+
+  it('highlights center Play FAB on /workout', async () => {
     await act(async () => {
       root.render(
         <MemoryRouter initialEntries={['/workout']}>
@@ -66,7 +82,7 @@ describe('TabBar component', () => {
       )
     })
     const buttons = container.querySelectorAll('#tabbar button')
-    const startBtn = buttons[1] // 2nd button
+    const startBtn = buttons[2]
     expect(startBtn.classList.contains('on')).toBe(true)
   })
 
@@ -81,13 +97,13 @@ describe('TabBar component', () => {
         )
       })
       const buttons = container.querySelectorAll('#tabbar button')
-      const libBtn = buttons[2] // 3rd button
+      const libBtn = buttons[3]
       expect(libBtn.classList.contains('on'), `Library tab should be on for ${route}`).toBe(true)
     }
   })
 
-  it('highlights Profile tab on /profile, /stats, /history, and /plans', async () => {
-    const routes = ['/profile', '/stats', '/history', '/plans']
+  it('highlights Profile tab on /profile, /settings, /checkin, /admin, /plans, /awards', async () => {
+    const routes = ['/profile', '/settings', '/checkin', '/admin', '/plans', '/awards']
     for (const route of routes) {
       await act(async () => {
         root.render(
@@ -97,7 +113,7 @@ describe('TabBar component', () => {
         )
       })
       const buttons = container.querySelectorAll('#tabbar button')
-      const profileBtn = buttons[3] // 4th button
+      const profileBtn = buttons[4]
       expect(profileBtn.classList.contains('on'), `Profile tab should be on for ${route}`).toBe(true)
     }
   })

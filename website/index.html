@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>SmiTriX — free, open-source gym &amp; body-weight tracker</title>
 <meta name="description" content="SmiTriX is a free, open-source gym & body-weight tracker. Download the Android app or self-host it with Docker — no account, no cloud, no telemetry.">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#0a0a0a">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="SmiTriX — your workouts, your weights, your data">
 <meta name="twitter:description" content="Free, open-source gym & body-weight tracker. Android APK or self-hosted with Docker. No account, no cloud, no telemetry.">
@@ -19,7 +19,7 @@
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="icon" type="image/png" sizes="180x180" href="icon-180.png">
 <link rel="apple-touch-icon" href="icon-180.png">
-<link rel="stylesheet" href="styles.css?v=21">
+<link rel="stylesheet" href="styles.css?v=22">
 <!-- Marks that JS is alive before first paint, so the scroll-reveal styles never
      hide content from a browser that will not run them. -->
 <script>
@@ -121,7 +121,8 @@ try {
   <div class="navsheet-accent">
     <p class="navsheet-accent-label">Theme Accent</p>
     <div class="accent-swatches" role="radiogroup" aria-label="Choose accent color">
-      <button class="swatch on" data-accent-pick="lime" aria-label="Lime theme" title="Lime" style="--swatch-c:#32d74b"></button>
+      <button class="swatch on" data-accent-pick="peach" aria-label="Peach theme" title="Peach" style="--swatch-c:#d9a184"></button>
+      <button class="swatch" data-accent-pick="lime" aria-label="Lime theme" title="Lime" style="--swatch-c:#32d74b"></button>
       <button class="swatch" data-accent-pick="sky" aria-label="Sky theme" title="Sky" style="--swatch-c:#0a84ff"></button>
       <button class="swatch" data-accent-pick="orange" aria-label="Orange theme" title="Orange" style="--swatch-c:#ff9f0a"></button>
       <button class="swatch" data-accent-pick="violet" aria-label="Violet theme" title="Violet" style="--swatch-c:#bf5af2"></button>
@@ -168,7 +169,7 @@ try {
     <a class="release-pill" href="#download">
       <span class="badge-dot"></span>
       <span class="badge-tag">v1.7.4</span>
-      <span>Cloud-First Storage Sync, Cloud Admin Dashboard &amp; In-App Bug Reports</span>
+      <span>Complete UI/UX Refresh · Nutrition (560+ Foods), Recovery, 12 Calculators, 3D Medals &amp; Story Recap</span>
       <svg class="badge-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
     </a>
     <p class="eyebrow">SmiTriX</p>
@@ -204,7 +205,8 @@ try {
         Accent:
       </span>
       <div class="accent-swatches" role="radiogroup" aria-label="Choose accent color">
-        <button class="swatch on" data-accent-pick="lime" aria-label="Lime theme" title="Lime" style="--swatch-c:#32d74b"></button>
+        <button class="swatch on" data-accent-pick="peach" aria-label="Peach theme" title="Peach" style="--swatch-c:#d9a184"></button>
+        <button class="swatch" data-accent-pick="lime" aria-label="Lime theme" title="Lime" style="--swatch-c:#32d74b"></button>
         <button class="swatch" data-accent-pick="sky" aria-label="Sky theme" title="Sky" style="--swatch-c:#0a84ff"></button>
         <button class="swatch" data-accent-pick="orange" aria-label="Orange theme" title="Orange" style="--swatch-c:#ff9f0a"></button>
         <button class="swatch" data-accent-pick="violet" aria-label="Violet theme" title="Violet" style="--swatch-c:#bf5af2"></button>
@@ -309,8 +311,27 @@ try {
           <span class="tile-tag">365 Days</span>
         </div>
         <h3>A year of training, at a glance</h3>
-        <p>Every session as a square in a heatmap, shaded by how long you trained. Streaks
-           counted, quiet weeks impossible to miss.</p>
+        <p>Every session as a square in a multi-palette heatmap with planned rest-day streak
+           protection, 20 interactive 3D medals, and a monthly Story Recap export.</p>
+      </div>
+      <div class="tile wide rv">
+        <div class="tile-top">
+          <div class="ic"><svg><use href="#i-flame"/></svg></div>
+          <span class="tile-tag accent">560+ Foods</span>
+        </div>
+        <h3>Nutrition &amp; Recovery Hubs</h3>
+        <p>Track calories, macros, animated water &amp; protein shake vessels, supplements, intermittent
+           fasting, meal prep batches, plus sauna, cold plunge, contrast therapy, and guided breathwork.</p>
+      </div>
+      <div class="tile wide rv">
+        <div class="tile-top">
+          <div class="ic"><svg><use href="#i-gauge"/></svg></div>
+          <span class="tile-tag">All-in-One</span>
+        </div>
+        <h3>12 Calculators, Body Map Train &amp; Journal</h3>
+        <p>1RM, visual Plate Calculator, Warm-ups, RPE/RIR, DOTS, Wilks, BMI, US Navy Body Fat %,
+           FFMI, TDEE, Protein &amp; Water — plus Body Map session builder, HIIT circuits, Places,
+           10 Body Measures with tape ruler, Photo Timeline, and 9:16 Workout Stickers.</p>
       </div>
     </div>
 
@@ -679,7 +700,7 @@ try {
 
 
 <footer><div class="wrap foot">
-  <span class="c">SmiTriX · AGPL-3.0 · © 2026 <a href="https://github.com/SmitroniX" rel="noopener">Asmit Jogdand (SmitroniX)</a></span>
+  <span class="c">SmiTriX · AGPL-3.0 · © 2026 <a href="https://github.com/SmitroniX" rel="noopener">Asmit Jogdand (SmitroniX)</a> · <a href="https://github.com/SmitroniX/SmiTriX/blob/main/NOTICE.md" rel="noopener">Third-Party Notices</a></span>
   <div class="links">
     <a href="https://smitrix.web.app/#/admin" target="_blank" rel="noopener" style="color:var(--red,#ff453a)">Admin Dashboard</a>
     <a href="docs.html">Docs</a>

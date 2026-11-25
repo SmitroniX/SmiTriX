@@ -75,15 +75,34 @@ let workDone = null
 export const useUI = create((set, get) => ({
   sheets: [],          // { id, render:(close)=>JSX, kind:'sheet'|'center', locked }
   toastMsg: '',
+  toastMeta: null,     // { title, subtitle, icon, accent, action, onTap } for LiquidNotch
   timer: null,         // rest countdown between sets — { left, total, endsAt, forIdx }
                        // forIdx: index of the active entry whose set started the rest (undefined when unknown)
   work: null,          // work countdown DURING a timed set (issue #16) — { left, total, endsAt, label }
   timerFlashId: 0,     // changing the id retriggers the theme-blink visual alert
+  restGlowTick: 0,     // triggers GymMane edge pulse glow when rest finishes
+  countdown: null,     // { sec, exerciseName, onDone } fullscreen 3-2-1 start countdown
+  awardCelebration: null, // AwardId currently celebrating
 
   flashTimer() {
     if (!useStore.getState().S.timerFlash) return
     set(s => ({ timerFlashId: s.timerFlashId + 1 }))
   },
+  triggerRestGlow() {
+    if (useStore.getState().S.restGlow === false) return
+    set(s => ({ restGlowTick: s.restGlowTick + 1 }))
+  },
+  openCountdown(sec, exerciseName, onDone) {
+    if (!(sec > 0)) { onDone?.(); return }
+    set({ countdown: { sec, exerciseName, onDone, id: uid() } })
+  },
+  closeCountdown(runDone = true) {
+    const cur = get().countdown
+    set({ countdown: null })
+    if (runDone && cur?.onDone) cur.onDone()
+  },
+  showAwardCelebration(awardId) { set({ awardCelebration: awardId }) },
+  closeAwardCelebration() { set({ awardCelebration: null }) },
 
   openSheet(render, { kind = 'sheet', locked = false } = {}) {
     const id = uid()
@@ -94,10 +113,11 @@ export const useUI = create((set, get) => ({
   closeSheet(id) { set(s => ({ sheets: s.sheets.filter(x => x.id !== id) })) },
   closeAll() { set({ sheets: [] }) },
 
-  toast(msg) {
-    set({ toastMsg: msg })
+  toast(msg, meta = null) {
+    set({ toastMsg: msg, toastMeta: meta })
     clearTimeout(toastTm)
-    toastTm = setTimeout(() => set({ toastMsg: '' }), 2200)
+    const ms = meta?.duration || (meta?.subtitle ? 3000 : 2400)
+    toastTm = setTimeout(() => set({ toastMsg: '', toastMeta: null }), ms)
   },
 
   startRest(sec, forIdx) {
@@ -123,13 +143,13 @@ export const useUI = create((set, get) => ({
         if (seenLive) {
           const chime = useStore.getState().S.restChime || 'bell'
           playRestChime(chime, snd)
-          vibrate([200, 100, 200]); get().flashTimer()
+          vibrate([200, 100, 200]); get().flashTimer(); get().triggerRestGlow()
         }
         announceRestDone(useStore.getState().S.voiceCoach)
         // The toast stays even when the rest ran out while the app was hidden: a guest, or anyone
         // without push permission, gets no notification, and a countdown that silently vanishes
         // on reopen reads like a bug. Only the loud parts (beep, vibration, flash) are gated.
-        get().toast(t('Rest over — next set!'))
+        get().toast(t('Rest over — next set!'), { icon: 'timer', accent: 'var(--gm-sage)' })
         maybeRestNotification(); get().stopRest(); return
       }
       if (left <= 3) beep(snd, 660, 0.1)

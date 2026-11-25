@@ -27,6 +27,8 @@ import { openTutorial } from '../components/TutorialDialog.jsx'
 import { HeartRateBadge } from '../components/HeartRateMonitor.jsx'
 import { SyncStatusBadge } from '../components/SyncStatusBadge.jsx'
 import { FormCheckBadge, openFormCheckPlayer, openFormCheckRecorder } from '../components/FormCheckVaultModal.jsx'
+import { GymTimerPanel } from '../components/GymManeMotion.jsx'
+import { openStickerEditor } from '../components/StickerEditorModal.jsx'
 
 const SWIPE_MIN_DISTANCE = 48
 const SWIPE_AXIS_RATIO = 1.25
@@ -114,6 +116,15 @@ function StartChooser() {
 
     {/* Quick Action Navigation */}
     <div className="row" style={{ gap: 8, margin: '10px 0 14px' }}>
+      <button
+        type="button"
+        className="chip"
+        style={{ flex: 1, padding: '9px 12px', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}
+        onClick={() => nav('/train')}
+      >
+        <Icon name="target" style={{ marginRight: 5 }} />
+        {t('Body Map')}
+      </button>
       <button
         type="button"
         className="chip"
@@ -742,6 +753,28 @@ function ActiveWorkout() {
   const listMode = S.workoutView === 'list'
   const wc = workoutControls(S)
   const [prCelebration, setPrCelebration] = useState(null)
+  const [locked, setLocked] = useState(false)
+  const restTimer = useUI(s => s.timer)
+  const addRest = useUI(s => s.addRest)
+  const toggleDeload = () => {
+    const pct = Math.max(5, Math.min(50, Number(S.deloadPct) || 20))
+    const factor = A.deload ? 1 / (1 - pct / 100) : 1 - pct / 100
+    update(s => {
+      if (!s.active) return
+      s.active.deload = !s.active.deload
+      for (const e of s.active.entries || []) {
+        for (const st of e.sets || []) {
+          if (!st.done && Number(st.w) > 0) {
+            st.w = Math.max(0, Math.round((Number(st.w) * factor) * 2) / 2)
+          }
+        }
+      }
+    })
+    useUI.getState().toast(A.deload ? t('Standard weights restored') : t('Light / deload session (-{0}%)', pct), {
+      icon: 'feather',
+      accent: 'var(--gm-sage)',
+    })
+  }
   useEffect(() => {
     if (!prCelebration) return
     const tm = setTimeout(() => setPrCelebration(null), 4500)
@@ -1335,13 +1368,84 @@ function ActiveWorkout() {
           <SyncStatusBadge />
         </div>
       </div>
-      <button className="btn primary sm workout-finish-btn" aria-label={t('Finish')} onClick={finishWorkout}>
-        <Icon name="check" />
-        <span>{t('Finish')}</span>
-      </button>
+      <div className="row" style={{ gap: 6 }}>
+        <button
+          type="button"
+          className="iconbtn"
+          aria-label={locked ? t('Unlock session') : t('Pocket lock')}
+          title={locked ? t('Unlock session') : t('Pocket lock')}
+          style={locked ? { background: 'var(--acc)', color: 'var(--on-acc)' } : undefined}
+          onClick={() => setLocked(v => !v)}
+        >
+          <Icon name="fingerprint" />
+        </button>
+        <button
+          type="button"
+          className="iconbtn"
+          aria-label={t('Light / deload session')}
+          title={t('Light / deload session')}
+          style={A.deload ? { background: 'var(--gm-sage-soft)', color: 'var(--gm-sage)' } : undefined}
+          onClick={toggleDeload}
+        >
+          <Icon name="feather" />
+        </button>
+        <button className="btn primary sm workout-finish-btn" aria-label={t('Finish')} onClick={finishWorkout}>
+          <Icon name="check" />
+          <span>{t('Finish')}</span>
+        </button>
+      </div>
     </div>
     <div className="wprog"><i style={{ width: (total ? done / total * 100 : 0) + '%' }} /></div>
+    {A.entries.length > 1 && (
+      <div className="gm-ex-progress" aria-label={t('Exercise progress')}>
+        {A.entries.map((entry, idx) => {
+          const eDone = (entry.sets || []).filter(s => s.done).length
+          const eTot = Math.max(1, (entry.sets || []).length)
+          return (
+            <div
+              key={idx}
+              className={'gm-ex-seg' + (idx === cur ? ' cur' : '')}
+              onClick={() => !locked && focusUnit(idx)}
+            >
+              <div className="gm-ex-seg-fill" style={{ width: `${Math.round((eDone / eTot) * 100)}%` }} />
+            </div>
+          )
+        })}
+      </div>
+    )}
     </div>
+    {locked && (
+      <div className="card" style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderColor: 'var(--acc)', marginBottom: 10 }}>
+        <span className="row small" style={{ gap: 8, fontWeight: 700 }}>
+          <Icon name="fingerprint" style={{ color: 'var(--acc)' }} />
+          {t('Session locked — accidental taps blocked')}
+        </span>
+        <button type="button" className="gm-see-all" onClick={() => setLocked(false)}>{t('Unlock')}</button>
+      </div>
+    )}
+    {A.deload && (
+      <div className="card" style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderColor: 'var(--gm-sage)', marginBottom: 10 }}>
+        <span className="row small" style={{ gap: 8, fontWeight: 700, color: 'var(--gm-sage)' }}>
+          <Icon name="feather" />
+          {t('Light / deload session active')}
+        </span>
+        <button type="button" className="gm-see-all" onClick={toggleDeload}>{t('Turn off')}</button>
+      </div>
+    )}
+    {restTimer && !listMode && (
+      <GymTimerPanel
+        label={t('RESTING')}
+        remaining={restTimer.left}
+        total={restTimer.total}
+        elapsed={<Elapsed start={A.start} />}
+        setsLabel={`${done}/${total}`}
+        hint={t('TAP TO SKIP')}
+        color={restTimer.left <= 5 ? 'var(--gm-danger)' : 'var(--gm-sage)'}
+        onTap={stopRest}
+        onMinus={() => addRest(-15)}
+        onPlus={() => addRest(15)}
+      />
+    )}
     {prCelebration && (
       <div className="golden-pr-banner animate-pop" role="alert" aria-live="polite">
         <div className="golden-pr-glow" />
@@ -1534,9 +1638,12 @@ function ActiveWorkout() {
       <div style={{ height: 10 }} />
       {/* Wrapping up is when you know how the session went, so the note sits with the finish
           button rather than somewhere in the header. */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 10 }}>
         <Button size="sm" icon="pencil" variant={A.note ? 'tinted' : undefined} onClick={sessionNoteSheet}>
           {A.note ? t('Edit session note') : t('Add session note')}
+        </Button>
+        <Button size="sm" icon="sticker" onClick={() => openStickerEditor({ ...A, end: Date.now() })}>
+          {t('Sticker')}
         </Button>
       </div>
       {(() => {

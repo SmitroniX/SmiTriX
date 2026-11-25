@@ -166,8 +166,10 @@ export default function Modals() {
     if (!sheets.length) return
     const y = window.scrollY || 0
     const b = document.body.style
+    document.body.classList.add('gm-sheet-open')
     b.position = 'fixed'; b.top = -y + 'px'; b.left = '0'; b.right = '0'; b.width = '100%'
     return () => {
+      document.body.classList.remove('gm-sheet-open')
       b.position = b.top = b.left = b.right = b.width = ''
       window.scrollTo(0, y)
     }

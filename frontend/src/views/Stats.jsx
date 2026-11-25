@@ -23,6 +23,10 @@ import {
 import { Button, Segmented, SelectRow } from '../components/ui.jsx'
 import { tappable } from '../lib/use-sheet-keyboard.js'
 import { isWarmupRow } from '../lib/workout-model.js'
+import { workoutVolume } from '../lib/history.js'
+import { dayStreakWithOff } from '../lib/gymmane-awards.js'
+import { RollIn, CollapsedHeader } from '../components/GymManeMotion.jsx'
+import MuscleRadar from '../components/MuscleRadar.jsx'
 
 // Which muscles the training in a window actually hit — and, the point of the card,
 // which ones it keeps missing. Shading is relative within the window (lib/muscles.js).
@@ -436,16 +440,136 @@ export default function Stats() {
   if (showE1) exOpts.push({ value: 'e1rm', label: t('Est. 1RM') })
   if (showEff) exOpts.push({ value: 'effort', label: t('Effort') })
 
-  return <>
-    <div className="hdr"><div><h1>{t('Stats')}</h1><div className="sub">{t('Progress & history')}</div></div>
-      <button className="iconbtn" onClick={() => nav('/history')} aria-label={t('History')}><Icon name="history" /></button></div>
+  const vol30 = useMemo(() => {
+    const cut30 = now - 30 * 86400000
+    const cut60 = now - 60 * 86400000
+    let curV = 0
+    let prevV = 0
+    for (const w of workouts) {
+      const ts = w.start || new Date(w.d).getTime()
+      const v = workoutVolume(w)
+      if (ts >= cut30) curV += v
+      else if (ts >= cut60) prevV += v
+    }
+    const pct = prevV > 0 ? Math.round(((curV - prevV) / prevV) * 100) : null
+    return { curV, pct }
+  }, [workouts, now])
 
-    <div className="tiles">
-      <div className="tile"><div className="l"><Icon name="dumbbell" />{t('Workouts')}</div><div className="v">{workouts.length}</div></div>
-      <div className="tile"><div className="l"><Icon name="calendar" />{t('This month')}</div><div className="v">{monthW}</div></div>
-      <div className="tile"><div className="l"><Icon name="flame" />{t('Week streak')}</div><div className="v">{streakWeeks(S)}</div></div>
-      <div className="tile"><div className="l"><Icon name="scale" />{t('Weight 30d')}</div><div className="v" style={{ fontSize: 22, color: bwDelta30 === null ? 'inherit' : bwDeltaColor(bwDelta30, (lastBW(S) || {}).w || 0) }}>{bwDelta30 === null ? '—' : (bwDelta30 > 0 ? '+' : '') + fmtNum(bwDelta30) + ' ' + S.unit}</div></div>
-      <div className="tile" {...tappable(() => calendarSheet())}><div className="l"><Icon name="target" />{t('Unique days')}</div><div className="v">{new Set(workouts.map(w => w.d).filter(Boolean)).size}</div></div>
+  const allTimeTotals = useMemo(() => {
+    let sets = 0
+    let vol = 0
+    let mins = 0
+    for (const w of workouts) {
+      vol += workoutVolume(w)
+      mins += w.start && w.end && w.end > w.start ? Math.round((w.end - w.start) / 60000) : 45
+      for (const e of w.entries || []) for (const s of e.sets || []) if (s.done) sets++
+    }
+    return { sets, vol, hours: Math.round(mins / 60), mins }
+  }, [workouts])
+
+  const latestBw = lastBW(S)
+  const streakDays = useMemo(() => dayStreakWithOff(S).current, [S.workouts, S.daysOff])
+
+  return <>
+    <CollapsedHeader title={t('Progress')} />
+    <div className="hdr" style={{ alignItems: 'center' }}>
+      <div><h1>{t('Progress')}</h1><div className="sub">{t('Strength, volume & body timeline')}</div></div>
+      <div
+        style={{
+          display: 'inline-flex', alignItems: 'center', height: 40, borderRadius: 999,
+          background: 'var(--surface)', border: '1px solid color-mix(in srgb, var(--sep) 55%, transparent)',
+          padding: '0 4px',
+        }}
+      >
+        <button type="button" onClick={() => nav('/history')} aria-label={t('History')} title={t('History')} style={{ padding: '0 10px', height: 34, color: 'var(--label-2)', display: 'inline-flex', alignItems: 'center' }}>
+          <Icon name="history" />
+        </button>
+        <span style={{ width: 1, height: 18, background: 'var(--sep)' }} />
+        <button type="button" onClick={() => nav('/measures')} aria-label={t('Measures')} title={t('Body Measures')} style={{ padding: '0 10px', height: 34, color: 'var(--label-2)', display: 'inline-flex', alignItems: 'center' }}>
+          <Icon name="ruler" />
+        </button>
+        <span style={{ width: 1, height: 18, background: 'var(--sep)' }} />
+        <button type="button" onClick={() => nav('/timeline')} aria-label={t('Timeline')} title={t('Progress Photos & Timeline')} style={{ padding: '0 12px', height: 34, color: 'var(--acc)', fontWeight: 800, fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          <Icon name="image" style={{ fontSize: 15 }} />
+          <span>{t('Timeline')}</span>
+        </button>
+      </div>
+    </div>
+
+    {/* GymMane 02-progress Hero Row: 30D Volume & Bodyweight */}
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+      <div className="card" style={{ margin: 0 }}>
+        <div className="row between" style={{ marginBottom: 8 }}>
+          <span className="gm-micro" style={{ fontSize: 10 }}>{t('VOLUME · 30D')}</span>
+          {vol30.pct !== null && (
+            <span style={{ fontSize: 11, fontWeight: 800, color: vol30.pct >= 0 ? 'var(--gm-sage)' : 'var(--acc)' }}>
+              {vol30.pct >= 0 ? '↗' : '↘'} {Math.abs(vol30.pct)}%
+            </span>
+          )}
+        </div>
+        <div style={{ fontSize: 26, fontWeight: 900, display: 'flex', alignItems: 'baseline', gap: 4 }}>
+          <RollIn value={vol30.curV >= 1000 ? vol30.curV / 1000 : vol30.curV} format={v => v >= 100 ? String(Math.round(v)) : (Math.round(v * 10) / 10).toString()} />
+          <span className="muted small" style={{ fontWeight: 700 }}>{vol30.curV >= 1000 ? (S.unit === 'lb' ? 'k lb' : 't') : S.unit}</span>
+        </div>
+        <div className="dim small" style={{ marginTop: 4 }}>{streakDays > 0 ? t('{0}-day streak', streakDays) : t('{0} this month', monthW)}</div>
+      </div>
+
+      <div className="card tappable" style={{ margin: 0, cursor: 'pointer' }} {...tappable(() => bwSheet())}>
+        <div className="gm-micro" style={{ fontSize: 10, marginBottom: 8 }}>{t('WEIGHT')}</div>
+        <div style={{ fontSize: 26, fontWeight: 900, display: 'flex', alignItems: 'baseline', gap: 4 }}>
+          {latestBw ? (
+            <>
+              <RollIn value={latestBw.w} format={v => (Math.round(v * 10) / 10).toString()} />
+              <span className="muted small" style={{ fontWeight: 700 }}>{S.unit}</span>
+            </>
+          ) : '—'}
+        </div>
+        <div className="dim small" style={{ marginTop: 4 }}>
+          {latestBw ? fmtDate(latestBw.d) : t('Tap to add weight')}
+        </div>
+      </div>
+    </div>
+
+    {/* GymMane 2x2 All-Time Totals */}
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+      <div className="card" style={{ margin: 0, padding: '14px 16px' }}>
+        <div className="gm-micro" style={{ fontSize: 10 }}>{t('SESSIONS')}</div>
+        <div style={{ fontSize: 26, fontWeight: 900, marginTop: 6 }}><RollIn value={workouts.length} /></div>
+      </div>
+      <div className="card" style={{ margin: 0, padding: '14px 16px' }}>
+        <div className="gm-micro" style={{ fontSize: 10 }}>{t('SETS')}</div>
+        <div style={{ fontSize: 26, fontWeight: 900, marginTop: 6 }}><RollIn value={allTimeTotals.sets} /></div>
+      </div>
+      <div className="card" style={{ margin: 0, padding: '14px 16px' }}>
+        <div className="gm-micro" style={{ fontSize: 10 }}>{t('TIME')}</div>
+        <div style={{ fontSize: 26, fontWeight: 900, marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 4 }}>
+          <RollIn value={allTimeTotals.hours >= 1 ? allTimeTotals.hours : allTimeTotals.mins} />
+          <span className="muted small">{allTimeTotals.hours >= 1 ? 'h' : 'min'}</span>
+        </div>
+      </div>
+      <div className="card" style={{ margin: 0, padding: '14px 16px' }}>
+        <div className="gm-micro" style={{ fontSize: 10 }}>{t('LIFTED')}</div>
+        <div style={{ fontSize: 26, fontWeight: 900, marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 4 }}>
+          <RollIn value={allTimeTotals.vol >= 1000 ? allTimeTotals.vol / 1000 : allTimeTotals.vol} format={v => v >= 100 ? String(Math.round(v)) : (Math.round(v * 10) / 10).toString()} />
+          <span className="muted small">{allTimeTotals.vol >= 1000 ? (S.unit === 'lb' ? 'k lb' : 't') : S.unit}</span>
+        </div>
+      </div>
+    </div>
+
+    {/* Quick Jump to Measures, Timeline & Medals */}
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
+      <button type="button" className="card tappable" style={{ margin: 0, padding: '12px 10px', textAlign: 'center' }} onClick={() => nav('/measures')}>
+        <Icon name="ruler" style={{ color: 'var(--acc)', fontSize: 20, margin: '0 auto 6px' }} />
+        <div style={{ fontSize: 12.5, fontWeight: 800 }}>{t('Measures')}</div>
+      </button>
+      <button type="button" className="card tappable" style={{ margin: 0, padding: '12px 10px', textAlign: 'center' }} onClick={() => nav('/timeline')}>
+        <Icon name="image" style={{ color: 'var(--gm-sage)', fontSize: 20, margin: '0 auto 6px' }} />
+        <div style={{ fontSize: 12.5, fontWeight: 800 }}>{t('Photos')}</div>
+      </button>
+      <button type="button" className="card tappable" style={{ margin: 0, padding: '12px 10px', textAlign: 'center' }} onClick={() => nav('/awards')}>
+        <Icon name="medal" style={{ color: 'var(--gm-warn)', fontSize: 20, margin: '0 auto 6px' }} />
+        <div style={{ fontSize: 12.5, fontWeight: 800 }}>{t('Medals')}</div>
+      </button>
     </div>
 
     {/* Consistency card */}
@@ -497,6 +621,7 @@ export default function Stats() {
     </div>
 
     {workouts.length > 0 && <MuscleBalance S={S} onExercise={id => setExId(id)} />}
+    {workouts.length > 0 && <MuscleRadar days={30} />}
     {hasEffort(S) && <EffortCard S={S} />}
 
     <div className="cols">

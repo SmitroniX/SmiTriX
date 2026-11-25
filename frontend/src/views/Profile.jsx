@@ -18,6 +18,10 @@ import BugReportModal from '../components/BugReportModal.jsx'
 import { syncWorkoutPostToCloud, trackEvent } from '../lib/analytics.js'
 import { useUI } from '../store/useUI.js'
 import { logoutUser, resendVerificationEmail, refreshCurrentUser, isAdminEmail } from '../lib/firebase.js'
+import { evaluateGymManeAwards } from '../lib/gymmane-awards.js'
+import { openStickerEditor } from '../components/StickerEditorModal.jsx'
+import RecapModal from '../components/RecapModal.jsx'
+import { Rise } from '../components/GymManeMotion.jsx'
 
 function compressWorkoutImage(file, maxDim = 760, quality = 0.8) {
   return new Promise((resolve, reject) => {
@@ -89,6 +93,7 @@ export default function Profile() {
   const [showEditProfile, setShowEditProfile] = useState(false)
   const [showSplitChooser, setShowSplitChooser] = useState(false)
   const [showBugReport, setShowBugReport] = useState(false)
+  const [showRecap, setShowRecap] = useState(false)
   const [splitChooserCategory, setSplitChooserCategory] = useState('legend')
   const [verifyBusy, setVerifyBusy] = useState(false)
   const isAdmin = Boolean(user?.admin || isAdminEmail(user?.email))
@@ -100,7 +105,40 @@ export default function Profile() {
   const [photoTargetWorkoutId, setPhotoTargetWorkoutId] = useState(null)
   const fileInputRef = useRef(null)
   const avatarFileRef = useRef(null)
+  const bannerFileRef = useRef(null)
+  const momentFileRef = useRef(null)
   const avatarUrl = athlete.photoURL || user?.photoURL || ''
+  const bannerUrl = S.profileBanner || './smitrix-ui/img/banner_default.jpg'
+
+  const handleBannerUpload = async e => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const dataUrl = await compressWorkoutImage(file, 960, 0.82)
+      update(s => { s.profileBanner = dataUrl })
+      useUI.getState().toast(t('Cover banner updated'))
+    } catch (err) {
+      useUI.getState().toast(err.message || t('Failed to upload banner'))
+    } finally {
+      e.target.value = ''
+    }
+  }
+
+  const handleMomentUpload = async e => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const dataUrl = await compressWorkoutImage(file, 720, 0.8)
+      update(s => {
+        s.moments = [{ id: 'm_' + Date.now().toString(36), d: todayISO(), photo: dataUrl }, ...(s.moments || [])].slice(0, 24)
+      })
+      useUI.getState().toast(t('Photo moment added'))
+    } catch (err) {
+      useUI.getState().toast(err.message || t('Failed to add photo'))
+    } finally {
+      e.target.value = ''
+    }
+  }
 
   const handleAvatarUpload = async e => {
     const file = e.target.files?.[0]
@@ -370,6 +408,26 @@ export default function Profile() {
   }
 
   const achieveStats = useMemo(() => evaluateAchievements(S), [S])
+  const gmAwards = useMemo(() => evaluateGymManeAwards(S), [S])
+  const moments = S.moments || []
+
+  // 12-month yearly sessions chart
+  const yearlyMonths = useMemo(() => {
+    const now = new Date()
+    const arr = []
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const prefix = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const count = workouts.filter(w => String(w.d || '').startsWith(prefix)).length
+      arr.push({
+        key: prefix,
+        label: d.toLocaleDateString('en-US', { month: 'short' }).slice(0, 1),
+        count,
+      })
+    }
+    return arr
+  }, [workouts])
+  const maxYearCount = Math.max(4, ...yearlyMonths.map(m => m.count))
 
   return (
     <div className="narrow" style={{ paddingBottom: 32 }}>
@@ -387,6 +445,92 @@ export default function Profile() {
         style={{ display: 'none' }}
         onChange={handleAvatarUpload}
       />
+      <input
+        ref={bannerFileRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handleBannerUpload}
+      />
+      <input
+        ref={momentFileRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handleMomentUpload}
+      />
+
+      {/* GymMane Cover Banner */}
+      <div
+        style={{
+          position: 'relative',
+          height: 132,
+          borderRadius: 24,
+          overflow: 'hidden',
+          marginBottom: 14,
+          background: `url(${bannerUrl}) center/cover no-repeat`,
+          border: '1px solid var(--sep-op)',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(180deg, rgba(10,10,10,0.45) 0%, rgba(10,10,10,0.18) 45%, rgba(10,10,10,0.78) 100%)',
+          }}
+        />
+        <div className="row between" style={{ position: 'relative', zIndex: 2, padding: '12px 14px' }}>
+          <button
+            type="button"
+            onClick={() => setShowRecap(true)}
+            style={{
+              background: 'rgba(20,20,20,0.62)',
+              backdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255,255,255,0.18)',
+              color: '#fff',
+              padding: '6px 12px',
+              borderRadius: 999,
+              fontSize: 12,
+              fontWeight: 800,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+            }}
+          >
+            <Icon name="sparkles" style={{ fontSize: 13, color: 'var(--acc)' }} />
+            <span>{t('Month Recap')}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => bannerFileRef.current?.click()}
+            style={{
+              background: 'rgba(20,20,20,0.62)',
+              backdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255,255,255,0.16)',
+              color: '#fff',
+              padding: '6px 10px',
+              borderRadius: 999,
+              fontSize: 11.5,
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              cursor: 'pointer',
+            }}
+          >
+            <Icon name="camera" style={{ fontSize: 12 }} />
+            <span>{t('Cover')}</span>
+          </button>
+        </div>
+
+        <div style={{ position: 'absolute', left: 14, bottom: 10, zIndex: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11.5, fontWeight: 800, color: '#fff', background: 'rgba(0,0,0,0.52)', padding: '3px 10px', borderRadius: 999 }}>
+            Lv.{gmAwards.level} · {gmAwards.earnedCount}/{gmAwards.total} {t('Medals')}
+          </span>
+        </div>
+      </div>
 
       {/* Top Header Bar: Handle on Left, Edit / Share / Settings on Right */}
       <div className="row between" style={{ padding: '6px 0 16px', alignItems: 'center' }}>
@@ -577,6 +721,96 @@ export default function Profile() {
         </div>
       )}
 
+      {/* GymMane Medals Shelf & Photo Moments */}
+      <Rise index={0} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+        <div
+          className="card"
+          onClick={() => nav('/awards')}
+          style={{ margin: 0, cursor: 'pointer', padding: '14px 14px 12px' }}
+        >
+          <div className="row between" style={{ marginBottom: 8 }}>
+            <span className="gm-micro" style={{ fontSize: 10, color: 'var(--acc)' }}>{t('MEDALS')}</span>
+            <span style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--label-2)' }}>
+              {gmAwards.earnedCount}/{gmAwards.total}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            {gmAwards.awards.slice(0, 4).map(a => (
+              <img
+                key={a.id}
+                src={a.earned ? `./smitrix-ui/badges/${a.id}.webp` : `./smitrix-ui/badges/${a.id}_off.webp`}
+                alt={a.name}
+                style={{ width: 32, height: 32, objectFit: 'contain', opacity: a.earned ? 1 : 0.45 }}
+              />
+            ))}
+          </div>
+          <div className="dim small" style={{ fontWeight: 700 }}>{t('Tap to spin in 3D')} →</div>
+        </div>
+
+        <div className="card" style={{ margin: 0, padding: '14px 14px 12px' }}>
+          <div className="row between" style={{ marginBottom: 8 }}>
+            <span className="gm-micro" style={{ fontSize: 10, color: 'var(--gm-sage)' }}>{t('MOMENTS')}</span>
+            <button
+              type="button"
+              onClick={() => momentFileRef.current?.click()}
+              style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--acc)', cursor: 'pointer' }}
+            >
+              + {t('Add')}
+            </button>
+          </div>
+          {moments.length > 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', height: 42, position: 'relative' }} onClick={() => nav('/timeline')}>
+              {moments.slice(0, 4).map((m, i) => (
+                <img
+                  key={m.id}
+                  src={m.photo}
+                  alt=""
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 10,
+                    objectFit: 'cover',
+                    border: '2px solid var(--surface)',
+                    marginLeft: i === 0 ? 0 : -10,
+                    transform: `rotate(${(i % 2 === 0 ? -4 : 4)}deg)`,
+                  }}
+                />
+              ))}
+              <span className="dim small" style={{ marginLeft: 8, fontWeight: 700 }}>{moments.length}</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => momentFileRef.current?.click()}
+              style={{ textAlign: 'left', color: 'var(--label-2)', fontSize: 12, fontWeight: 700, cursor: 'pointer', paddingTop: 4 }}
+            >
+              {t('Save gym snapshots & PR moments')}
+            </button>
+          )}
+        </div>
+      </Rise>
+
+      {/* GymMane 12-Month Activity Bars */}
+      <Rise index={1} className="card" style={{ marginBottom: 16, padding: '14px 16px' }}>
+        <div className="row between" style={{ marginBottom: 10 }}>
+          <span className="gm-micro" style={{ fontSize: 10 }}>{t('12-MONTH CONSISTENCY')}</span>
+          <button type="button" onClick={() => setShowRecap(true)} style={{ color: 'var(--acc)', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
+            {t('Open Story Recap')} →
+          </button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 5, alignItems: 'end', height: 52 }}>
+          {yearlyMonths.map(m => {
+            const pct = m.count > 0 ? Math.max(16, Math.round((m.count / maxYearCount) * 100)) : 8
+            return (
+              <div key={m.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, height: '100%', justifyContent: 'flex-end' }}>
+                <div style={{ width: '100%', height: `${pct}%`, borderRadius: 4, background: m.count > 0 ? 'var(--acc)' : 'var(--surface-2)' }} title={`${m.key}: ${m.count}`} />
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--label-3)' }}>{m.label}</span>
+              </div>
+            )
+          })}
+        </div>
+      </Rise>
+
       {/* Weekly Activity Bar Chart Section (Duration / Volume / Reps) */}
       <div style={{ marginBottom: 22 }}>
         <div className="row between" style={{ marginBottom: 12, alignItems: 'baseline' }}>
@@ -738,7 +972,7 @@ export default function Profile() {
 
           <button
             type="button"
-            onClick={() => bwSheet()}
+            onClick={() => nav('/measures')}
             style={{
               background: 'var(--surface)',
               border: '1px solid var(--sep-op)',
@@ -753,7 +987,7 @@ export default function Profile() {
               textAlign: 'left'
             }}
           >
-            <Icon name="scale" style={{ fontSize: 19, color: 'var(--label-2)' }} />
+            <Icon name="ruler" style={{ fontSize: 19, color: 'var(--label-2)' }} />
             <span>{t('Measures')}</span>
           </button>
 
@@ -1086,6 +1320,14 @@ export default function Profile() {
                     </button>
                     <button
                       type="button"
+                      onClick={() => openStickerEditor(w)}
+                      title={t('Workout Sticker')}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--label-2)' }}
+                    >
+                      <Icon name="sticker" style={{ fontSize: 18 }} />
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => handleAttachPhotoClick(wId)}
                       style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--label-2)' }}
                     >
@@ -1287,6 +1529,8 @@ export default function Profile() {
           </div>
         </div>
       )}
+
+      <RecapModal open={showRecap} onClose={() => setShowRecap(false)} />
     </div>
   )
 }

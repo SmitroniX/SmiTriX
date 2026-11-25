@@ -25,6 +25,7 @@ import { HTTP_PROVIDERS, HTTP_PROVIDER_IDS, validateBaseUrl } from '../../../api
 import { testHevyApiKey } from '../lib/import-hevy.js'
 import { setAnalyticsConsent } from '../lib/analytics.js'
 import { isAdminEmail } from '../lib/firebase.js'
+import { HEAT_TONES } from '../lib/gymmane-awards.js'
 
 export default function Settings() {
   const nav = useNavigate()
@@ -341,6 +342,20 @@ export default function Settings() {
       <Row icon="sun" iconTint="var(--yellow)" title={t('Flash screen when timer ends')}>
         <Switch checked={!!S.timerFlash} onChange={v => update(s => { s.timerFlash = v })} />
       </Row>
+      <Row icon="sparkles" iconTint="var(--gm-sage, #8FA377)" title={t('Rest edge glow')}
+        subtitle={t('Soft glowing border pulse when rest timer finishes')}>
+        <Switch checked={S.restGlow !== false} onChange={v => update(s => { s.restGlow = v })} />
+      </Row>
+      <SelectRow icon="timer" iconTint="var(--acc)" title={t('Start countdown')}
+        value={S.startCountdownSec || 0} onChange={v => update(s => { s.startCountdownSec = Number(v) || 0 })}
+        options={[
+          { value: 0, label: t('Off') },
+          { value: 3, label: '3s' },
+          { value: 5, label: '5s' },
+        ]} />
+      <SelectRow icon="feather" iconTint="var(--teal)" title={t('Deload reduction')}
+        value={S.deloadPct ?? 20} onChange={v => update(s => { s.deloadPct = Number(v) || 20 })}
+        options={[10, 15, 20, 25, 30].map(p => ({ value: p, label: `−${p}%` }))} />
       {/* Two names for the same judgement, so the column asks in the scale you already think in.
           The (i) sits before the control — you read it on the way to the choice, not after it. */}
       <Row icon="target" iconTint="var(--purple)" title={t('Effort per set')}>
@@ -384,11 +399,64 @@ export default function Settings() {
         <span className="lrow-t">{t('Accent color')}</span>
         <div className="swatches">
           {Object.entries(ACCENTS).map(([k, c]) => (
-            <button key={k} className={'swatch' + ((S.accent || 'lime') === k ? ' on' : '')}
+            <button key={k} className={'swatch' + ((S.accent || 'peach') === k ? ' on' : '')}
               style={{ background: c }} onClick={() => update(s => { s.accent = k })} aria-label={k} />
           ))}
         </div>
       </div>
+      <SelectRow icon="grid" iconTint="var(--acc)" title={t('Background pattern')}
+        value={S.bgPattern ?? 'dots'} onChange={v => update(s => { s.bgPattern = v })}
+        options={[
+          { value: 'dots', label: t('Warm Dots') },
+          { value: 'grid', label: t('Subtle Grid') },
+          { value: 'none', label: t('Solid') },
+        ]} />
+      <div className="lrow" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10, paddingTop: 12, paddingBottom: 14 }}>
+        <span className="lrow-t">{t('Heatmap palette')}</span>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {Object.values(HEAT_TONES).map(tone => {
+            const on = (S.heatTone || 'ember') === tone.id
+            return (
+              <button
+                key={tone.id}
+                type="button"
+                onClick={() => update(s => { s.heatTone = tone.id })}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 11px',
+                  borderRadius: 999,
+                  background: on ? 'var(--surface-2)' : 'transparent',
+                  border: on ? '1.5px solid var(--acc)' : '1px solid var(--sep-op)',
+                  color: 'var(--label)',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                <span style={{ display: 'inline-flex', gap: 2 }}>
+                  {tone.ramp.slice(1).map((c, i) => (
+                    <span key={i} style={{ width: 8, height: 8, borderRadius: 2, background: c }} />
+                  ))}
+                </span>
+                <span>{t(tone.name)}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      <SelectRow icon="target" iconTint="var(--gm-sage, #8FA377)" title={t('Weekly workout goal')}
+        value={S.weeklyTarget || 4} onChange={v => update(s => { s.weeklyTarget = Number(v) || 4 })}
+        options={[1, 2, 3, 4, 5, 6, 7].map(n => ({ value: n, label: t('{0} days / week', n) }))} />
+      <Row icon="forkKnife" iconTint="var(--acc)" title={t('Nutrition hub')}
+        subtitle={t('Show Nutrition folder card on Home')}>
+        <Switch checked={S.nutritionOn !== false} onChange={v => update(s => { s.nutritionOn = v })} />
+      </Row>
+      <Row icon="wind" iconTint="var(--gm-sage, #8FA377)" title={t('Recovery hub')}
+        subtitle={t('Show Recovery folder card on Home')}>
+        <Switch checked={S.recoveryOn !== false} onChange={v => update(s => { s.recoveryOn = v })} />
+      </Row>
     </Section>
 
     {/* ---------- plans & feature management ---------- */}
@@ -455,8 +523,9 @@ export default function Settings() {
         address bar and no about box, so without this there is no way to tell which build you
         are running, or whether an update actually installed. */}
     <div className="dim small" style={{ textAlign: 'center', marginTop: 4, lineHeight: 1.6 }}>
-      SmiTriX v{__APP_VERSION__} · {t('free & open source (AGPL v3)')}<br />
-      exercise data: hasaneyldrm/exercises-dataset (MIT)<br />
+      SmiTriX v{__APP_VERSION__} · © 2026 Asmit Jogdand (SmitroniX)<br />
+      {t('free & open source (AGPL v3)')} · Based on GymMane by InlitX (GPL v3)<br />
+      Nunito font (SIL OFL 1.1) · exercise data: hasaneyldrm/exercises-dataset (MIT)<br />
       exercise images and animations © <a href="https://gymvisual.com/" target="_blank" rel="noopener">Gym visual</a>
     </div>
   </div>

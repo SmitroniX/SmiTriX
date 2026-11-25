@@ -3,6 +3,10 @@
 SmiTriX — Copyright (C) 2026 Asmit Jogdand (SmitroniX).
 SmiTriX's own code is licensed under the **GNU AGPL v3.0** (see [LICENSE](LICENSE)).
 
+## Third-Party Design System & Media Attribution (GymMane)
+
+Based on GymMane by InlitX (<https://github.com/InlitX/GymMane>), licensed under **GNU GPL v3.0** with Section 7(b) attribution notice. The adapted UI design patterns, motion animations, bundled food nutrition catalog, 3D medal artwork, recovery artwork (`frontend/public/smitrix-ui/`), and Nunito font files (SIL Open Font License 1.1, see `frontend/public/smitrix-ui/fonts/OFL.txt`) are included in accordance with their respective licenses. All SmiTriX modifications, platform integrations, cloud sync, backend, and original features are Copyright (C) 2026 Asmit Jogdand (SmitroniX) under GNU AGPL v3.0.
+
 ## App store exception
 
 As an additional permission under section 7 of the AGPL v3.0, the copyright holder permits

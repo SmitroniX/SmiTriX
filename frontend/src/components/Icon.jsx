@@ -140,6 +140,26 @@ const P = {
   arrowRotate: <><path d="M20 12A8 8 0 1 1 18 6.5l2-2" /><path d="M20 2v4.5H15.5" /></>,
   mic: <><rect x="9" y="3.6" width="6" height="10.8" rx="3" /><path d="M5.6 11.4a6.4 6.4 0 0 0 12.8 0M12 17.8v2.8M8.8 20.6h6.4" /></>,
   table: <><rect x="3.6" y="4.8" width="16.8" height="14.4" rx="2.4" /><path d="M3.6 9.6h16.8M3.6 14.4h16.8M9.6 9.6v9.6" /></>,
+  /* ---- GymMane feature icons ---- */
+  bed: <><path d="M3.6 18.6V8.4M3.6 14.4h16.8v4.2M20.4 14.4v-1.8a2.8 2.8 0 0 0-2.8-2.8h-6.4v4.6" /><circle cx="7.4" cy="11.2" r="1.4" /></>,
+  notebook: <><rect x="5.2" y="3.6" width="14.4" height="16.8" rx="2.2" /><path d="M9.2 3.6v16.8M3.8 7.8h2.4M3.8 12h2.4M3.8 16.2h2.4M12.2 9h4.2M12.2 13h4.2" /></>,
+  calculator: <><rect x="5" y="3.6" width="14" height="16.8" rx="2.6" /><rect x="8" y="6.4" width="8" height="3.2" rx="1" /><path d="M8.5 13h.01M12 13h.01M15.5 13h.01M8.5 16.6h.01M12 16.6h.01M15.5 16.6h.01" /></>,
+  forkKnife: <><path d="M6.4 3.8v6.2a2.4 2.4 0 0 0 4.8 0V3.8M8.8 3.8v16.4M16.8 3.8v16.4M16.8 3.8c2 0 3 2.2 3 5.2v2.4h-3" /></>,
+  droplet: <path d="M12 3.8c-3.4 4.5-6 7.8-6 10.6a6 6 0 0 0 12 0c0-2.8-2.6-6.1-6-10.6Z" />,
+  thermometer: <><path d="M14.2 13.8V5.6a2.2 2.2 0 1 0-4.4 0v8.2a3.8 3.8 0 1 0 4.4 0Z" /><circle cx="12" cy="16.6" r="1.3" fill="currentColor" stroke="none" /></>,
+  wind: <><path d="M3.6 9.2h11.4a2.4 2.4 0 1 0-2.4-2.4M3.6 13.2h14.4a2.4 2.4 0 1 1-2.4 2.4M3.6 17.2h7.4a2 2 0 1 1-2 2" /></>,
+  snowflake: <><path d="M12 3.6v16.8M4.7 7.8l14.6 8.4M19.3 7.8 4.7 16.2" /><path d="m9.6 5.2 2.4 2.2 2.4-2.2M9.6 18.8l2.4-2.2 2.4 2.2" /></>,
+  pill: <><path d="m10.5 20.5 10-10a4.95 4.95 0 0 0-7-7l-10 10a4.95 4.95 0 0 0 7 7Z" /><path d="m8.5 8.5 7 7" /></>,
+  mapPin: <><path d="M12 20.6s6.4-5.4 6.4-10.2a6.4 6.4 0 1 0-12.8 0c0 4.8 6.4 10.2 6.4 10.2Z" /><circle cx="12" cy="10.4" r="2.2" /></>,
+  ruler: <><path d="M3.8 15.6 15.6 3.8l4.6 4.6L8.4 20.2Z" /><path d="m12.8 6.6 1.8 1.8M10 9.4l1.8 1.8M7.2 12.2l1.8 1.8" /></>,
+  repeat: <><path d="M17 3.8 20.2 7 17 10.2M4 11V9a2 2 0 0 1 2-2h14M7 20.2 3.8 17 7 13.8M20 13v2a2 2 0 0 1-2 2H4" /></>,
+  feather: <><path d="M19.6 4.4c-3.8-.4-7.6 1.2-10.2 4.2L5 14v5h5l5.4-4.4c3-2.6 4.6-6.4 4.2-10.2Z" /><path d="M4.6 19.4 14 10" /></>,
+  fingerprint: <><path d="M7.6 6.4a6.5 6.5 0 0 1 8.8 0M5.4 10.8a7 7 0 0 1 13.2 0M8.8 11.4a3.4 3.4 0 0 1 6.4 0c0 3.2-.8 6-2 8.2M12 11.4c0 2.6-.5 5-1.4 7.2M6.8 14.4c.3 1.4.2 3-.4 4.6" /></>,
+  sticker: <><path d="M15.4 3.8H6.8a3 3 0 0 0-3 3v10.4a3 3 0 0 0 3 3h6.4l7-7V6.8a3 3 0 0 0-3-3Z" /><path d="M13.2 20.2v-5a2 2 0 0 1 2-2h5" /></>,
+  playFill: <path d="M7.5 5.2 18.8 12 7.5 18.8Z" fill="currentColor" stroke="none" />,
+  sliders: <><path d="M4 7h16M4 12h16M4 17h16" /><circle cx="9" cy="7" r="2" fill="var(--bg)" /><circle cx="15" cy="12" r="2" fill="var(--bg)" /><circle cx="10" cy="17" r="2" fill="var(--bg)" /></>,
+  grid: <><rect x="4" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" /></>,
+  compare: <><rect x="3.8" y="4.8" width="6.8" height="14.4" rx="1.6" /><rect x="13.4" y="4.8" width="6.8" height="14.4" rx="1.6" /></>,
 }
 
 // A few keys are aliases so call sites can say what they mean.

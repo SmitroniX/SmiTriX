@@ -46,6 +46,8 @@ import { useSheetKeyboard, useRevealActiveChip, tappable } from './lib/use-sheet
 import { isFav, toggleFav, sortFavouritesFirst } from './lib/favourites.js'
 import { buildSessionEntries } from './lib/session-start.js'
 import { workoutsOn, backfillStart, backfillEnd, completeBackfill } from './lib/backfill.js'
+import { openStickerEditor } from './components/StickerEditorModal.jsx'
+import { evaluateGymManeAwards } from './lib/gymmane-awards.js'
 
 const S = () => useStore.getState().S
 const update = (...a) => useStore.getState().update(...a)
@@ -2688,6 +2690,10 @@ export function beginWorkout(routineId, bw) {
     import('./lib/mobile.js').then(m => m.requestNotificationPermission?.()).catch(() => {})
   }
   nav('/workout')
+  if ((st.startCountdownSec || 0) > 0) {
+    const first = entries?.[0] ? exOr(entries[0].id) : null
+    useUI.getState().openCountdown?.(st.startCountdownSec, first ? exerciseNameFor(first) : (r?.name || ''))
+  }
 }
 
 /* ============================ log a past workout ============================ */
@@ -3020,7 +3026,8 @@ function FinishSummary({ w, prs, e1prs = [], close }) {
     <BodyMap load={loadOfWorkouts([w])} body={st.body} />
     <div style={{ height: 14 }} />
     <div className="row" style={{ gap: 8 }}>
-      <Button icon="share" onClick={() => shareWorkoutSheet(w, { prs, e1prs })} style={{ flex: 1 }}>{t('Share card')}</Button>
+      <Button icon="sticker" onClick={() => { close(); openStickerEditor(w) }} style={{ flex: 1 }}>{t('Sticker')}</Button>
+      <Button icon="share" onClick={() => shareWorkoutSheet(w, { prs, e1prs })} style={{ flex: 1 }}>{t('Share')}</Button>
       <Button variant="primary" onClick={() => { close(); nav('/home') }} style={{ flex: 1 }}>{t('Nice!')}</Button>
     </div>
   </div>
@@ -3057,6 +3064,7 @@ function doFinishWorkout() {
     snapshotFor: e => EXIDX[e.id]?.custom ? exerciseMuscleSnapshot(EXIDX[e.id]) : null,
   })
   w.vol = workoutVolume(w)
+  let newlyEarned = null
   update(s => {
     if (past) {
       s.workouts = completeBackfill(s.workouts, A, w)
@@ -3066,6 +3074,20 @@ function doFinishWorkout() {
         if (mx > 0) { const cur = s.exWeights[e.id]; if (!cur || mx > cur.w) s.exWeights[e.id] = { w: mx, d: w.d } }
       })
       s.workouts.push(w)
+      if (s.scheduleMode === 'rotation' && (s.rotationSteps || []).length > 0) {
+        s.rotationStep = ((Number(s.rotationStep) || 0) + 1) % s.rotationSteps.length
+      }
+      const ev = evaluateGymManeAwards(s)
+      const seen = new Set(s.awardsSeen || [])
+      s.awardsWonAt = s.awardsWonAt || {}
+      for (const aw of ev.awards) {
+        if (aw.earned && !seen.has(aw.id)) {
+          seen.add(aw.id)
+          s.awardsWonAt[aw.id] = todayISO()
+          if (!newlyEarned && aw.id !== 'firstStep') newlyEarned = { ...aw, date: todayISO() }
+        }
+      }
+      s.awardsSeen = Array.from(seen)
     }
     s.active = null
   })
@@ -3076,6 +3098,9 @@ function doFinishWorkout() {
     vibrate([100, 50, 100, 50, 200, 100, 400])
   }
   announceWorkoutComplete(st.voiceCoach, prs.length + e1prs.length)
+  if (newlyEarned) {
+    ui().showAwardCelebration?.(newlyEarned)
+  }
   ui().openSheet(close => <FinishSummary w={w} prs={prs} e1prs={e1prs} close={close} />, { kind: 'center', locked: true })
 }
 

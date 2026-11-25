@@ -95,7 +95,12 @@ as a home-screen app, passkey sign-in, offline support, sync across your phone a
 - 🔔 **Push notifications** — rest-timer alerts even with the app closed, plus an optional reminder on days you have a workout planned but haven't logged one — on the Android app scheduled per calendar date, so a day you already trained or rescheduled stays quiet. Opt in per profile; keys are generated on first run, nothing to configure
 - 🔑 **Passkeys, not passwords** — Face ID / Touch ID / fingerprint login; each profile keeps its own data, synced across devices. Sign-ins last 90 days by default (configurable), and “sign out everywhere” in Settings ends every session on every device at once
 - 🛠️ **Admin dashboard** (optional) — for whoever runs the instance: who's training right now, per-user history, disable accounts, invite-only signup, and an **activity log** of sign-ins, failed attempts and admin actions. Off by default, so a fresh instance stays open with no admin
-- 🎨 **Designed, not assembled** — light/dark themes and 8 accent colors saved to your profile, over a hand-drawn icon set instead of emoji, so it looks the same on every phone
+- 🎨 **Warm rounded design system & fluid motion** — terracotta peach & sage default palette over a dot-grid/grid/photo canvas, AMOLED true-black & warm light themes, 9 accents, floating glass navigation pill, odometer rolling numbers, staggered rises, 3D stacked routine folders, screen-edge rest glow, 3-2-1 start countdown, and dual-corner cannon confetti
+- 🗺️ **Body Map Train & HIIT Circuits** — tap muscles directly on the front/back body map to auto-seed a targeted session, or run multi-round HIIT interval timers with audio cues and rotation-based schedules
+- 🥗 **Nutrition Hub (560+ foods)** — searchable food catalog with photos, calorie ring & macro bars, animated liquid water & protein shake vessels, supplements stock checklist, intermittent fasting live timer, meal prep batches, reusable meal plans, and offline AI meal logger
+- 🧖 **Recovery Hub** — weekly heat & cold exposure goals, live sauna/cold plunge/contrast therapy timers, and guided breathing orb (Box, 4-7-8, Coherent 5.5s, Physiological Sigh)
+- 🧮 **12 Training, Body & Nutrition Calculators** — 1RM & % table, visual barbell Plate Calculator, Warm-up ramp, RPE/RIR Load, DOTS, Wilks, BMI, US Navy Body Fat %, FFMI, TDEE & Macros, Protein Target, and Water Intake
+- 🏅 **20 Interactive 3D Medals, Monthly Recap Story & Stickers** — spin-able 3D achievement coins, 7-slide animated Monthly Recap story with PNG export, transparent/photo 9:16 Workout Stickers, 10 body measurements with tactile tape ruler picker, progress photo comparison timeline, Training Journal with calendar & folders, and Gym Places with owned barbell plates
 - 🌍 **14 languages** — full UI translation (EN, DE, ES, FR, IT, PT (Portugal), PT (Brazil), PL, TR, RU, ZH, KO, HI, TH, HU); exercise instructions localized in 12 of them and built-in exercise names shown bilingually in PT-BR and HU, all loaded on demand so the app stays fast
 - 📥 **Bring your history with you** — import from **FitNotes** (Android and iOS), **Strong** and **Hevy** (CSV or directly with a [Hevy Pro API key](https://hevy.com/settings?developer)), or body weight straight out of an **Apple Health** export. Exercise names are matched against the library and anything unrecognised becomes one of your own exercises, so nothing in the file is dropped
 - 📦 **Yours to keep** — one-tap JSON export/import, guest mode, **no telemetry**; switching kg ↔ lb offers to convert every stored number
@@ -274,20 +279,10 @@ below (and a badge at the top) — a star, a bug report or a merge request is wo
 
 ## License
 
+**SmiTriX** — Copyright © 2026 **Asmit Jogdand (SmitroniX)**.
 **SmiTriX's own code** is [GNU AGPL v3.0](LICENSE) — free and open source. You can self-host,
 use, modify and share it; if you run a modified version as a network service, you must offer that
 version's source under the same license. Nobody can turn SmiTriX into a closed, proprietary
 product.
 
-**Third-party content is not, and SmiTriX cannot sublicense it.** The exercise metadata and
-instruction text originate from [ExerciseDB v1](https://exercisedb.dev/) and reach SmiTriX through
-[hasaneyldrm/exercises-dataset](https://github.com/hasaneyldrm/exercises-dataset) under the
-**MIT** license. The exercise images and animations are third-party content covered by neither
-that license nor the AGPL, and their ownership is **currently unresolved** — the upstream dataset
-attributes them to [Gym visual](https://gymvisual.com/) under a non-transferable permission, while
-[ExerciseDB/AscendAPI](https://exercisedb.io/faq) claims to be their creator and owner. A
-clarification has been requested. SmiTriX does not redistribute them (your instance fetches them
-at first run) and does not relicense them. To reuse that media yourself, clear it with the rights
-holder first.
-
-Full third-party notices, including the body-diagram geometry: **[NOTICE.md](NOTICE.md)**.
+**Third-party notices:** UI design inspiration, bundled food catalog, medal artwork, and recovery artwork are adapted from [GymMane](https://github.com/InlitX/GymMane) (GPL v3.0; *"Based on GymMane by InlitX"*) and the Nunito font (SIL OFL 1.1). Full third-party notices, including body-diagram geometry and exercise media provenance: **[NOTICE.md](NOTICE.md)**.

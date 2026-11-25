@@ -18,6 +18,7 @@ import RestTimer from './components/RestTimer.jsx'
 import TimerFlash from './components/TimerFlash.jsx'
 import { UpdateChecker } from './components/UpdateDialog.jsx'
 import { TutorialPromptChecker } from './components/TutorialDialog.jsx'
+import { AppBackground, RestGlow, StartCountdown, AwardCelebration } from './components/GymManeMotion.jsx'
 import Login from './views/Login.jsx'
 import MobileOnboarding from './views/MobileOnboarding.jsx'
 import Home from './views/Home.jsx'
@@ -25,7 +26,17 @@ import CheckIn from './views/CheckIn.jsx'
 import Plan from './views/Plan.jsx'
 import RoutineEdit from './views/RoutineEdit.jsx'
 import Workout from './views/Workout.jsx'
+import Train from './views/Train.jsx'
+import AiPlan from './views/AiPlan.jsx'
 import Stats from './views/Stats.jsx'
+import Measures from './views/Measures.jsx'
+import Timeline from './views/Timeline.jsx'
+import Tools from './views/Tools.jsx'
+import Journal from './views/Journal.jsx'
+import Places from './views/Places.jsx'
+import Nutrition from './views/Nutrition.jsx'
+import Recovery from './views/Recovery.jsx'
+import Awards from './views/Awards.jsx'
 import History from './views/History.jsx'
 import Library from './views/Library.jsx'
 import Muscles from './views/Muscles.jsx'
@@ -78,9 +89,9 @@ const resolveTheme = theme => (theme === 'light' || theme === 'dark' || theme ==
 function applyPrefs(theme, accent) {
   const de = document.documentElement
   de.dataset.theme = resolveTheme(theme)
-  de.dataset.accent = ACCENTS[accent] ? accent : 'sky'
+  de.dataset.accent = ACCENTS[accent] ? accent : 'peach'
   const meta = document.querySelector('meta[name="theme-color"]')
-  if (meta) meta.content = de.dataset.theme === 'light' ? '#f2f2f7' : '#000000'
+  if (meta) meta.content = de.dataset.theme === 'light' ? '#f7f4f0' : '#0a0a0a'
 }
 
 function Shell() {
@@ -90,6 +101,8 @@ function Shell() {
   const { S, user, ready } = useStore()
   const isGuest = useStore(s => s.isGuest())
   const needsMobileOnboarding = useStore(s => s.needsMobileOnboarding)
+  const awardCelebration = useUI(s => s.awardCelebration)
+  const closeAwardCelebration = useUI(s => s.closeAwardCelebration)
   const langV = useLang()   // re-renders the whole shell when the language (pack) changes
   useEffect(() => { setNav(navigate) }, [navigate])
   useEffect(() => { applyPrefs(S.theme, S.accent) }, [S.theme, S.accent])
@@ -252,74 +265,87 @@ function Shell() {
     : 'smitrix://login'
 
   return (
-    <>
-      {/* Mobile Web → Native Android App Handoff Bar */}
-      {isMobileWeb && user?.id && !loc.pathname.startsWith('/login') && (
-        <div style={{
-          background: '#172331',
-          borderBottom: '1px solid #1d9bf0',
-          padding: '10px 14px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 10,
-          position: 'sticky',
-          top: 0,
-          zIndex: 999,
-        }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#f5f6f8' }}>
-            Signed in as <b style={{ color: '#1d9bf0' }}>{user.name || user.email}</b>
+    <div id="app-shell-outer">
+      <AppBackground />
+      <div id="app-shell-frame">
+        {/* Mobile Web → Native Android App Handoff Bar */}
+        {isMobileWeb && user?.id && !loc.pathname.startsWith('/login') && (
+          <div style={{
+            background: '#172331',
+            borderBottom: '1px solid #1d9bf0',
+            padding: '10px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 10,
+            position: 'sticky',
+            top: 0,
+            zIndex: 999,
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#f5f6f8' }}>
+              Signed in as <b style={{ color: '#1d9bf0' }}>{user.name || user.email}</b>
+            </div>
+            <a
+              href={appDeepLink}
+              style={{
+                background: '#1d9bf0',
+                color: '#ffffff',
+                fontSize: 12,
+                fontWeight: 800,
+                padding: '7px 14px',
+                borderRadius: 999,
+                textDecoration: 'none',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Open SmiTriX App →
+            </a>
           </div>
-          <a
-            href={appDeepLink}
-            style={{
-              background: '#1d9bf0',
-              color: '#ffffff',
-              fontSize: 12,
-              fontWeight: 800,
-              padding: '7px 14px',
-              borderRadius: 999,
-              textDecoration: 'none',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Open SmiTriX App →
-          </a>
+        )}
+        {/* keyed on the route: a view that throws is contained, and switching tabs
+            re-mounts the boundary, so the tab bar is always a way out */}
+        <div id="app" className="vfade" key={loc.pathname}>
+          <ErrorBoundary>
+            {!authed ? <Login /> : needsMobileOnboarding ? <MobileOnboarding /> : (
+              <Routes>
+                <Route path="/home" element={<Home />} />
+                {/* Gym check-in — switched off in Settings, the route falls through to the
+                    catch-all redirect below. */}
+                {S.checkIn !== false && <Route path="/checkin" element={<CheckIn />} />}
+                <Route path="/plan" element={<Plan />} />
+                <Route path="/plan/r/:id" element={<RoutineEdit />} />
+                <Route path="/workout" element={<Workout />} />
+                <Route path="/train" element={<Train />} />
+                <Route path="/ai-plan" element={<AiPlan />} />
+                <Route path="/stats" element={<Stats />} />
+                <Route path="/measures" element={<Measures />} />
+                <Route path="/timeline" element={<Timeline />} />
+                <Route path="/tools" element={<Tools />} />
+                <Route path="/journal" element={<Journal />} />
+                <Route path="/places" element={<Places />} />
+                <Route path="/nutrition" element={<Nutrition />} />
+                <Route path="/recovery" element={<Recovery />} />
+                <Route path="/awards" element={<Awards />} />
+                <Route path="/history" element={<History />} />
+                <Route path="/library" element={<Library />} />
+                <Route path="/muscles" element={<Muscles />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/plans" element={<PlansManager />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/login" element={<Login />} />
+                {/* The Coach screens gate themselves on the instance config; the routes exist
+                    unconditionally so a deep link from a notification lands somewhere sane
+                    rather than on the catch-all. */}
+                <Route path="/coach" element={<CoachChat />} />
+                <Route path="/coach/intake" element={<CoachIntake />} />
+                <Route path="/coach/proposal" element={<Navigate to="/coach" replace />} />
+                <Route path="/coach/setup" element={<CoachSetup />} />
+                <Route path="/admin" element={<Admin />} />
+                <Route path="*" element={<Navigate to="/home" replace />} />
+              </Routes>
+            )}
+          </ErrorBoundary>
         </div>
-      )}
-      {/* keyed on the route: a view that throws is contained, and switching tabs
-          re-mounts the boundary, so the tab bar is always a way out */}
-      <div id="app" className="vfade" key={loc.pathname}>
-        <ErrorBoundary>
-          {!authed ? <Login /> : needsMobileOnboarding ? <MobileOnboarding /> : (
-            <Routes>
-              <Route path="/home" element={<Home />} />
-              {/* Gym check-in — switched off in Settings, the route falls through to the
-                  catch-all redirect below. */}
-              {S.checkIn !== false && <Route path="/checkin" element={<CheckIn />} />}
-              <Route path="/plan" element={<Plan />} />
-              <Route path="/plan/r/:id" element={<RoutineEdit />} />
-              <Route path="/workout" element={<Workout />} />
-              <Route path="/stats" element={<Stats />} />
-              <Route path="/history" element={<History />} />
-              <Route path="/library" element={<Library />} />
-              <Route path="/muscles" element={<Muscles />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/plans" element={<PlansManager />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/login" element={<Login />} />
-              {/* The Coach screens gate themselves on the instance config; the routes exist
-                  unconditionally so a deep link from a notification lands somewhere sane
-                  rather than on the catch-all. */}
-              <Route path="/coach" element={<CoachChat />} />
-              <Route path="/coach/intake" element={<CoachIntake />} />
-              <Route path="/coach/proposal" element={<Navigate to="/coach" replace />} />
-              <Route path="/coach/setup" element={<CoachSetup />} />
-              <Route path="/admin" element={<Admin />} />
-              <Route path="*" element={<Navigate to="/home" replace />} />
-            </Routes>
-          )}
-        </ErrorBoundary>
       </div>
       {/* The chat owns the bottom of the screen: its composer sits where the tabs would be. */}
       {!needsMobileOnboarding && loc.pathname !== '/coach' && <TabBar onStart={startFlow} />}
@@ -327,9 +353,16 @@ function Shell() {
       <Modals />
       <Toast />
       <TimerFlash />
+      <RestGlow />
+      <StartCountdown />
+      <AwardCelebration
+        award={awardCelebration}
+        handle={S.athleteProfile?.handle || user?.name?.toLowerCase().replace(/\s+/g, '') || 'athlete'}
+        onClose={closeAwardCelebration}
+      />
       <UpdateChecker />
       <TutorialPromptChecker />
-    </>
+    </div>
   )
 }
 
