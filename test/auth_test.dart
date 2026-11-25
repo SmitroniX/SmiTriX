@@ -112,7 +112,7 @@ void main() {
       expect(find.text('DISPLAY NAME'), findsOneWidget);
 
       // Swipe back left on the sliding bar to switch back to Sign In mode.
-      await tester.drag(find.text('Create Account'), const Offset(-180, 0));
+      await tester.drag(find.text('Create Account').first, const Offset(-180, 0));
       await tester.pumpAndSettle();
       expect(find.text('DISPLAY NAME'), findsNothing);
 
