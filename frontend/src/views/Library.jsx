@@ -1,11 +1,10 @@
-import { useRef, useState, useMemo } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { EXDB, BODYPARTS, allExercises, equipmentOf, matchExercise, scoreExercise, usageMap, QUICK_EQ_PRESETS, matchesMuscleGroup } from '../lib/exercises.js'
 import { activeProfile, exAvailable } from '../lib/equipment.js'
 import { bestWeightFor } from '../lib/history.js'
-import { getExerciseRecommendations } from '../lib/recommendations.js'
 import { fmtNum } from '../lib/format.js'
 import { t, exerciseNameFor } from '../lib/i18n.js'
 import { Thumb } from '../components/Media.jsx'
@@ -13,7 +12,8 @@ import { exerciseDetailSheet, addToRoutineSheet, customExSheet } from '../sheets
 import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
 import { tappable, useRevealActiveChip } from '../lib/use-sheet-keyboard.js'
-import { isFav, sortFavouritesFirst } from '../lib/favourites.js'
+import { isFav, toggleFav, sortFavouritesFirst } from '../lib/favourites.js'
+import { CollapsedHeader } from '../components/GymManeMotion.jsx'
 
 export default function Library() {
   const nav = useNavigate()
@@ -21,10 +21,10 @@ export default function Library() {
   const update = useStore(s => s.update)
   const usage = usageMap(S)
   const [q, setQ] = useState('')
-  const [bp, setBp] = useState('')           // '' = all, '★' = chosen, '☆' = favourites, or muscle group
-  const [eqQuick, setEqQuick] = useState('') // '' = all gear, 'machine', 'cable', 'dumbbell', etc.
-  const [eq, setEq] = useState('')           // specific raw equipment if selected
-  const [showAll, setShowAll] = useState(false)   // ignore the active equipment profile for this session
+  const [bp, setBp] = useState('')
+  const [eqQuick, setEqQuick] = useState('')
+  const [eq, setEq] = useState('')
+  const [showAll, setShowAll] = useState(false)
   const [shown, setShown] = useState(40)
   const searchRef = useRef(null)
   const bpStrip = useRef(null), eqStrip = useRef(null)
@@ -48,10 +48,8 @@ export default function Library() {
   const base = allExercises(S).filter(e => inScope(e) && matchesEquipment(e) && matchExercise(e, q))
   const eqFiltered = (profile && !showAll) ? base.filter(e => exAvailable(S, e)) : base
   const eqOpts = equipmentOf(eqFiltered)
-  // Drop the equipment filter if the search narrowed it away, so you never hit a dead end.
   const eqOn = eqOpts.includes(eq) ? eq : ''
 
-  // Favourites float to the top; when searching, sort by smart relevance score
   const f = q ? [...(eqOn ? eqFiltered.filter(e => e.eq === eqOn) : eqFiltered)].sort((a, b) => {
     const sB = scoreExercise(b, q, usage, isFav(S, b.id))
     const sA = scoreExercise(a, q, usage, isFav(S, a.id))
@@ -59,7 +57,6 @@ export default function Library() {
   }) : sortFavouritesFirst(eqOn ? eqFiltered.filter(e => e.eq === eqOn) : eqFiltered, S)
 
   const favCount = (S.favEx || []).length
-  const recommendations = useMemo(() => getExerciseRecommendations(S, { bp, limit: 6 }), [S, bp])
 
   const handleAddToActiveWorkout = (ev, ex) => {
     ev.stopPropagation()
@@ -84,16 +81,38 @@ export default function Library() {
     nav('/workout')
   }
 
+  const handleToggleFav = (ev, exId) => {
+    ev.stopPropagation()
+    update(s => toggleFav(s, exId))
+  }
+
   useRevealActiveChip(bpStrip, bp)
   useRevealActiveChip(eqStrip, eqOn)
 
-  return <>
-    <div className="hdr"><div><h1>{t('Exercises')}</h1><div className="sub">{t('{0} exercises with animations', EXDB.length)}</div></div>
-      <Button size="sm" variant="tinted" icon="target" onClick={() => nav('/muscles')}>{t('By muscle')}</Button>
+  return <div className="narrow gm-library-view">
+    <CollapsedHeader title={t('Exercises')} />
+
+    <div className="hdr" style={{ marginBottom: 14 }}>
+      <div>
+        <h1>{t('Exercises')}</h1>
+        <div className="sub">{t('{0} exercises with animations', EXDB.length)}</div>
+      </div>
+      <div className="row" style={{ gap: 8 }}>
+        <Button size="sm" variant="tinted" icon="target" onClick={() => nav('/muscles')}>{t('By muscle')}</Button>
+        <button
+          type="button"
+          className="iconbtn"
+          aria-label={t('Create your own exercise')}
+          title={t('Create your own exercise')}
+          onClick={() => customExSheet(null, ex => exerciseDetailSheet(ex), q.trim())}
+        >
+          <Icon name="plus" />
+        </button>
+      </div>
     </div>
 
-    {/* Search field with instant one-tap clear button */}
-    <div className="search" style={{ position: 'relative', marginBottom: 10 }}>
+    {/* GymMane Rounded Search Pill */}
+    <div className="search gm-lib-search" style={{ position: 'relative', marginBottom: 12 }}>
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
       <input
         ref={searchRef}
@@ -123,26 +142,13 @@ export default function Library() {
       </button>
     </div>}
 
-    {/* Quick Equipment Presets (Machine, Cable, Dumbbell, Barbell, Bodyweight) */}
-    <div className="chips" style={{ margin: '4px 0 6px', display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      {QUICK_EQ_PRESETS.map(p => (
-        <button
-          key={p.id}
-          type="button"
-          className={'chip nocap' + (eqQuick === p.id ? ' on' : '')}
-          onClick={() => { setEqQuick(p.id); setEq(''); setShown(40) }}
-        >
-          {p.id === 'machine' && <Icon name="gear" style={{ fontSize: 11, marginRight: 4 }} />}
-          {p.id === 'cable' && <Icon name="link" style={{ fontSize: 11, marginRight: 4 }} />}
-          {p.id === 'dumbbell' && <Icon name="dumbbell" style={{ fontSize: 11, marginRight: 4 }} />}
-          {t(p.label)}
+    {/* Muscle Group Filter Pills */}
+    <div className="chips gm-lib-chips" ref={bpStrip} style={{ margin: '0 0 8px', display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      {favCount > 0 && (
+        <button type="button" className={'chip' + (bp === '☆' ? ' on' : '')} onClick={() => { setBp(b => b === '☆' ? '' : '☆'); setShown(40) }}>
+          <Icon name="starFill" className="fav-star" />{t('Favourites')} ({favCount})
         </button>
-      ))}
-    </div>
-
-    {/* Quick Muscle Groups (Chest, Back, Legs, Shoulders, Arms, Core) */}
-    <div className="chips" ref={bpStrip} style={{ margin: '4px 0 8px', display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      {favCount > 0 && <button type="button" className={'chip' + (bp === '☆' ? ' on' : '')} onClick={() => { setBp(b => b === '☆' ? '' : '☆'); setShown(40) }}><Icon name="starFill" className="fav-star" />{t('Favourites')} ({favCount})</button>}
+      )}
       <button type="button" className={'chip nocap' + (!bp ? ' on' : '')} onClick={() => { setBp(''); setEq(''); setShown(40) }}>{t('All')}</button>
       <button type="button" className={'chip' + (bp === 'chest' ? ' on' : '')} onClick={() => { setBp(b => b === 'chest' ? '' : 'chest'); setEq(''); setShown(40) }}>{t('chest')}</button>
       <button type="button" className={'chip' + (bp === 'back' ? ' on' : '')} onClick={() => { setBp(b => b === 'back' ? '' : 'back'); setEq(''); setShown(40) }}>{t('back')}</button>
@@ -155,131 +161,95 @@ export default function Library() {
       ))}
     </div>
 
-    {/* Specific Equipment sub-strip if narrowing further without a quick preset */}
-    {eqOpts.length > 1 && !eqQuick && <div className="chips" ref={eqStrip} style={{ marginBottom: 12 }}>
+    {/* Equipment Filter Pills */}
+    <div className="chips gm-lib-chips" style={{ margin: '0 0 12px', display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      {QUICK_EQ_PRESETS.map(p => (
+        <button
+          key={p.id}
+          type="button"
+          className={'chip nocap' + (eqQuick === p.id ? ' on' : '')}
+          onClick={() => { setEqQuick(p.id); setEq(''); setShown(40) }}
+        >
+          {t(p.label)}
+        </button>
+      ))}
+    </div>
+
+    {eqOpts.length > 1 && !eqQuick && <div className="chips gm-lib-chips" ref={eqStrip} style={{ marginBottom: 12 }}>
       <button type="button" className={'chip nocap' + (!eqOn ? ' on' : '')} onClick={() => { setEq(''); setShown(40) }}>{t('Any equipment')}</button>
       {eqOpts.map(x => <button key={x} type="button" className={'chip' + (eqOn === x ? ' on' : '')} onClick={() => { setEq(x); setShown(40) }}>{t(x)}</button>)}
     </div>}
 
-    {/* Smart Biomechanical & Recovery-Driven Exercise Recommendations Carousel */}
-    {!q && recommendations.length > 0 && (
-      <div style={{ marginBottom: 14 }}>
-        <div className="row between" style={{ margin: '2px 2px 8px' }}>
-          <div className="row" style={{ gap: 6, alignItems: 'center' }}>
-            <Icon name="sparkles" style={{ color: 'var(--acc)', fontSize: 15 }} />
-            <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--label-2)' }}>
-              {t('Recommended For Your Recovery & PRs')}
-            </span>
-          </div>
-          <span className="dim small" style={{ fontSize: 11 }}>{t('Smart AI Picks')}</span>
-        </div>
-        <div style={{ display: 'flex', gap: 10, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }}>
-          {recommendations.map(rec => (
-            <div
-              key={rec.id}
-              className="rec-card"
-              onClick={() => exerciseDetailSheet(rec.ex)}
-              style={{
-                flex: '0 0 210px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border-hairline)',
-                borderRadius: 14,
-                padding: '10px 12px',
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                gap: 8
-              }}
-            >
-              <div className="row between" style={{ gap: 6 }}>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    padding: '2px 7px',
-                    borderRadius: 8,
-                    background: `color-mix(in srgb, ${rec.badgeColor} 16%, transparent)`,
-                    color: rec.badgeColor
-                  }}
-                >
-                  {rec.tag}
-                </span>
-                {rec.bestWeight > 0 && (
-                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--amber)' }}>
-                    🏆 {fmtNum(rec.bestWeight)} {S.unit}
-                  </span>
-                )}
-              </div>
-              <div className="row" style={{ gap: 10, alignItems: 'center' }}>
-                <Thumb ex={rec.ex} />
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div className="rec-title capitalize" style={{ fontWeight: 700, fontSize: 13, lineHeight: 1.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                    {exerciseNameFor(rec.ex)}
-                  </div>
-                  <div className="dim small" style={{ fontSize: 11, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {rec.reason}
-                  </div>
-                </div>
-              </div>
-              <div className="row" style={{ gap: 6 }}>
-                {S.active && (
-                  <Button size="sm" variant="primary" icon="plus" style={{ flex: 1, padding: '5px 8px', fontSize: 11 }} onClick={ev => handleAddToActiveWorkout(ev, rec.ex)}>
-                    {t('Workout')}
-                  </Button>
-                )}
-                <Button size="sm" variant="tinted" icon="plus" style={{ flex: 1, padding: '5px 8px', fontSize: 11 }} onClick={ev => { ev.stopPropagation(); addToRoutineSheet(rec.ex) }}>
-                  {t('Plan')}
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
+    <div className="gm-micro" style={{ margin: '4px 4px 10px', display: 'flex', justifyContent: 'space-between' }}>
+      <span>{bp === '☆' ? t('FAVOURITES') : bp ? t(bp).toUpperCase() : t('ALL EXERCISES')}</span>
+      <span>{f.length}</span>
+    </div>
 
-    <div className="list">
-      <div className="item" {...tappable(() => customExSheet(null, ex => exerciseDetailSheet(ex), q.trim()))}>
-        <div className="thumb thumb-x"><Icon name="sparkles" /></div>
-        <div className="grow"><div className="tt">{t('Create your own exercise')}</div><div className="ss">{t('name + body part, no animation')}</div></div><Icon name="plus" className="chev" />
+    <div className="list gm-lib-list">
+      <div className="item gm-lib-row gm-lib-create" {...tappable(() => customExSheet(null, ex => exerciseDetailSheet(ex), q.trim()))}>
+        <div className="thumb thumb-x"><Icon name="plus" /></div>
+        <div className="grow">
+          <div className="tt">{t('Create your own exercise')}</div>
+          <div className="ss">{t('name + body part, no animation')}</div>
+        </div>
+        <Icon name="chevronRight" className="chev" />
       </div>
       {f.slice(0, shown).map(e => {
         const best = bestWeightFor(S, e.id)
         const timesLogged = usage[e.id] || 0
-        const isMachine = (e.eq || '').includes('machine') || e.eq === 'assisted'
-        const isCable = e.eq === 'cable'
-        return <div key={e.id} className="item" {...tappable(() => exerciseDetailSheet(e))}>
-          <Thumb ex={e} />
-          <div className="grow">
-            <div className="tt capitalize">{isFav(S, e.id) && <Icon name="starFill" className="fav-star" />}{exerciseNameFor(e)}</div>
-            <div className="ss capitalize row" style={{ gap: 5, alignItems: 'center', marginTop: 2, flexWrap: 'wrap' }}>
-              <span>{t(e.tg || e.bp)}</span>
-              <span style={{ opacity: 0.35 }}>•</span>
-              <span style={{
-                fontWeight: isMachine || isCable ? 600 : 400,
-                color: isMachine ? 'var(--teal)' : isCable ? 'var(--blue)' : 'inherit'
-              }}>
-                {isMachine && '⚙️ '}{isCable && '🔗 '}{t(e.eq)}
-              </span>
-              {timesLogged > 0 && (
-                <>
-                  <span style={{ opacity: 0.35 }}>•</span>
-                  <span style={{ color: 'var(--acc)', fontWeight: 600 }}>{timesLogged}×</span>
-                </>
-              )}
+        const starred = isFav(S, e.id)
+        return (
+          <div key={e.id} className="item gm-lib-row" {...tappable(() => exerciseDetailSheet(e))}>
+            <Thumb ex={e} />
+            <div className="grow">
+              <div className="tt capitalize">
+                {starred && <Icon name="starFill" className="fav-star" />}
+                {exerciseNameFor(e)}
+              </div>
+              <div className="ss capitalize row" style={{ gap: 5, alignItems: 'center', marginTop: 2, flexWrap: 'wrap' }}>
+                <span>{t(e.tg || e.bp)}</span>
+                {e.eq && (
+                  <>
+                    <span style={{ opacity: 0.35 }}>·</span>
+                    <span>{t(e.eq)}</span>
+                  </>
+                )}
+                {timesLogged > 0 && (
+                  <>
+                    <span style={{ opacity: 0.35 }}>·</span>
+                    <span style={{ color: 'var(--acc)', fontWeight: 700 }}>{timesLogged}×</span>
+                  </>
+                )}
+              </div>
             </div>
+            {best > 0 && <span className="gm-lib-best">{fmtNum(best)} {S.unit}</span>}
+            <button
+              type="button"
+              className={'gm-lib-star' + (starred ? ' on' : '')}
+              aria-label={starred ? t('Remove favourite') : t('Favourite')}
+              onClick={ev => handleToggleFav(ev, e.id)}
+            >
+              <Icon name={starred ? 'starFill' : 'star'} />
+            </button>
+            {S.active ? (
+              <Button size="sm" variant="primary" icon="plus" style={{ width: 'auto', padding: '6px 11px', fontSize: 12 }} onClick={ev => handleAddToActiveWorkout(ev, e)}>
+                {t('Add')}
+              </Button>
+            ) : (
+              <button
+                type="button"
+                className="gm-lib-plan-btn"
+                aria-label={t('Add to routine')}
+                onClick={ev => { ev.stopPropagation(); addToRoutineSheet(e) }}
+              >
+                <Icon name="plus" />
+              </button>
+            )}
           </div>
-          {best > 0 && <span className="tag acc">{fmtNum(best)}</span>}
-          {S.active && (
-            <Button size="sm" variant="primary" icon="bolt" style={{ width: 'auto', padding: '6px 10px', fontSize: 12 }} onClick={ev => handleAddToActiveWorkout(ev, e)}>
-              {t('Add')}
-            </Button>
-          )}
-          <Button size="sm" variant="tinted" icon="plus" onClick={ev => { ev.stopPropagation(); addToRoutineSheet(e) }}>{t('Plan')}</Button>
-        </div>
+        )
       })}
       {f.length === 0 && <div className="empty"><div className="ico"><Icon name="magnifier" /></div>{t('No match')}</div>}
     </div>
-    {f.length > shown && <><div style={{ height: 10 }} /><Button onClick={() => setShown(s => s + 40)}>{t('Show more')}</Button></>}
-  </>
+    {f.length > shown && <><div style={{ height: 12 }} /><Button onClick={() => setShown(s => s + 40)}>{t('Show more')}</Button></>}
+  </div>
 }

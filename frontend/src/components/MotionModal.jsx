@@ -1,15 +1,20 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { imgSrc, gifSrc, mediaUrlsFor, smOf } from '../lib/exercises.js'
+import { resolveExerciseArtSlug, getCachedExerciseArt, loadExerciseArt } from '../lib/exercise-art.js'
 import { t, exerciseNameFor, instrFor } from '../lib/i18n.js'
+import { ExerciseArtSvg } from './Media.jsx'
 import Icon from './Icon.jsx'
 import { Button } from './ui.jsx'
 
 export default function MotionModal({ ex, onClose }) {
+  const slug = useMemo(() => (ex?.gif ? resolveExerciseArtSlug(ex) : null), [ex?.id, ex?.n, ex?.eq, ex?.bp, ex?.tg, ex?.gif])
+  const [art, setArt] = useState(() => (slug ? getCachedExerciseArt(slug) : null))
   const [playing, setPlaying] = useState(true)
   const [viewMode, setViewMode] = useState('loop') // 'loop' | 'setup'
+  const [speed, setSpeed] = useState(1)
   const [cdnIndex, setCdnIndex] = useState(0)
   const [failed, setFailed] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!art)
   const [activeStep, setActiveStep] = useState(0)
 
   const steps = instrFor(ex)
@@ -19,10 +24,20 @@ export default function MotionModal({ ex, onClose }) {
   useEffect(() => {
     setPlaying(true)
     setViewMode('loop')
+    setSpeed(1)
     setCdnIndex(0)
     setFailed(null)
+    if (!slug) { setArt(null); setLoading(true); return }
+    const cached = getCachedExerciseArt(slug)
+    if (cached) { setArt(cached); setLoading(false); return }
+    setArt(null)
     setLoading(true)
-  }, [ex?.id])
+    let cancelled = false
+    loadExerciseArt(slug).then(data => {
+      if (!cancelled && data) { setArt(data); setLoading(false) }
+    })
+    return () => { cancelled = true }
+  }, [ex?.id, slug])
 
   const gifUrls = mediaUrlsFor(ex, 'gif')
   const imgUrls = mediaUrlsFor(ex, 'img')
@@ -34,22 +49,9 @@ export default function MotionModal({ ex, onClose }) {
   const activeSrc = showGif ? currentGifUrl : currentImgUrl
 
   const onError = () => {
-    // If GIF on current CDN mirror fails, try the next mirror
-    if (showGif && cdnIndex < gifUrls.length - 1) {
-      setCdnIndex(i => i + 1)
-      return
-    }
-    // If all GIF mirrors fail, fall back to still frame (JPG)
-    if (showGif) {
-      setCdnIndex(0)
-      setFailed('gif')
-      return
-    }
-    // If still frame on current mirror fails, try next mirror
-    if (cdnIndex < imgUrls.length - 1) {
-      setCdnIndex(i => i + 1)
-      return
-    }
+    if (showGif && cdnIndex < gifUrls.length - 1) { setCdnIndex(i => i + 1); return }
+    if (showGif) { setCdnIndex(0); setFailed('gif'); return }
+    if (cdnIndex < imgUrls.length - 1) { setCdnIndex(i => i + 1); return }
     setLoading(false)
     setFailed('all')
   }
@@ -60,6 +62,9 @@ export default function MotionModal({ ex, onClose }) {
     setLoading(true)
     setPlaying(true)
   }
+
+  const usingVector = !!art
+  const isAnimating = usingVector ? (playing && viewMode === 'loop') : showGif
 
   return (
     <div className="motion-modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">
@@ -74,41 +79,47 @@ export default function MotionModal({ ex, onClose }) {
           </button>
         </div>
 
-        <div className="motion-player-stage">
-          {loading && !failed && (
-            <div className="exmedia-skeleton">
-              <div className="exmedia-shimmer" />
-              <Icon name="dumbbell" className="exmedia-skeleton-icon" />
-            </div>
-          )}
-
-          {failed === 'all' ? (
-            <div className="motion-player-failed">
-              <Icon name="dumbbell" className="failed-icon" />
-              <div className="failed-text">{t('Visual guide unavailable')}</div>
-              <Button size="sm" onClick={handleRetry}>{t('Retry')}</Button>
-            </div>
+        <div className={'motion-player-stage' + (usingVector ? ' gm-vector-stage' : '')} onClick={() => viewMode === 'loop' && setPlaying(p => !p)}>
+          {usingVector ? (
+            <ExerciseArtSvg art={art} playing={playing && viewMode === 'loop'} speed={speed} stillFrame={viewMode === 'setup'} />
           ) : (
-            <img
-              key={activeSrc}
-              decoding="async"
-              draggable={false}
-              src={activeSrc}
-              alt={exerciseNameFor(ex)}
-              className={'motion-player-media' + (loading ? ' img-loading' : ' img-loaded')}
-              onLoad={() => setLoading(false)}
-              onError={onError}
-            />
+            <>
+              {loading && !failed && (
+                <div className="exmedia-skeleton">
+                  <div className="exmedia-shimmer" />
+                  <Icon name="dumbbell" className="exmedia-skeleton-icon" />
+                </div>
+              )}
+
+              {failed === 'all' ? (
+                <div className="motion-player-failed">
+                  <Icon name="dumbbell" className="failed-icon" />
+                  <div className="failed-text">{t('Visual guide unavailable')}</div>
+                  <Button size="sm" onClick={handleRetry}>{t('Retry')}</Button>
+                </div>
+              ) : (
+                <img
+                  key={activeSrc}
+                  decoding="async"
+                  draggable={false}
+                  src={activeSrc}
+                  alt={exerciseNameFor(ex)}
+                  className={'motion-player-media' + (loading ? ' img-loading' : ' img-loaded')}
+                  onLoad={() => setLoading(false)}
+                  onError={onError}
+                />
+              )}
+            </>
           )}
 
           <div className="motion-player-badges">
             <span className="motion-live-pill">
-              <span className={'motion-live-dot' + (showGif ? ' active' : ' paused')} />
-              <span>{showGif ? t('Motion HD') : (viewMode === 'setup' ? t('Setup Frame') : t('Paused'))}</span>
+              <span className={'motion-live-dot' + (isAnimating ? ' active' : ' paused')} />
+              <span>{isAnimating ? t('Motion HD') : (viewMode === 'setup' ? t('Setup Frame') : t('Paused'))}</span>
             </span>
           </div>
 
-          <div className="motion-player-overlay">
+          <div className="motion-player-overlay" onClick={e => e.stopPropagation()}>
             <div className="motion-mode-toggle">
               <button
                 type="button"
@@ -126,17 +137,29 @@ export default function MotionModal({ ex, onClose }) {
               </button>
             </div>
 
-            {viewMode === 'loop' && (
-              <button
-                type="button"
-                className="motion-player-playbtn"
-                onClick={() => setPlaying(p => !p)}
-                aria-label={playing ? t('Pause') : t('Play')}
-              >
-                <Icon name={playing ? 'pause' : 'play'} />
-                <span>{playing ? t('Pause') : t('Play')}</span>
-              </button>
-            )}
+            <div className="row" style={{ gap: 6 }}>
+              {usingVector && viewMode === 'loop' && (
+                <button
+                  type="button"
+                  className="motion-player-playbtn"
+                  onClick={() => setSpeed(s => (s === 1 ? 0.65 : s === 0.65 ? 1.35 : 1))}
+                  title={t('Playback speed')}
+                >
+                  <span>{speed}×</span>
+                </button>
+              )}
+              {viewMode === 'loop' && (
+                <button
+                  type="button"
+                  className="motion-player-playbtn"
+                  onClick={() => setPlaying(p => !p)}
+                  aria-label={playing ? t('Pause') : t('Play')}
+                >
+                  <Icon name={playing ? 'pause' : 'play'} />
+                  <span>{playing ? t('Pause') : t('Play')}</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

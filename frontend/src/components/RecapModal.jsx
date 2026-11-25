@@ -110,7 +110,7 @@ function downloadRecapPng(recap, athleteName, unit) {
   a.click()
 }
 
-export default function RecapModal({ open, onClose }) {
+export default function RecapModal({ open = true, onClose }) {
   const S = useStore(s => s.S)
   const user = useStore(s => s.user)
   const toast = useUI(s => s.toast)

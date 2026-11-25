@@ -512,13 +512,32 @@ body.gm-has-parked #app {
   background: rgba(255, 255, 255, 0.13);
   border: 1px solid rgba(255, 255, 255, 0.08);
   pointer-events: none;
-  transition: left 420ms var(--spring), width 420ms var(--spring), transform 220ms var(--ease);
+  will-change: left, width, transform;
+  transition: top 180ms var(--ease), bottom 180ms var(--ease), background 180ms var(--ease), border-color 180ms var(--ease), box-shadow 180ms var(--ease), opacity 220ms var(--ease);
   z-index: 0;
+}
+
+#tabbar .gm-nav-liquid.dragging {
+  top: 5px;
+  bottom: 5px;
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+#tabbar .gm-nav-liquid.dim-slot {
+  opacity: 0.25;
 }
 
 :root[data-theme="light"] #tabbar .gm-nav-liquid {
   background: rgba(26, 23, 19, 0.08);
   border-color: rgba(26, 23, 19, 0.06);
+}
+
+:root[data-theme="light"] #tabbar .gm-nav-liquid.dragging {
+  background: rgba(26, 23, 19, 0.14);
+  border-color: rgba(26, 23, 19, 0.2);
+  box-shadow: 0 6px 18px rgba(26, 23, 19, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 #tabbar button {
@@ -532,11 +551,22 @@ body.gm-has-parked #app {
   align-items: center;
   justify-content: center;
   color: color-mix(in srgb, var(--label) 64%, transparent);
-  transition: transform 180ms var(--spring), color 180ms;
+  transition: transform 200ms var(--spring), color 180ms var(--ease);
 }
 
 #tabbar button:active {
-  transform: scale(0.86);
+  transform: scale(0.85);
+}
+
+#tabbar button.hover-lift {
+  transform: scale(1.12) translateY(-1px);
+  color: var(--label) !important;
+}
+
+#tabbar button.hover-lift .icn {
+  opacity: 1;
+  --icon-stroke: 2.25;
+  color: var(--label) !important;
 }
 
 #tabbar button .icn {
@@ -1532,10 +1562,713 @@ body.gm-has-parked #app {
   transform: scale(0.975);
 }
 
+/* --------------------------------- GymMane Vector Exercise Animations ---- */
+.exmedia.gm-exmedia.gm-vector {
+  background: var(--card-subtle, var(--surface-2)) !important;
+  border-radius: 22px !important;
+  border: 1px solid color-mix(in srgb, var(--sep) 42%, transparent);
+  height: 214px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  color: var(--label);
+  overflow: hidden;
+}
+
+.exmedia.gm-exmedia.gm-vector.compact {
+  height: 156px;
+  padding: 10px;
+}
+
+.exmedia.gm-exmedia.gm-vector.mini {
+  height: 76px;
+  padding: 6px;
+}
+
+.gm-art-svg {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+  color: var(--label);
+}
+
+.thumb.gm-thumb-art,
+.thumb.gm-thumb-wrap {
+  width: 50px;
+  height: 50px;
+  min-width: 50px;
+  border-radius: 14px;
+  background: var(--card-subtle, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--sep) 36%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  overflow: hidden;
+  color: var(--label);
+}
+
+.thumb.gm-thumb-wrap {
+  padding: 0;
+}
+
+.thumb.gm-thumb-wrap img.thumb {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  object-fit: cover;
+}
+
+.motion-player-stage.gm-vector-stage {
+  background: var(--card-subtle, #1E1E1E) !important;
+  border: 1px solid color-mix(in srgb, var(--sep) 42%, transparent);
+  padding: 20px 18px 54px;
+  color: var(--label);
+  cursor: pointer;
+}
+
+/* --------------------------------- GymMane Exercises Library ------------- */
+.gm-lib-search .input {
+  border-radius: 999px !important;
+  background: var(--surface) !important;
+  border: 1px solid color-mix(in srgb, var(--sep) 40%, transparent) !important;
+  height: 44px;
+}
+
+.gm-lib-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gm-lib-row {
+  background: var(--surface) !important;
+  border-radius: 20px !important;
+  padding: 10px 12px !important;
+  border: 1px solid color-mix(in srgb, var(--sep) 34%, transparent) !important;
+  transition: transform 150ms var(--ease), background 150ms;
+}
+
+.gm-lib-row:active {
+  transform: scale(0.98);
+}
+
+.gm-lib-best {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--acc);
+  background: var(--acc-soft);
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.gm-lib-star {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--label-3);
+  font-size: 15px;
+  flex: none;
+  cursor: pointer;
+  transition: transform 180ms var(--spring), color 160ms;
+}
+
+.gm-lib-star.on {
+  color: var(--amber);
+}
+
+.gm-lib-star:active {
+  transform: scale(0.82);
+}
+
+.gm-lib-plan-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--label);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex: none;
+  cursor: pointer;
+  transition: transform 160ms var(--spring), background 160ms;
+}
+
+.gm-lib-plan-btn:active {
+  transform: scale(0.88);
+  background: var(--ember);
+  color: var(--on-ember);
+}
+
+/* --------------------------------- Adaptive Sidebar & Parked Pill -------- */
+.gm-side-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--label-3);
+  margin-top: 1px;
+}
+
+.gm-side-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gm-sage);
+  box-shadow: 0 0 8px var(--gm-sage);
+}
+
+.gm-side-start.rec {
+  background: linear-gradient(135deg, var(--gm-sage), color-mix(in srgb, var(--gm-sage) 75%, #000));
+  color: #0A0A0A;
+}
+
+.gm-parked-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gm-sage);
+  box-shadow: 0 0 10px var(--gm-sage);
+  animation: gmLivePulse 1.8s ease-in-out infinite;
+  flex: none;
+}
+
+@keyframes gmLivePulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.35); opacity: 0.55; }
+}
+
+/* --------------------------------- GymMane Profile Gesture & Animations -- */
+.gm-profile-sticky {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--sat) + 58px);
+  padding: var(--sat) 16px 0;
+  z-index: 43;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 92%, transparent) 0%, color-mix(in srgb, var(--bg) 76%, transparent) 72%, transparent 100%);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  pointer-events: none;
+}
+
+@media (min-width: 1024px) {
+  .gm-profile-sticky {
+    left: var(--gm-sidebar-w);
+  }
+}
+
+.gm-profile-sticky-center {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 65%;
+}
+
+.gm-mini-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 900;
+  flex: none;
+}
+
+.gm-profile-sticky-name {
+  font-size: 15.5px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-profile-sticky-gear {
+  position: absolute;
+  right: 16px;
+  top: calc(var(--sat) + 10px);
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.44);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.gm-recap-pill {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(10, 10, 10, 0.5);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: transform 160ms var(--spring);
+}
+
+.gm-recap-pill:active {
+  transform: scale(0.93);
+}
+
+.gm-pull-ticker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  will-change: transform, opacity;
+}
+
+.gm-name-ticker.reverse {
+  animation-direction: reverse;
+  animation-duration: 21s;
+}
+
+.gm-pull-traveller-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  pointer-events: none;
+}
+
+.gm-pull-rings {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.gm-traveller-avatar {
+  position: fixed;
+  border-radius: 50%;
+  border: 3px solid var(--bg);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.52);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  transition: transform 260ms var(--spring), box-shadow 260ms var(--ease);
+}
+
+.gm-traveller-avatar.armed {
+  transform: scale(1.06);
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.64), 0 0 0 3px rgba(255, 255, 255, 0.35);
+}
+
+.gm-pull-prompt {
+  position: fixed;
+  left: 24px;
+  right: 24px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  transition: color 200ms var(--ease);
+}
+
+.gm-medal-thumb {
+  transition: transform 240ms var(--spring), filter 220ms var(--ease);
+}
+
+.gm-medal-thumb:hover {
+  transform: translateY(-4px) scale(1.08);
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.45));
+}
+
+.gm-photo-fan-card {
+  transform: rotate(var(--fan-rot, 0deg));
+  transition: transform 320ms var(--spring), box-shadow 260ms var(--ease);
+}
+
+.gm-photo-fan:hover .gm-photo-fan-card {
+  transform: translateX(var(--fan-shift, 0px)) translateY(-4px) rotate(calc(var(--fan-rot, 0deg) * 1.45));
+}
+
+.gm-photo-fan:active .gm-photo-fan-card {
+  transform: scale(0.96) rotate(var(--fan-rot, 0deg));
+}
+
+/* --------------------------------- GymMane Workout Section & Stage ------- */
+.gm-freestyle-card {
+  padding: 14px 16px !important;
+  border-radius: 22px !important;
+}
+
+.gm-freestyle-ico {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: var(--acc-soft);
+  color: var(--acc);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex: none;
+}
+
+.gm-freestyle-go {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--label-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.gm-wo-chip {
+  background: var(--surface) !important;
+  border: 1px solid color-mix(in srgb, var(--sep) 38%, transparent) !important;
+}
+
+.gm-live-hdr {
+  padding: 10px 4px 10px !important;
+  margin-bottom: 10px;
+}
+
+.gm-live-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.gm-live-ic {
+  width: 36px !important;
+  height: 36px !important;
+  flex: none;
+}
+
+.gm-live-center {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 0 2px;
+}
+
+.gm-live-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gm-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gm-sage);
+  box-shadow: 0 0 8px var(--gm-sage);
+  animation: gmLivePulse 1.8s ease-in-out infinite;
+  flex: none;
+}
+
+.gm-live-tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--gm-sage);
+  text-transform: uppercase;
+}
+
+.gm-live-clock {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--label-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.gm-live-name {
+  font-size: 15.5px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 1px;
+}
+
+.gm-finish-pill {
+  height: 36px !important;
+  padding: 0 14px !important;
+  border-radius: 999px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+}
+
+.gm-progress-strip {
+  margin-top: 10px;
+}
+
+.gm-progress-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gm-all-btn {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--sep) 42%, transparent);
+  color: var(--label-2);
+  font-size: 11.5px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.gm-all-btn:active {
+  transform: scale(0.93);
+  background: var(--surface-2);
+}
+
+.gm-ov-num {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--label-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12.5px;
+  font-weight: 800;
+  flex: none;
+}
+
+@keyframes gmStageNext {
+  0% { opacity: 0; transform: translateX(30px) scale(0.975); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes gmStagePrev {
+  0% { opacity: 0; transform: translateX(-30px) scale(0.975); }
+  100% { opacity: 1; transform: none; }
+}
+
+.gm-stage-next {
+  animation: gmStageNext 380ms var(--ease);
+}
+
+.gm-stage-prev {
+  animation: gmStagePrev 380ms var(--ease);
+}
+
+.gm-ex-hdr {
+  margin-bottom: 10px;
+}
+
+.gm-ex-title {
+  font-weight: 900;
+  letter-spacing: -0.028em;
+  text-transform: capitalize;
+  line-height: 1.15;
+  color: var(--label);
+}
+
+.gm-ex-ic {
+  width: 34px !important;
+  height: 34px !important;
+  font-size: 15px !important;
+}
+
+.gm-ex-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: capitalize;
+  background: var(--surface);
+  color: var(--label-2);
+  border: 1px solid color-mix(in srgb, var(--sep) 38%, transparent);
+}
+
+.gm-ex-pill.acc {
+  background: var(--acc-soft);
+  color: var(--acc);
+  border-color: var(--acc-line);
+}
+
+.gm-ex-pill.swap {
+  color: var(--label);
+  cursor: pointer;
+  transition: transform 150ms var(--spring), background 150ms;
+}
+
+.gm-ex-pill.swap:active {
+  transform: scale(0.92);
+  background: var(--surface-2);
+}
+
+.gm-ex-pill.best {
+  background: color-mix(in srgb, var(--gm-sage) 14%, var(--surface));
+  color: var(--gm-sage);
+  border-color: color-mix(in srgb, var(--gm-sage) 30%, transparent);
+}
+
+.gm-ex-pill.muted {
+  color: var(--label-3);
+}
+
+.gm-last-cue,
+.gm-next-cue {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--sep) 36%, transparent);
+  margin-bottom: 7px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gm-next-cue {
+  background: color-mix(in srgb, var(--acc) 10%, var(--surface)) !important;
+  border-color: var(--acc-line) !important;
+}
+
+.gm-cue-tag {
+  font-size: 9.5px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--label-2);
+  flex: none;
+}
+
+.gm-cue-tag.acc {
+  background: var(--acc);
+  color: var(--on-acc);
+}
+
+.gm-cue-val {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--label-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-cue-date {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--label-3);
+  flex: none;
+}
+
+@keyframes gmTimerReveal {
+  0% { opacity: 0; transform: translateY(-10px) scale(0.97); }
+  100% { opacity: 1; transform: none; }
+}
+
+.gm-timer-reveal {
+  animation: gmTimerReveal 300ms var(--ease);
+}
+
+.gm-rest-dock {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(96px + var(--sab));
+  width: min(calc(100vw - 36px), 416px);
+  z-index: 48;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 24px;
+  background: rgba(19, 19, 19, 0.9);
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  animation: gmTimerReveal 280ms var(--ease);
+}
+
+.gm-rest-dock-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  animation: gmLivePulse 1.5s ease-in-out infinite;
+  flex: none;
+}
+
+.golden-pr-banner {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--acc) 26%, #1C1C1C), color-mix(in srgb, var(--amber) 18%, #1C1C1C)) !important;
+  border: 1px solid color-mix(in srgb, var(--acc) 48%, transparent) !important;
+  border-radius: 22px !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.42) !important;
+}
+
+.hevy-add-set,
+.workout-add-exercise {
+  border-radius: 999px !important;
+  border: 1.5px dashed color-mix(in srgb, var(--sep) 72%, transparent) !important;
+  background: transparent !important;
+  color: var(--label) !important;
+}
+
+.hevy-add-set:active,
+.workout-add-exercise:active {
+  background: var(--surface-2) !important;
+  transform: scale(0.97);
+}
+
 /* ------------------------------------------ Reduced Motion --------------- */
 @media (prefers-reduced-motion: reduce) {
   .gm-rise, .gm-roll-char, .gm-rest-glow, .gm-countdown-num,
-  .gm-vessel-wave, .gm-story-ring, .gm-name-ticker {
+  .gm-vessel-wave, .gm-story-ring, .gm-name-ticker,
+  .gm-stage-next, .gm-stage-prev, .gm-timer-reveal,
+  .gm-live-dot, .gm-parked-dot, .gm-rest-dock-dot {
     animation: none !important;
     transition: none !important;
   }

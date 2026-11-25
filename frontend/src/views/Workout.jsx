@@ -4,6 +4,8 @@ import { useStore } from '../store/useStore.js'
 import { workoutControls } from '../lib/workout-controls.js'
 import { useUI } from '../store/useUI.js'
 import { exOr, mediaUrlsFor } from '../lib/exercises.js'
+import { prefetchExerciseArt } from '../lib/exercise-art.js'
+import { musclesOf } from '../lib/muscles.js'
 import { usesBar, barWeightFor, plateSplit, calculatePlates } from '../lib/bar.js'
 import OlympicPlateBadges from '../components/OlympicPlateBadges.jsx'
 import { effectiveRoutine, lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, freestyleConfig, defaultConfig, setsDoneActive, supersetUnits, unitOf, setLabel, modeOf, isBw, isPerSide, sideReps, repStep, EFFORT, effortOf, stepEffort, capEffort, cascadeWeight, insertWarmupRow, removeRowAt, pairAdjacent, unpairSuperset, cleanupSg, applyIntensifierPlan, pinnedNoteFor, exNoteFor, generateWarmupPyramid } from '../lib/history.js'
@@ -23,10 +25,8 @@ import { progressionGuidance } from '../lib/progression-copy.js'
 import { glyphOf, DEFAULT_GLYPH } from '../lib/glyphs.js'
 import { isWarmupRow, isDropSet, isRestPauseSet, dropsOf, clustersOf, addDrop, addCluster, removeDropAt, removeClusterAt, setDropAt, setClusterAt, nextDropWeight, nextBurstReps } from '../lib/workout-model.js'
 import { canMoveActiveWorkoutUnit, moveActiveWorkoutUnit } from '../lib/active-workout-order.js'
-import { HeartRateBadge } from '../components/HeartRateMonitor.jsx'
-import { SyncStatusBadge } from '../components/SyncStatusBadge.jsx'
 import { FormCheckBadge, openFormCheckPlayer, openFormCheckRecorder } from '../components/FormCheckVaultModal.jsx'
-import { GymTimerPanel } from '../components/GymManeMotion.jsx'
+import { GymTimerPanel, MiniBody, Rise, RollingText, RoutineFolder } from '../components/GymManeMotion.jsx'
 import { openStickerEditor } from '../components/StickerEditorModal.jsx'
 
 const SWIPE_MIN_DISTANCE = 48
@@ -88,125 +88,147 @@ function StartChooser() {
     return list.slice(0, 4).map(e => exerciseNameFor(exOr(e?.id))).join(', ') + (list.length > 4 ? ', …' : '')
   }
 
-  return <div className="narrow">
-    <div className="hdr">
+  const todayMuscles = (() => {
+    const out = new Set()
+    for (const item of (todayR?.ex || [])) {
+      const ex = exOr(item?.id || item)
+      if (ex) for (const k of Object.keys(musclesOf(ex))) out.add(k)
+    }
+    return Array.from(out)
+  })()
+
+  return <div className="narrow gm-workout-chooser">
+    <div className="hdr" style={{ marginBottom: 14 }}>
       <div>
         <h1>{t('Workout')}</h1>
         <div className="sub">{t(DAYN[new Date().getDay()])} — {todayR ? t('today is {0}', todayR.name) : t('rest day, but no one’s stopping you')}</div>
       </div>
     </div>
 
-    {/* Hero Card: Start Empty Workout (Freestyle) */}
-    <div className="card start-freestyle-card" onClick={() => startFlow(null)} style={{ cursor: 'pointer' }}>
-      <div className="row between" style={{ alignItems: 'center' }}>
-        <div className="row" style={{ gap: 12, alignItems: 'center' }}>
-          <div className="start-freestyle-icon">
-            <Icon name="plus" />
-          </div>
-          <div>
-            <div className="start-freestyle-title">{t('Start Empty Workout')}</div>
-            <div className="dim small">{t('Freestyle workout — pick exercises as you go')}</div>
-          </div>
-        </div>
-        <Icon name="chevronRight" className="chev" />
-      </div>
-    </div>
-
-    {/* Quick Action Navigation */}
-    <div className="row" style={{ gap: 8, margin: '10px 0 14px' }}>
-      <button
-        type="button"
-        className="chip"
-        style={{ flex: 1, padding: '9px 12px', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}
-        onClick={() => nav('/train')}
-      >
-        <Icon name="target" style={{ marginRight: 5 }} />
-        {t('Body Map')}
-      </button>
-      <button
-        type="button"
-        className="chip"
-        style={{ flex: 1, padding: '9px 12px', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}
-        onClick={() => {
-          const r = { id: uid(), name: t('New routine'), emoji: DEFAULT_GLYPH, ex: [] }
-          update(s => { s.routines.push(r) })
-          nav('/plan/r/' + r.id)
-        }}
-      >
-        <Icon name="plus" style={{ marginRight: 5 }} />
-        {t('New routine')}
-      </button>
-      <button
-        type="button"
-        className="chip"
-        style={{ flex: 1, padding: '9px 12px', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}
-        onClick={() => nav('/plan')}
-      >
-        <Icon name="calendar" style={{ marginRight: 5 }} />
-        {t('Weekly plan')}
-      </button>
-    </div>
-
-    {/* Today's Scheduled Routine (if any) */}
+    {/* Today's Scheduled Routine — GymMane Runner Hero Card */}
     {todayR && (
-      <div className="card routine-card-featured" style={{ borderColor: 'var(--acc)', marginBottom: 14 }}>
-        <div className="row between" style={{ marginBottom: 6 }}>
-          <span className="tag acc" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.03em' }}>
-            <Icon name="sparkles" style={{ marginRight: 4 }} />
-            {t("TODAY'S PLAN")}{todayOvr ? ' · ' + t('RESCHEDULED') : ''}
-          </span>
-          <button className="iconbtn" onClick={ev => handleRoutineMenu(todayR, ev)} aria-label={t('Routine options')}><Icon name="ellipsis" /></button>
-        </div>
-        <div className="row" style={{ gap: 10, alignItems: 'center', marginBottom: 8 }}>
-          <span className="lrow-i" style={{ width: 40, height: 40, borderRadius: 10, fontSize: 22 }}><Icon name={glyphOf(todayR.emoji)} /></span>
-          <div>
-            <div style={{ fontSize: 17, fontWeight: 700 }}>{todayR.name}</div>
-            <div className="dim small">{exCount((todayR.ex || []).length)}</div>
+      <Rise index={0}>
+        <div className="gm-hero-card routine-card-featured" style={{ marginBottom: 14 }}>
+          <div className="gm-hero-orb-1" aria-hidden="true" />
+          <div className="gm-hero-orb-2" aria-hidden="true" />
+          <img src="./smitrix-ui/img/home_runner.webp" alt="" className="gm-hero-runner" aria-hidden="true" />
+          <div style={{ position: 'relative', zIndex: 2 }}>
+            <div className="row between" style={{ marginBottom: 10 }}>
+              <span className="gm-micro" style={{ color: 'var(--acc)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <Icon name="sparkles" style={{ fontSize: 12 }} />
+                {t("TODAY'S PLAN")}{todayOvr ? ' · ' + t('RESCHEDULED') : ''}
+              </span>
+              <button type="button" className="iconbtn" style={{ width: 32, height: 32 }} onClick={ev => handleRoutineMenu(todayR, ev)} aria-label={t('Routine options')}>
+                <Icon name="ellipsis" />
+              </button>
+            </div>
+            <div className="row" style={{ gap: 10, alignItems: 'center', marginBottom: 6 }}>
+              <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-0.025em', lineHeight: 1.1 }}>{todayR.name}</div>
+            </div>
+            <div className="row" style={{ gap: 10, alignItems: 'center', marginBottom: 10 }}>
+              <span className="dim small" style={{ fontWeight: 700 }}>{exCount((todayR.ex || []).length)}</span>
+              {todayMuscles.length > 0 && <MiniBody muscles={todayMuscles} height={22} />}
+            </div>
+            <div className="dim small" style={{ marginBottom: 16, lineHeight: 1.4, maxWidth: '82%' }}>
+              {routinePreview(todayR)}
+            </div>
+            <Button variant="primary" icon="playFill" onClick={() => startFlow(todayR.id)}>
+              {t('Start {0}', todayR.name)}
+            </Button>
           </div>
         </div>
-        <div className="dim small" style={{ marginBottom: 12, lineHeight: 1.4 }}>
-          {routinePreview(todayR)}
-        </div>
-        <Button variant="primary" icon="play" onClick={() => startFlow(todayR.id)}>{t('Start {0}', todayR.name)}</Button>
-      </div>
+      </Rise>
     )}
 
-    {/* My Routines Cards */}
-    {others.length > 0 && (
-      <div style={{ marginBottom: 14 }}>
-        <div className="row between" style={{ margin: '0 2px 8px', alignItems: 'center' }}>
-          <h4 className="sec" style={{ margin: 0 }}>{t('My routines ({0})', others.length)}</h4>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {others.map(r => (
-            <div key={r.id} className="card routine-item-card">
-              <div className="row between" style={{ alignItems: 'center', marginBottom: 6 }}>
-                <div className="row" style={{ gap: 10, alignItems: 'center' }}>
-                  <span className="lrow-i" style={{ width: 34, height: 34, borderRadius: 8, fontSize: 19 }}><Icon name={glyphOf(r.emoji)} /></span>
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 700 }}>{r.name}</div>
-                    <div className="dim small">{exCount((r.ex || []).length)}</div>
-                  </div>
-                </div>
-                <button className="iconbtn" onClick={ev => handleRoutineMenu(r, ev)} aria-label={t('Routine options')}><Icon name="ellipsis" /></button>
-              </div>
-              <div className="dim small" style={{ marginBottom: 10, lineHeight: 1.35, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {routinePreview(r)}
-              </div>
-              <Button size="sm" variant="accent" icon="play" onClick={() => startFlow(r.id)}>{t('Start routine')}</Button>
+    {/* Quick Freestyle Start Card (GymMane dark pill card) */}
+    <Rise index={1}>
+      <div className="card start-freestyle-card gm-freestyle-card" onClick={() => startFlow(null)} style={{ cursor: 'pointer' }}>
+        <div className="row between" style={{ alignItems: 'center', gap: 12 }}>
+          <div className="row" style={{ gap: 12, alignItems: 'center', minWidth: 0 }}>
+            <div className="gm-freestyle-ico">
+              <Icon name="plus" />
             </div>
-          ))}
+            <div style={{ minWidth: 0 }}>
+              <div className="start-freestyle-title" style={{ fontWeight: 800, fontSize: 15.5 }}>{t('Start Empty Workout')}</div>
+              <div className="dim small" style={{ marginTop: 2 }}>{t('Freestyle workout — pick exercises as you go')}</div>
+            </div>
+          </div>
+          <span className="gm-freestyle-go">
+            <Icon name="chevronRight" />
+          </span>
         </div>
       </div>
+    </Rise>
+
+    {/* Quick Action Chips */}
+    <Rise index={2}>
+      <div className="row" style={{ gap: 8, margin: '2px 0 18px' }}>
+        <button
+          type="button"
+          className="chip gm-wo-chip"
+          style={{ flex: 1, padding: '10px 12px', justifyContent: 'center', fontSize: 12.5, fontWeight: 800 }}
+          onClick={() => nav('/train')}
+        >
+          <Icon name="target" style={{ marginRight: 5, color: 'var(--acc)' }} />
+          {t('Body Map')}
+        </button>
+        <button
+          type="button"
+          className="chip gm-wo-chip"
+          style={{ flex: 1, padding: '10px 12px', justifyContent: 'center', fontSize: 12.5, fontWeight: 700 }}
+          onClick={() => {
+            const r = { id: uid(), name: t('New routine'), emoji: DEFAULT_GLYPH, ex: [] }
+            update(s => { (s.routines = s.routines || []).push(r) })
+            nav('/plan/r/' + r.id)
+          }}
+        >
+          <Icon name="plus" style={{ marginRight: 5 }} />
+          {t('New routine')}
+        </button>
+        <button
+          type="button"
+          className="chip gm-wo-chip"
+          style={{ flex: 1, padding: '10px 12px', justifyContent: 'center', fontSize: 12.5, fontWeight: 700 }}
+          onClick={() => nav('/plan')}
+        >
+          <Icon name="calendar" style={{ marginRight: 5 }} />
+          {t('Weekly plan')}
+        </button>
+      </div>
+    </Rise>
+
+    {/* My Routines — GymMane 3D Stacked RoutineFolder Grid */}
+    {others.length > 0 && (
+      <Rise index={3}>
+        <div style={{ marginBottom: 18 }}>
+          <div className="row between" style={{ margin: '0 4px 12px', alignItems: 'center' }}>
+            <h4 className="sec gm-micro" style={{ margin: 0 }}>{t('My routines ({0})', others.length)}</h4>
+            <button type="button" className="gm-see-all" onClick={() => nav('/plan')}>{t('Manage')}</button>
+          </div>
+          <div className="gm-rfolder-grid">
+            {others.map(r => (
+              <RoutineFolder
+                key={r.id}
+                routine={r}
+                onOpen={() => nav('/plan/r/' + r.id)}
+                onStart={() => startFlow(r.id)}
+                onMenu={ev => handleRoutineMenu(r, ev)}
+              />
+            ))}
+          </div>
+        </div>
+      </Rise>
     )}
 
     {!routines.length && (
-      <div className="card empty" style={{ padding: 20 }}>
-        <div className="ico"><Icon name="calendar" /></div>
-        <div style={{ fontWeight: 600, marginTop: 6 }}>{t('No routines yet')}</div>
-        <div className="dim small" style={{ marginTop: 2, marginBottom: 12 }}>{t('Create reusable workout templates or build a weekly split.')}</div>
-        <Button variant="primary" onClick={() => nav('/plan')}>{t('Build a plan first')}</Button>
-      </div>
+      <Rise index={3}>
+        <div className="card empty" style={{ padding: 24, textAlign: 'center' }}>
+          <div className="ico"><Icon name="calendar" /></div>
+          <div style={{ fontWeight: 800, fontSize: 16, marginTop: 8 }}>{t('No routines yet')}</div>
+          <div className="dim small" style={{ marginTop: 4, marginBottom: 14 }}>{t('Create reusable workout templates or build a weekly split.')}</div>
+          <Button variant="primary" onClick={() => nav('/plan')}>{t('Build a plan first')}</Button>
+        </div>
+      </Rise>
     )}
   </div>
 }
@@ -447,34 +469,55 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
     </div>
   )
   return <>
-    <Media ex={ex} key={entry.id} compact={compact} minimizable />
-    <div className="row between" style={{ marginBottom: 6 }}>
-      <div style={{ fontSize: compact ? 17 : 20, fontWeight: 600, letterSpacing: '-.02em', textTransform: 'capitalize', lineHeight: 1.2 }}>{exerciseNameFor(ex)}</div>
-      <div className="row" style={{ gap: 4, flex: 'none' }}>
-        <button className="iconbtn" aria-label={t('Exercise History & PRs')} title={t('Exercise History & PRs')}
-          onClick={() => exerciseHistorySheet(entry.id)}><Icon name="history" /></button>
-        {entry.note && <button className="iconbtn" aria-label={t('Note')} title={t('Note')} style={{ color: 'var(--acc)' }}
-          onClick={() => exerciseNoteSheet(entryIdx)}><Icon name="pencil" /></button>}
-        <button className="iconbtn" aria-label={t('More')} title={t('More')} onClick={openMore}><Icon name="more" /></button>
+    <div className="gm-ex-hdr">
+      <div className="row between" style={{ alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+        <div className="gm-ex-title" style={{ fontSize: compact ? 18 : 24 }}>{exerciseNameFor(ex)}</div>
+        <div className="row" style={{ gap: 6, flex: 'none' }}>
+          <button type="button" className="iconbtn gm-ex-ic" aria-label={t('Exercise History & PRs')} title={t('Exercise History & PRs')}
+            onClick={() => exerciseHistorySheet(entry.id)}><Icon name="history" /></button>
+          {entry.note && <button type="button" className="iconbtn gm-ex-ic" aria-label={t('Note')} title={t('Note')} style={{ color: 'var(--acc)' }}
+            onClick={() => exerciseNoteSheet(entryIdx)}><Icon name="pencil" /></button>}
+          <button type="button" className="iconbtn gm-ex-ic" aria-label={t('More')} title={t('More')} onClick={openMore}><Icon name="more" /></button>
+        </div>
       </div>
+
+      <div className="row" style={{ gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+        {cardio && <span className="gm-ex-pill acc"><Icon name="figureRun" />{t('Cardio')}</span>}
+        {!cardio && !timed && isPerSide(cfg) && <span className="gm-ex-pill acc nocap"><Icon name="shuffle" />{t('{0} per side', fmtNum(sideReps(entry.sets.find(s => !s.done)?.r ?? entry.sets[0]?.r)))}</span>}
+        {(ex.tg || ex.bp) && <span className="gm-ex-pill">{t(ex.tg || ex.bp)}</span>}
+        {onSwap && !compact && (
+          <button type="button" className="gm-ex-pill swap" disabled={busy} onClick={onSwap} aria-label={t('Swap')}>
+            <Icon name="shuffle" />{t('Swap')}
+          </button>
+        )}
+        {ex.eq && <span className="gm-ex-pill muted">{t(ex.eq)}</span>}
+        {best > 0 && <span className="gm-ex-pill nocap best">{t('Best:')} {fmtNum(best)} {S.unit}</span>}
+      </div>
+
+      {wc.pairButtons && !compact && (onPairPrev || onPairNext) && <div className="row" style={{ gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+        {onPairPrev && <Button size="xs" variant="tinted" icon="link" title={t('Make superset with previous')} onClick={onPairPrev}>{t('Make superset with previous')}</Button>}
+        {onPairNext && <Button size="xs" variant="tinted" icon="link" title={t('Make superset with next')} onClick={onPairNext}>{t('Make superset with next')}</Button>}
+      </div>}
+
+      {last && (
+        <button type="button" className="gm-last-cue" onClick={() => exerciseHistorySheet(entry.id)}>
+          <span className="gm-cue-tag">{t('LAST')}</span>
+          <span className="gm-cue-val">{last.sets.map(s => setLabel(entry.id, s, last.target)).join(' · ')}</span>
+          <span className="gm-cue-date">{fmtDate(last.d, true)}</span>
+        </button>
+      )}
+
+      {guidance && (
+        <button type="button" className={'gm-next-cue progline' + (plan.kind === 'deload' ? ' warn' : '')}
+          aria-label={t('Open progression settings')} onClick={onProgressionSettings}>
+          <span className="gm-cue-tag acc">{plan.kind === 'deload' ? t('DELOAD') : t('NEXT')}</span>
+          <span className="gm-cue-val"><strong>{t(guidance.policyLabel)}</strong> · {t(...guidance.why)}</span>
+        </button>
+      )}
     </div>
-    {wc.pairButtons && !compact && (onPairPrev || onPairNext) && <div className="row" style={{ gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-      {onPairPrev && <Button size="xs" variant="tinted" icon="link" title={t('Make superset with previous')} onClick={onPairPrev}>{t('Make superset with previous')}</Button>}
-      {onPairNext && <Button size="xs" variant="tinted" icon="link" title={t('Make superset with next')} onClick={onPairNext}>{t('Make superset with next')}</Button>}
-    </div>}
-    <div className="row" style={{ gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-      {cardio && <span className="tag acc"><Icon name="figureRun" />{t('Cardio')}</span>}
-      {/* You log the total; this is the split, so the set in front of you is unambiguous
-          without the rep count having to mean two different things (issue #31). */}
-      {!cardio && !timed && isPerSide(cfg) && <span className="tag acc nocap"><Icon name="shuffle" />{t('{0} per side', fmtNum(sideReps(entry.sets.find(s => !s.done)?.r ?? entry.sets[0]?.r)))}</span>}
-      {(ex.tg || ex.bp) && <span className="tag">{t(ex.tg || ex.bp)}</span>}
-      {ex.eq && <span className="tag">{t(ex.eq)}</span>}
-      {best > 0 && <span className="tag nocap">{t('Best:')} {fmtNum(best)} {S.unit}</span>}
-    </div>
-    {/* Three notes can apply to one exercise and they are not interchangeable, so each keeps its
-        own line and its own icon: the plan's instruction (cfg.note, from the routine), the
-        standing fact about the movement (exNotes), and the message you pinned to yourself last
-        session. Today's own note is edited through the button in the header and shown last. */}
+
+    <Media ex={ex} key={entry.id} compact={compact} minimizable />
+
     {cfg.note && <div className="exnote">{cfg.note}</div>}
     {standingNote && <div className="exnote"><Icon name="info" style={{ fontSize: 13, marginRight: 5, verticalAlign: '-2px' }} />{standingNote}</div>}
     {pinnedNote && <div className="exnote" style={{ color: 'var(--yellow)' }}>
@@ -482,11 +525,6 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
       {t('From {0}:', fmtDate(pinnedNote.d, true))} {pinnedNote.note}
     </div>}
     {entry.note && <div className="exnote">{entry.note}</div>}
-    {last && <div className="small dim" style={{ marginBottom: 4 }}>{t('Last time')} ({fmtDate(last.d)}): {last.sets.map(s => setLabel(entry.id, s, last.target)).join(', ')}</div>}
-    {/* Bar + plates for barbell work: what to load per side for the set in front of you
-        (first undone set; the heaviest row once everything is checked). The logged number
-        stays the total — this chip is the split, and tapping it edits the bar's own weight
-        (S.barWeights, per exercise) mid-workout. Weight ≤ bar leaves just the bar. */}
     {barInfo && <button type="button" className="plate-calc-trigger"
       onClick={() => plateCalculatorSheet(ex, barInfo.refW, nw => {
         const targetIdx = entry.sets.findIndex(s => !s.done)
@@ -502,20 +540,6 @@ function ExerciseBlock({ entryIdx, compact, onToggle, onField, onAddSet, onRemov
       </span>
       <span className="plate-trigger-badge"><Icon name="plate" style={{ fontSize: 11, marginRight: 4 }} />{t('Plates')}</span>
     </button>}
-    {guidance && <button type="button" className={'progline' + (plan.kind === 'deload' ? ' warn' : '')}
-      aria-label={t('Open progression settings')} onClick={onProgressionSettings}>
-      <Icon name={plan.kind === 'up' ? 'arrowUp' : plan.kind === 'deload' ? 'arrowDown' : 'lightbulb'} />
-      <span><strong>{t(guidance.policyLabel)}</strong> · {t(...guidance.why)}</span>
-    </button>}
-    {mode === 'reps' && onAutoWarmups && !entry.sets.some(isWarmupRow) && (
-      <div className="row between" style={{ margin: '8px 2px 4px', alignItems: 'center' }}>
-        <span className="dim small">{t('Need warm-up sets?')}</span>
-        <button type="button" className="chip" style={{ fontSize: 12, padding: '4px 8px', fontWeight: 600, color: 'var(--orange)', borderColor: 'var(--orange)' }} onClick={onAutoWarmups}>
-          <Icon name="flame" style={{ marginRight: 4 }} />
-          <span>{t('Auto warm-ups')}</span>
-        </button>
-      </div>
-    )}
     <div className="card set-table-card" style={{ marginTop: 10, marginBottom: 0 }}>
       {/* the header carries the same eff3 sizing as the rows, or the labels drift off their columns */}
       <div className={'sethead' + (col3 ? ' eff3' : '')}>
@@ -750,6 +774,14 @@ function ActiveWorkout() {
   const wc = workoutControls(S)
   const [prCelebration, setPrCelebration] = useState(null)
   const [locked, setLocked] = useState(false)
+  const [stageDir, setStageDir] = useState(1)
+  const prevCurRef = useRef(cur)
+  useEffect(() => {
+    if (cur !== prevCurRef.current) {
+      setStageDir(cur > prevCurRef.current ? 1 : -1)
+      prevCurRef.current = cur
+    }
+  }, [cur])
   const restTimer = useUI(s => s.timer)
   const addRest = useUI(s => s.addRest)
   const toggleDeload = () => {
@@ -831,15 +863,17 @@ function ActiveWorkout() {
     if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [cur, isSuperset, listMode, A.entries.length])
 
-  // Prefetch workout media for current and upcoming exercises so transitions are instantaneous
+  // Prefetch GymMane vector art & fallback media for current and upcoming exercises
   useEffect(() => {
-    if (!A?.entries?.length || typeof Image === 'undefined') return
+    if (!A?.entries?.length) return
     const indices = [cur, cur + 1, cur + 2].filter(i => i >= 0 && i < A.entries.length)
     indices.forEach(idx => {
       const entry = A.entries[idx]
       if (!entry?.id) return
       const ex = exOr(entry.id)
-      if (ex?.gif) {
+      if (!ex) return
+      prefetchExerciseArt(ex)
+      if (ex.gif && typeof Image !== 'undefined') {
         const urls = mediaUrlsFor(ex, 'gif')
         if (urls[0]) {
           const img = new Image()
@@ -1341,75 +1375,139 @@ function ActiveWorkout() {
     else exConfigSheet(ex, null, commit, null, routine, seed)
   })
 
-  return <div className={'narrow' + (S.workoutDensity === 'compact' ? ' workout-compact' : '')}>
-    {/* In list mode the whole session scrolls under the header, so the header (name, clock,
-        set counter, discard/finish, progress) stays pinned — the one thing you want in view
-        while you are somewhere in the middle of a long stack. Cards mode never scrolls far. */}
-    <div className="whdr stick">
-    <div className="hdr workout-top-bar">
-      <button className="iconbtn" aria-label={t('Discard')} onClick={() => confirmSheet({ title: t('Discard workout?'), message: t('The sets you logged in this session will be lost.'), confirmText: t('Discard'), danger: true, onConfirm: () => { update(s => { s.active = null }); stopRest(); stopWork(); nav('/home') } })}><Icon name="xmark" /></button>
-      <div className="workout-title-center">
-        <div className="workout-workout-name">
-          {!A.backfill && <span className="live-workout-pulse" />}
-          <span>{A.name}</span>
+  const openOverviewSheet = () => {
+    useUI.getState().openSheet(close => (
+      <div style={{ paddingBottom: 12 }}>
+        <div className="row between" style={{ marginBottom: 14 }}>
+          <div>
+            <div className="gm-micro" style={{ color: 'var(--gm-sage)' }}>{t('SESSION OVERVIEW')}</div>
+            <h3 style={{ margin: '2px 0 0', fontSize: 20, fontWeight: 900 }}>{A.name}</h3>
+          </div>
+          <span className="dim small" style={{ fontWeight: 800 }}>{done}/{total} {t('sets')}</span>
         </div>
-        <div className="sub workout-stats-chips">
-          <span className="h-stat"><Icon name="clock" style={{ fontSize: 10 }} /> {A.backfill ? fmtDate(A.d, true) : <Elapsed start={A.start} />}</span>
-          <span className="h-stat-sep">·</span>
-          <span className="h-stat"><Icon name="dumbbell" style={{ fontSize: 10 }} /> {fmtNum(liveVolume)} {S.unit}</span>
-          <span className="h-stat-sep">·</span>
-          <span className="h-stat"><Icon name="check" style={{ fontSize: 10 }} /> {done}/{total}</span>
-          <span className="h-stat-sep">·</span>
-          <HeartRateBadge />
-          <SyncStatusBadge />
+        <div className="list">
+          {A.entries.map((entry, idx) => {
+            const def = exOr(entry.id)
+            const eDone = (entry.sets || []).filter(s => s.done).length
+            const eTot = (entry.sets || []).length
+            const isComplete = eTot > 0 && eDone === eTot
+            const isCurrent = idx === cur
+            return (
+              <div
+                key={idx}
+                className="item"
+                style={isCurrent ? { borderColor: 'var(--acc)', background: 'color-mix(in srgb, var(--acc) 10%, var(--surface))' } : undefined}
+                onClick={() => { focusUnit(idx); close() }}
+              >
+                <span className="gm-ov-num" style={isComplete ? { background: 'var(--gm-sage)', color: '#0A0A0A' } : isCurrent ? { background: 'var(--acc)', color: 'var(--on-acc)' } : undefined}>
+                  {isComplete ? <Icon name="check" style={{ fontSize: 12 }} /> : idx + 1}
+                </span>
+                <div className="grow">
+                  <div className="tt capitalize">{exerciseNameFor(def)}</div>
+                  <div className="ss">{eDone}/{eTot} {t('sets')}</div>
+                </div>
+                {isCurrent && <span className="tag acc">{t('Current')}</span>}
+                <Icon name="chevronRight" className="chev" />
+              </div>
+            )
+          })}
+        </div>
+        <div style={{ height: 10 }} />
+        <Button variant="primary" icon="plus" onClick={() => { close(); openAddExercise() }}>{t('Add exercise')}</Button>
+      </div>
+    ))
+  }
+
+  const currentMuscles = (() => {
+    const out = new Set()
+    for (const idx of unit) {
+      const def = exOr(A.entries[idx]?.id)
+      if (def) for (const k of Object.keys(musclesOf(def))) out.add(k)
+    }
+    return Array.from(out)
+  })()
+
+  return <div className={'narrow gm-active-workout' + (S.workoutDensity === 'compact' ? ' workout-compact' : '')}>
+    {/* GymMane Live Top Bar + Segmented Progress Strip */}
+    <div className="whdr stick gm-live-hdr">
+      <div className="gm-live-bar workout-top-bar">
+        <button type="button" className="iconbtn gm-live-ic" aria-label={t('Discard')} onClick={() => confirmSheet({ title: t('Discard workout?'), message: t('The sets you logged in this session will be lost.'), confirmText: t('Discard'), danger: true, onConfirm: () => { update(s => { s.active = null }); stopRest(); stopWork(); nav('/home') } })}>
+          <Icon name="xmark" />
+        </button>
+
+        <div className="gm-live-center">
+          <div className="gm-live-status">
+            {!A.backfill && <span className="gm-live-dot" aria-hidden="true" />}
+            <span className="gm-live-tag">{A.backfill ? fmtDate(A.d, true) : t('IN PROGRESS')}</span>
+            {!A.backfill && <span className="gm-live-clock"><Elapsed start={A.start} /></span>}
+          </div>
+          <div className="gm-live-name">{A.name}</div>
+        </div>
+
+        <div className="row" style={{ gap: 6, flex: 'none' }}>
+          <button
+            type="button"
+            className="iconbtn gm-live-ic"
+            aria-label={locked ? t('Unlock session') : t('Pocket lock')}
+            title={locked ? t('Unlock session') : t('Pocket lock')}
+            style={locked ? { background: 'var(--acc)', color: 'var(--on-acc)', borderColor: 'transparent' } : undefined}
+            onClick={() => setLocked(v => !v)}
+          >
+            <Icon name="fingerprint" />
+          </button>
+          <button
+            type="button"
+            className="iconbtn gm-live-ic"
+            aria-label={t('Light / deload session')}
+            title={t('Light / deload session')}
+            style={A.deload ? { background: 'var(--gm-sage-soft)', color: 'var(--gm-sage)', borderColor: 'var(--gm-sage)' } : undefined}
+            onClick={toggleDeload}
+          >
+            <Icon name="feather" />
+          </button>
+          <button type="button" className="btn primary sm workout-finish-btn gm-finish-pill" aria-label={t('Finish')} onClick={finishWorkout}>
+            <Icon name="check" />
+            <span>{t('Finish')}</span>
+          </button>
         </div>
       </div>
-      <div className="row" style={{ gap: 6 }}>
-        <button
-          type="button"
-          className="iconbtn"
-          aria-label={locked ? t('Unlock session') : t('Pocket lock')}
-          title={locked ? t('Unlock session') : t('Pocket lock')}
-          style={locked ? { background: 'var(--acc)', color: 'var(--on-acc)' } : undefined}
-          onClick={() => setLocked(v => !v)}
-        >
-          <Icon name="fingerprint" />
-        </button>
-        <button
-          type="button"
-          className="iconbtn"
-          aria-label={t('Light / deload session')}
-          title={t('Light / deload session')}
-          style={A.deload ? { background: 'var(--gm-sage-soft)', color: 'var(--gm-sage)' } : undefined}
-          onClick={toggleDeload}
-        >
-          <Icon name="feather" />
-        </button>
-        <button className="btn primary sm workout-finish-btn" aria-label={t('Finish')} onClick={finishWorkout}>
-          <Icon name="check" />
-          <span>{t('Finish')}</span>
-        </button>
-      </div>
+
+      {/* GymMane _progressStrip */}
+      {A.entries.length > 0 && (
+        <div className="gm-progress-strip">
+          <div className="gm-progress-meta">
+            <span className="gm-micro" style={{ color: 'var(--label-2)' }}>
+              {isSuperset ? t('Superset {0} / {1}', unitIdx + 1, units.length) : t('Exercise {0} / {1}', unitIdx + 1, units.length)}
+            </span>
+            <span className="dim small" style={{ fontWeight: 700 }}>
+              · {fmtNum(liveVolume)} {S.unit} · {done}/{total}
+            </span>
+            <span style={{ flex: 1 }} />
+            {currentMuscles.length > 0 && <MiniBody muscles={currentMuscles} height={22} />}
+            <button type="button" className="gm-all-btn" onClick={openOverviewSheet} aria-label={t('All exercises')}>
+              <Icon name="list" style={{ fontSize: 12 }} />
+              <span>{t('All')}</span>
+            </button>
+          </div>
+          <div className="gm-ex-progress" aria-label={t('Exercise progress')}>
+            {A.entries.map((entry, idx) => {
+              const eDone = (entry.sets || []).filter(s => s.done).length
+              const eTot = Math.max(1, (entry.sets || []).length)
+              return (
+                <div
+                  key={idx}
+                  className={'gm-ex-seg' + (idx === cur ? ' cur' : '')}
+                  onClick={() => !locked && focusUnit(idx)}
+                >
+                  <div className="gm-ex-seg-fill" style={{ width: `${Math.round((eDone / eTot) * 100)}%` }} />
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
-    <div className="wprog"><i style={{ width: (total ? done / total * 100 : 0) + '%' }} /></div>
-    {A.entries.length > 1 && (
-      <div className="gm-ex-progress" aria-label={t('Exercise progress')}>
-        {A.entries.map((entry, idx) => {
-          const eDone = (entry.sets || []).filter(s => s.done).length
-          const eTot = Math.max(1, (entry.sets || []).length)
-          return (
-            <div
-              key={idx}
-              className={'gm-ex-seg' + (idx === cur ? ' cur' : '')}
-              onClick={() => !locked && focusUnit(idx)}
-            >
-              <div className="gm-ex-seg-fill" style={{ width: `${Math.round((eDone / eTot) * 100)}%` }} />
-            </div>
-          )
-        })}
-      </div>
-    )}
-    </div>
+
     {locked && (
       <div className="card" style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderColor: 'var(--acc)', marginBottom: 10 }}>
         <span className="row small" style={{ gap: 8, fontWeight: 700 }}>
@@ -1429,18 +1527,20 @@ function ActiveWorkout() {
       </div>
     )}
     {restTimer && !listMode && (
-      <GymTimerPanel
-        label={t('RESTING')}
-        remaining={restTimer.left}
-        total={restTimer.total}
-        elapsed={<Elapsed start={A.start} />}
-        setsLabel={`${done}/${total}`}
-        hint={t('TAP TO SKIP')}
-        color={restTimer.left <= 5 ? 'var(--gm-danger)' : 'var(--gm-sage)'}
-        onTap={stopRest}
-        onMinus={() => addRest(-15)}
-        onPlus={() => addRest(15)}
-      />
+      <div className="gm-timer-reveal">
+        <GymTimerPanel
+          label={t('RESTING')}
+          remaining={restTimer.left}
+          total={restTimer.total}
+          elapsed={<Elapsed start={A.start} />}
+          setsLabel={`${done}/${total}`}
+          hint={t('TAP TO SKIP')}
+          color={restTimer.left <= 5 ? 'var(--gm-danger)' : 'var(--gm-sage)'}
+          onTap={stopRest}
+          onMinus={() => addRest(-15)}
+          onPlus={() => addRest(15)}
+        />
+      </div>
     )}
     {prCelebration && (
       <div className="golden-pr-banner animate-pop" role="alert" aria-live="polite">
@@ -1553,7 +1653,6 @@ function ActiveWorkout() {
         })}
       </div>
     ) : <>
-      <div className="muted small" style={{ marginBottom: 6 }}>{isSuperset ? t('Superset {0} / {1}', unitIdx + 1, units.length) : t('Exercise {0} / {1}', unitIdx + 1, units.length)}</div>
       <div className="workout-swipe-surface" data-testid="workout-swipe-surface"
         onPointerDown={onSwipePointerDown}
         onPointerUp={event => finishSwipe(event, true)}
@@ -1561,6 +1660,7 @@ function ActiveWorkout() {
         onLostPointerCapture={event => {
           if (swipe.current?.id === event.pointerId) swipe.current = null
         }}>
+      <div key={`stage-${unit.join('-')}`} className={stageDir >= 0 ? 'gm-stage-next' : 'gm-stage-prev'}>
       {isSuperset ? (
         <div className="ss-card">
           <div className="ss-hd" style={{ justifyContent: 'space-between' }}>
@@ -1581,6 +1681,7 @@ function ActiveWorkout() {
           <ExerciseBlock entryIdx={cur} onPairPrev={onPairPrev} onPairNext={onPairNext} {...blockProps(cur)} />
         </div>
       )}
+      </div>
       </div>
     </>) : (
       <div className="card workout-empty-card" style={{ textAlign: 'center', padding: '36px 20px', margin: '14px 0' }}>
@@ -1649,6 +1750,22 @@ function ActiveWorkout() {
           {allDone ? t('Finish workout') : t('Finish workout early · {0} exercises', exDone + '/' + A.entries.length)}
         </button>
       })()}
+      {restTimer && listMode && (
+        <div className="gm-rest-dock" onClick={stopRest} role="button" tabIndex={0}>
+          <span className="gm-rest-dock-dot" style={{ background: restTimer.left <= 5 ? 'var(--gm-danger)' : 'var(--gm-sage)' }} />
+          <div style={{ flex: 1 }}>
+            <div className="gm-micro" style={{ fontSize: 9.5, color: restTimer.left <= 5 ? 'var(--gm-danger)' : 'var(--gm-sage)' }}>{t('RESTING')}</div>
+            <RollingText
+              value={`${Math.floor(Math.max(0, restTimer.left) / 60)}:${String(Math.max(0, restTimer.left) % 60).padStart(2, '0')}`}
+              countsDown={true}
+              style={{ fontSize: 20, fontWeight: 900 }}
+            />
+          </div>
+          <button type="button" className="gm-timer-nudge" style={{ width: 44, height: 30, margin: 0 }} onClick={e => { e.stopPropagation(); addRest(-15) }}>−15</button>
+          <button type="button" className="gm-timer-nudge" style={{ width: 44, height: 30, margin: 0 }} onClick={e => { e.stopPropagation(); addRest(15) }}>+15</button>
+          <button type="button" className="gm-see-all" style={{ background: 'var(--ember)', color: 'var(--on-ember)' }} onClick={e => { e.stopPropagation(); stopRest() }}>{t('Skip')}</button>
+        </div>
+      )}
       <div style={{ height: 40 }} />
     </>}
   </div>
